@@ -1,0 +1,3 @@
+D:/Projects/TyrexCAD/out/build/x64-debug/CMakeFiles/TyrexCAD.dir
+D:/Projects/TyrexCAD/out/build/x64-debug/CMakeFiles/edit_cache.dir
+D:/Projects/TyrexCAD/out/build/x64-debug/CMakeFiles/rebuild_cache.dir
