@@ -16,7 +16,6 @@ C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtens
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/CMakeGenericSystem.cmake
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/CMakeInitializeConfigs.cmake
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/CMakeLanguageInformation.cmake
-C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/CMakeParseArguments.cmake
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/CMakeParseImplicitIncludeInfo.cmake
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/CMakeParseImplicitLinkInfo.cmake
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/CMakeParseLibraryArchitecture.cmake
@@ -71,9 +70,6 @@ C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtens
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/Compiler/XLClang-CXX-DetermineCompiler.cmake
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/Compiler/zOS-CXX-DetermineCompiler.cmake
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/CompilerId/VS-10.vcxproj.in
-C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/FindOpenGL.cmake
-C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/FindPackageHandleStandardArgs.cmake
-C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/FindPackageMessage.cmake
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/Internal/CMakeDetermineLinkerId.cmake
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/Internal/FeatureTesting.cmake
 C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.30/Modules/Platform/Windows-Determine-CXX.cmake
@@ -86,38 +82,4 @@ D:/Projects/TyrexCAD/CMakeLists.txt
 D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/3.30.5-msvc23/CMakeCXXCompiler.cmake
 D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/3.30.5-msvc23/CMakeRCCompiler.cmake
 D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/3.30.5-msvc23/CMakeSystem.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5/Qt5Config.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5/Qt5ConfigVersion.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5/Qt5ModuleLocation.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core/Qt5CoreConfig.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core/Qt5CoreConfigExtras.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core/Qt5CoreConfigExtrasMkspecDir.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core/Qt5CoreConfigVersion.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core/Qt5CoreMacros.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5GuiConfig.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5GuiConfigExtras.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5GuiConfigVersion.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QGifPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QICNSPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QICOPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QJpegPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QMinimalIntegrationPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QOffscreenIntegrationPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QSvgIconPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QSvgPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QTgaPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QTiffPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QTuioTouchPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QWbmpPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QWebpPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QWindowsDirect2DIntegrationPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QWindowsIntegrationPlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QXdgDesktopPortalThemePlugin.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5OpenGL/Qt5OpenGLConfig.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5OpenGL/Qt5OpenGLConfigVersion.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets/Qt5WidgetsConfig.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets/Qt5WidgetsConfigExtras.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets/Qt5WidgetsConfigVersion.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets/Qt5WidgetsMacros.cmake
-D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets/Qt5Widgets_QWindowsVistaStylePlugin.cmake
 D:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake
