@@ -11,13 +11,13 @@
 
 #include "TyrexCore/TyrexCommand.h"
 #include <gp_Pnt2d.hxx>
+#include <AIS_Shape.hxx>
 #include <memory>
 
 namespace TyrexCAD {
 
     // Forward declarations
     class TyrexSketchManager;
-    class TyrexSketchCircleEntity;
 
     /**
      * @brief Interactive command for creating circles in sketch mode
@@ -51,7 +51,7 @@ namespace TyrexCAD {
          * @param method Method for defining the circle
          */
         explicit TyrexSketchCircleCommand(TyrexSketchManager* sketchManager,
-                                         CircleDefinitionMethod method = CircleDefinitionMethod::CenterRadius);
+            CircleDefinitionMethod method = CircleDefinitionMethod::CenterRadius);
 
         /**
          * @brief Destructor - cleans up any preview objects
@@ -129,7 +129,7 @@ namespace TyrexCAD {
         gp_Pnt2d m_radiusPoint;                      ///< Point defining the radius
         double m_minimumRadius;                      ///< Minimum allowed radius
 
-        std::shared_ptr<TyrexSketchCircleEntity> m_previewCircle;  ///< Preview circle entity
+        Handle(AIS_Shape) m_previewShape;            ///< Real-time preview shape
 
         /**
          * @brief Create the final circle entity and add it to the sketch manager
@@ -144,9 +144,9 @@ namespace TyrexCAD {
         void updatePreview(const gp_Pnt2d& currentPoint);
 
         /**
-         * @brief Clean up and remove the preview circle from the display
+         * @brief Remove the current preview shape from display
          */
-        void cleanupPreview();
+        void removePreview();
 
         /**
          * @brief Calculate radius from center and current point

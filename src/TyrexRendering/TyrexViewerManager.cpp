@@ -31,6 +31,7 @@
 #include <GeomAPI_IntCS.hxx>
 #include <Geom_Plane.hxx>
 #include <ElSLib.hxx>
+#include <Graphic3d_Camera.hxx>
 
 // Include Qt headers
 #include <QDebug>
@@ -42,6 +43,7 @@ namespace TyrexCAD {
         : QObject(parent)
         , m_parentWidget(parent)
         , m_interactionManager(nullptr)
+        , m_is2DMode(false)
     {
         initialize();
     }
@@ -108,7 +110,8 @@ namespace TyrexCAD {
 
     void TyrexViewerManager::rotate(int dx, int dy)
     {
-        if (!m_view.IsNull()) {
+        if (!m_view.IsNull() && !m_is2DMode) {
+            // Only allow rotation in 3D mode
             m_view->Rotate(dx, dy);
         }
     }
@@ -206,6 +209,49 @@ namespace TyrexCAD {
         catch (...) {
             qWarning() << "Unknown error in screenToModel conversion";
             return gp_Pnt(0, 0, 0);
+        }
+    }
+
+    void TyrexViewerManager::set2DMode()
+    {
+        if (!m_view.IsNull()) {
+            m_is2DMode = true;
+
+            // Set orthographic projection using camera
+            Handle(Graphic3d_Camera) camera = m_view->Camera();
+            if (!camera.IsNull()) {
+                camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+            }
+
+            // Set top view
+            m_view->SetProj(V3d_Zpos);
+
+            // Fit all
+            m_view->FitAll();
+            m_view->ZFitAll();
+
+            qDebug() << "View set to 2D mode (orthographic projection)";
+        }
+    }
+
+    void TyrexViewerManager::set3DMode()
+    {
+        if (!m_view.IsNull()) {
+            m_is2DMode = false;
+
+            // Set perspective projection using camera
+            Handle(Graphic3d_Camera) camera = m_view->Camera();
+            if (!camera.IsNull()) {
+                camera->SetProjectionType(Graphic3d_Camera::Projection_Perspective);
+            }
+
+            // Set isometric view
+            m_view->SetProj(V3d_XposYnegZpos);
+
+            // Fit all
+            m_view->FitAll();
+
+            qDebug() << "View set to 3D mode (perspective projection)";
         }
     }
 

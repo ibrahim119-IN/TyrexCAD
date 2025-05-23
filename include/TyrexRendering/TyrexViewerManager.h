@@ -139,6 +139,16 @@ namespace TyrexCAD {
          */
         void handleV3d_View(const Handle(V3d_View)& view);
 
+        /**
+         * @brief Set view to 2D mode (orthographic with locked rotation)
+         */
+        void set2DMode();
+
+        /**
+         * @brief Set view to 3D mode (perspective with free rotation)
+         */
+        void set3DMode();
+
     private:
         // OpenCascade components
         Handle(V3d_Viewer) m_viewer;
@@ -150,6 +160,9 @@ namespace TyrexCAD {
 
         // Interaction manager
         TyrexInteractionManager* m_interactionManager;
+
+        // View state
+        bool m_is2DMode;
 
         /**
          * @brief Initialize the viewer components

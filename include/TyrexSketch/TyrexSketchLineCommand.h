@@ -11,13 +11,13 @@
 
 #include "TyrexCore/TyrexCommand.h"
 #include <gp_Pnt2d.hxx>
+#include <AIS_Shape.hxx>
 #include <memory>
 
 namespace TyrexCAD {
 
     // Forward declarations
     class TyrexSketchManager;
-    class TyrexSketchLineEntity;
 
     /**
      * @brief Interactive command for creating lines in sketch mode
@@ -99,6 +99,18 @@ namespace TyrexCAD {
          */
         bool isContinuousMode() const;
 
+        /**
+         * @brief Set minimum line length
+         * @param minLength Minimum length in sketch units
+         */
+        void setMinimumLength(double minLength);
+
+        /**
+         * @brief Get minimum line length
+         * @return Minimum line length
+         */
+        double getMinimumLength() const;
+
     private:
         TyrexSketchManager* m_sketchManager;         ///< Sketch manager reference (not owned)
 
@@ -107,7 +119,8 @@ namespace TyrexCAD {
         gp_Pnt2d m_secondPoint;                      ///< Second point of the line (end)
 
         bool m_continuousMode;                       ///< Continuous line drawing mode
-        std::shared_ptr<TyrexSketchLineEntity> m_previewLine;  ///< Legacy preview line entity
+        double m_minimumLength;                      ///< Minimum allowed line length
+
         Handle(AIS_Shape) m_previewShape;            ///< Real-time preview shape
 
         /**
@@ -128,15 +141,18 @@ namespace TyrexCAD {
         void removePreview();
 
         /**
-         * @brief Clean up and remove all preview objects
-         */
-        void cleanupPreview();
-
-        /**
          * @brief Generate unique ID for the new line
          * @return Unique line ID
          */
         std::string generateLineId() const;
+
+        /**
+         * @brief Validate line parameters
+         * @param start Start point
+         * @param end End point
+         * @return True if line is valid
+         */
+        bool validateLine(const gp_Pnt2d& start, const gp_Pnt2d& end) const;
     };
 
 } // namespace TyrexCAD
