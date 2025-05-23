@@ -36,6 +36,7 @@
 // Include Qt headers
 #include <QDebug>
 #include <QPoint>
+#include <QTimer>
 
 namespace TyrexCAD {
 
@@ -81,60 +82,86 @@ namespace TyrexCAD {
     void TyrexViewerManager::handleResize()
     {
         if (!m_view.IsNull() && m_parentWidget) {
-            m_view->MustBeResized();
-            m_view->Redraw();
+            try {
+                m_view->MustBeResized();
+                m_view->Invalidate();
+                m_view->Redraw();
 
-            // Notify about view change
-            emit viewChanged();
+                // Notify about view change
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during resize:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::fitAll()
     {
         if (!m_view.IsNull()) {
-            m_view->FitAll();
-            m_view->ZFitAll();
+            try {
+                m_view->FitAll();
+                m_view->ZFitAll();
+                m_view->Redraw();
 
-            // Notify about view change
-            emit viewChanged();
+                // Notify about view change
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during fitAll:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::redraw()
     {
         if (!m_view.IsNull()) {
-            m_view->Redraw();
+            try {
+                m_view->Redraw();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during redraw:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::pan(int dx, int dy)
     {
         if (!m_view.IsNull()) {
-            m_view->Pan(dx, dy);
-
-            // Notify about view change
-            emit viewChanged();
+            try {
+                m_view->Pan(dx, dy);
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during pan:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::rotate(int dx, int dy)
     {
         if (!m_view.IsNull() && !m_is2DMode) {
-            // Only allow rotation in 3D mode
-            m_view->Rotate(dx, dy);
-
-            // Notify about view change
-            emit viewChanged();
+            try {
+                // Only allow rotation in 3D mode
+                m_view->Rotate(dx, dy);
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during rotate:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::zoom(double factor)
     {
         if (!m_view.IsNull()) {
-            m_view->SetScale(m_view->Scale() * factor);
-
-            // Notify about view change
-            emit viewChanged();
+            try {
+                m_view->SetScale(m_view->Scale() * factor);
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during zoom:" << ex.GetMessageString();
+            }
         }
     }
 
@@ -144,8 +171,13 @@ namespace TyrexCAD {
             return;
         }
 
-        // Convert screen position to view space and update dynamic highlight
-        m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);
+        try {
+            // Convert screen position to view space and update dynamic highlight
+            m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error during highlight:" << ex.GetMessageString();
+        }
     }
 
     void TyrexViewerManager::selectEntityAt(const QPoint& position)
@@ -154,9 +186,14 @@ namespace TyrexCAD {
             return;
         }
 
-        // Perform selection using the correct overload of Select  
-        m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);
-        m_context->Select(Standard_True);
+        try {
+            // Perform selection using the correct overload of Select  
+            m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);
+            m_context->Select(Standard_True);
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error during selection:" << ex.GetMessageString();
+        }
     }
 
     gp_Pnt TyrexViewerManager::screenToModel(const QPoint& screenPos) const
@@ -230,49 +267,61 @@ namespace TyrexCAD {
     void TyrexViewerManager::set2DMode()
     {
         if (!m_view.IsNull()) {
-            m_is2DMode = true;
+            try {
+                m_is2DMode = true;
 
-            // Set orthographic projection using camera
-            Handle(Graphic3d_Camera) camera = m_view->Camera();
-            if (!camera.IsNull()) {
-                camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+                // Set orthographic projection using camera
+                Handle(Graphic3d_Camera) camera = m_view->Camera();
+                if (!camera.IsNull()) {
+                    camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+                }
+
+                // Set top view
+                m_view->SetProj(V3d_Zpos);
+
+                // Fit all
+                m_view->FitAll();
+                m_view->ZFitAll();
+                m_view->Redraw();
+
+                qDebug() << "View set to 2D mode (orthographic projection)";
+
+                // Notify about view change
+                emit viewChanged();
             }
-
-            // Set top view
-            m_view->SetProj(V3d_Zpos);
-
-            // Fit all
-            m_view->FitAll();
-            m_view->ZFitAll();
-
-            qDebug() << "View set to 2D mode (orthographic projection)";
-
-            // Notify about view change
-            emit viewChanged();
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error setting 2D mode:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::set3DMode()
     {
         if (!m_view.IsNull()) {
-            m_is2DMode = false;
+            try {
+                m_is2DMode = false;
 
-            // Set perspective projection using camera
-            Handle(Graphic3d_Camera) camera = m_view->Camera();
-            if (!camera.IsNull()) {
-                camera->SetProjectionType(Graphic3d_Camera::Projection_Perspective);
+                // Set perspective projection using camera
+                Handle(Graphic3d_Camera) camera = m_view->Camera();
+                if (!camera.IsNull()) {
+                    camera->SetProjectionType(Graphic3d_Camera::Projection_Perspective);
+                }
+
+                // Set isometric view
+                m_view->SetProj(V3d_XposYnegZpos);
+
+                // Fit all
+                m_view->FitAll();
+                m_view->Redraw();
+
+                qDebug() << "View set to 3D mode (perspective projection)";
+
+                // Notify about view change
+                emit viewChanged();
             }
-
-            // Set isometric view
-            m_view->SetProj(V3d_XposYnegZpos);
-
-            // Fit all
-            m_view->FitAll();
-
-            qDebug() << "View set to 3D mode (perspective projection)";
-
-            // Notify about view change
-            emit viewChanged();
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error setting 3D mode:" << ex.GetMessageString();
+            }
         }
     }
 
@@ -322,10 +371,31 @@ namespace TyrexCAD {
 
                 // Set default view parameters
                 m_view->SetProj(V3d_XposYnegZpos);  // Isometric view
-                m_view->TriedronDisplay(Aspect_TOTP_LEFT_LOWER, Quantity_NOC_WHITE, 0.1);
+                m_view->TriedronDisplay(Aspect_TOTP_LEFT_LOWER, Quantity_NOC_WHITE, 0.08);
+
+                // Important: Enable depth buffer and shading
+                m_view->ChangeRenderingParams().Method = Graphic3d_RM_RASTERIZATION;
+                m_view->ChangeRenderingParams().IsAntialiasingEnabled = Standard_True;
+                m_view->ChangeRenderingParams().NbMsaaSamples = 4;
 
                 // Set up automatic updates
-                m_view->SetImmediateUpdate(Standard_False);
+                m_view->SetImmediateUpdate(Standard_True);
+
+                // Force initial redraw after a short delay
+                QTimer::singleShot(100, this, [this]() {
+                    if (!m_view.IsNull()) {
+                        try {
+                            m_view->MustBeResized();
+                            m_view->FitAll();
+                            m_view->ZFitAll();
+                            m_view->Redraw();
+                            m_view->Update();
+                        }
+                        catch (...) {
+                            // Ignore errors during initial setup
+                        }
+                    }
+                    });
             }
 
             qDebug() << "TyrexViewerManager initialized successfully";

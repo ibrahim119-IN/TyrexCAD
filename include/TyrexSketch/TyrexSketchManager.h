@@ -28,6 +28,7 @@ namespace TyrexCAD {
     // Forward declarations
     class TyrexSketchEntity;
     class TyrexViewerManager;
+    class TyrexCanvasOverlay;
 
     /**
      * @brief Manages the interactive parametric sketching environment
@@ -232,6 +233,31 @@ namespace TyrexCAD {
          */
         Handle(AIS_InteractiveContext) context() const;
 
+        /**
+         * @brief Get the canvas overlay system
+         * @return Pointer to canvas overlay
+         */
+        TyrexCanvasOverlay* canvasOverlay() const;
+
+        /**
+         * @brief Set grid visibility
+         * @param visible True to show grid
+         */
+        void setGridVisible(bool visible);
+
+        /**
+         * @brief Set axes visibility
+         * @param visible True to show axes
+         */
+        void setAxesVisible(bool visible);
+
+        /**
+         * @brief Snap point to grid
+         * @param point Input point
+         * @return Snapped point if grid is active
+         */
+        gp_Pnt2d snapToGrid(const gp_Pnt2d& point) const;
+
     signals:
         /**
          * @brief Emitted when a sketch entity is selected
@@ -259,30 +285,6 @@ namespace TyrexCAD {
          * @brief Emitted when exiting sketch mode
          */
         void sketchModeExited();
-        /**
-        * @brief Get the canvas overlay system
-        * @return Pointer to canvas overlay
-         */
-        TyrexCanvasOverlay* canvasOverlay() const;
-
-        /**
-         * @brief Set grid visibility
-         * @param visible True to show grid
-         */
-        void setGridVisible(bool visible);
-
-        /**
-         * @brief Set axes visibility
-         * @param visible True to show axes
-         */
-        void setAxesVisible(bool visible);
-
-        /**
-         * @brief Snap point to grid
-         * @param point Input point
-         * @return Snapped point if grid is active
-         */
-        gp_Pnt2d snapToGrid(const gp_Pnt2d& point) const;
 
     private:
         // Core components

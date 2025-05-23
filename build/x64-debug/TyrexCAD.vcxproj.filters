@@ -82,6 +82,9 @@
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexViewerManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchCircleCommand.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

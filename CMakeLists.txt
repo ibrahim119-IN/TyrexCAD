@@ -27,10 +27,12 @@ set(OCCT_DLL_DIR "${OCCT_INSTALL_DIR}/win64/vc14/bin")
 file(GLOB_RECURSE TYREXCAD_SOURCES 
     src/*.cpp
     src/TyrexCanvas/TyrexCanvasOverlay.cpp
+    src/TyrexSketch/TyrexSketch.cpp
 )
 file(GLOB_RECURSE TYREXCAD_HEADERS 
     include/*.h
     include/TyrexCanvas/TyrexCanvasOverlay.h
+    include/TyrexSketch/TyrexSketch.h
 )
 
 add_executable(TyrexCAD 
