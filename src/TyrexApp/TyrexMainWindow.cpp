@@ -1,4 +1,11 @@
-﻿#include "TyrexApp/TyrexMainWindow.h"
+﻿/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#include "TyrexApp/TyrexMainWindow.h"
 #include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexCanvas/TyrexModelSpace.h"
 #include "TyrexEntities/TyrexLineEntity.h"
@@ -8,6 +15,15 @@
 #include "TyrexCore/TyrexLineCommand.h"
 #include "TyrexInteraction/TyrexInteractionManager.h"
 #include "TyrexCore/TyrexSelectionMode.h"
+
+ // Include sketch system
+#include "TyrexSketch/TyrexSketch.h"
+
+
+// IMPORTANT: Add this include for TyrexSketchManager 
+#include "TyrexSketch/TyrexSketchManager.h"
+
+// باقي الكود يبقى كما هو...
 
 // OpenCascade
 #include <Standard_Handle.hxx>
@@ -38,8 +54,15 @@ namespace TyrexCAD {
         m_viewerManager(nullptr),
         m_modelSpace(nullptr),
         m_commandManager(nullptr),
+        m_sketchManager(nullptr),
+        m_isInSketchMode(false),
         m_lineAction(nullptr),
-        m_directLineAction(nullptr)
+        m_directLineAction(nullptr),
+        m_testGeometryAction(nullptr),
+        m_sketchModeAction(nullptr),
+        m_exitSketchAction(nullptr),
+        m_sketchLineAction(nullptr),
+        m_sketchCircleAction(nullptr)
     {
         setupUI();
         initializeViewers();
@@ -68,50 +91,93 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::initializeViewers()
     {
+        qDebug() << "=== TyrexMainWindow::initializeViewers() ===";
+
         // Create view widget
         auto viewWidget = new TyrexViewWidget(this);
         setCentralWidget(viewWidget);
+        qDebug() << "View widget created and set as central widget";
 
         // Connect to viewer initialization
         connect(viewWidget, &TyrexViewWidget::viewerInitialized, this, [this, viewWidget]() {
+            qDebug() << "=== MainWindow received viewerInitialized signal ===";
+
             // Store viewer manager from view widget
             m_viewerManager = viewWidget->viewerManager();
 
             if (m_viewerManager) {
+                qDebug() << "Viewer manager retrieved successfully";
+
+                // Verify OpenCascade components
+                Handle(AIS_InteractiveContext) context = m_viewerManager->context();
+                Handle(V3d_View) view = m_viewerManager->view();
+
+                if (context.IsNull()) {
+                    qCritical() << "AIS Context is null!";
+                    return;
+                }
+                if (view.IsNull()) {
+                    qCritical() << "V3d View is null!";
+                    return;
+                }
+                qDebug() << "OpenCascade components verified OK";
+
                 // Create model space with OpenCascade context
-                m_modelSpace = std::make_unique<TyrexModelSpace>(m_viewerManager->context());
+                m_modelSpace = std::make_unique<TyrexModelSpace>(context);
+                qDebug() << "Model space created";
 
-                // Timer: create test geometry after initialization
-                QTimer::singleShot(100, this, &TyrexMainWindow::createTestGeometry);
-
-                // Initialize command system after viewer and model space are ready
+                // Initialize command system
                 initializeCommandSystem();
+                qDebug() << "Command system initialized";
+
+                // Initialize sketch system
+                initializeSketchSystem();
+                qDebug() << "Sketch system initialized";
+
+                // Create test geometry immediately
+                QTimer::singleShot(200, this, [this]() {
+                    qDebug() << "Timer fired - calling createTestGeometry()";
+                    createTestGeometry();
+                    });
 
                 // Update status
-                statusBar()->showMessage("Viewer initialized successfully", 2000);
+                statusBar()->showMessage("System initialized - creating test shapes...", 3000);
             }
             else {
-                qCritical() << "Failed to initialize viewer manager!";
+                qCritical() << "Failed to retrieve viewer manager!";
                 statusBar()->showMessage("Failed to initialize 3D viewer", 5000);
             }
             });
+
+        qDebug() << "View widget signal connected";
     }
 
     void TyrexMainWindow::initializeCommandSystem()
     {
+        qDebug() << "=== TyrexMainWindow::initializeCommandSystem() ===";
+
         if (!m_viewerManager || !m_modelSpace) {
-            qCritical() << "Cannot initialize command system - viewer or model space is null";
+            qCritical() << "Cannot initialize command system - missing components:"
+                << "ViewerManager:" << (m_viewerManager ? "OK" : "NULL")
+                << "ModelSpace:" << (m_modelSpace ? "OK" : "NULL");
             return;
         }
 
         // Create command manager
         m_commandManager = new TyrexCommandManager(this);
+        qDebug() << "Command manager created";
 
         // Connect command signals
         connect(m_commandManager, &TyrexCommandManager::commandStarted,
             this, [this](const std::string& cmdName) {
-                statusBar()->showMessage(QString("Command: %1 - Click to place first point").arg(
-                    QString::fromStdString(cmdName)));
+                QString cmdDisplay = QString::fromStdString(cmdName);
+                if (m_isInSketchMode) {
+                    statusBar()->showMessage(QString("Sketch Command: %1 - Click to begin").arg(cmdDisplay));
+                }
+                else {
+                    statusBar()->showMessage(QString("Command: %1 - Click to place first point").arg(cmdDisplay));
+                }
+                qDebug() << "Command started:" << cmdDisplay;
             });
 
         connect(m_commandManager, &TyrexCommandManager::commandFinished,
@@ -120,12 +186,13 @@ namespace TyrexCAD {
         connect(m_commandManager, &TyrexCommandManager::commandCanceled,
             this, [this]() {
                 statusBar()->showMessage("Command canceled", 2000);
+                qDebug() << "Command canceled";
             });
 
         // Get the interaction manager from the viewer manager
         auto interactionManager = m_viewerManager->interactionManager();
 
-        // Add debug statements
+        // Connect interaction manager
         if (interactionManager) {
             qDebug() << "Interaction manager retrieved successfully";
             interactionManager->setCommandManager(m_commandManager);
@@ -141,22 +208,100 @@ namespace TyrexCAD {
 
         // Update status bar
         statusBar()->showMessage("Command system initialized", 2000);
+        qDebug() << "Command system initialization completed";
+    }
+
+    void TyrexMainWindow::initializeSketchSystem()
+    {
+        qDebug() << "=== TyrexMainWindow::initializeSketchSystem() ===";
+
+        if (!m_viewerManager) {
+            qCritical() << "Cannot initialize sketch system - no viewer manager";
+            return;
+        }
+
+        Handle(AIS_InteractiveContext) context = m_viewerManager->context();
+        if (context.IsNull()) {
+            qCritical() << "Cannot initialize sketch system - no AIS context";
+            return;
+        }
+
+        try {
+            // Create sketch manager using convenience function
+            m_sketchManager = Sketch::createSketchManager(context, m_viewerManager.get(), this);
+
+            // Connect sketch manager signals
+            connect(m_sketchManager.get(), &TyrexSketchManager::sketchModeEntered,
+                this, &TyrexMainWindow::updateSketchModeUI);
+
+            connect(m_sketchManager.get(), &TyrexSketchManager::sketchModeExited,
+                this, &TyrexMainWindow::updateSketchModeUI);
+
+            connect(m_sketchManager.get(), &TyrexSketchManager::entitySelected,
+                this, &TyrexMainWindow::onSketchEntitySelected);
+
+            connect(m_sketchManager.get(), &TyrexSketchManager::entityModified,
+                this, &TyrexMainWindow::onSketchEntityModified);
+
+            connect(m_sketchManager.get(), &TyrexSketchManager::selectionCleared,
+                this, [this]() {
+                    statusBar()->showMessage("Selection cleared", 2000);
+                });
+
+            // Set sketch manager in interaction manager
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget && viewWidget->interactionManager()) {
+                viewWidget->interactionManager()->setSketchManager(m_sketchManager.get());
+                qDebug() << "Sketch manager connected to interaction manager";
+            }
+
+            qDebug() << "Sketch system initialized successfully";
+        }
+        catch (const std::exception& ex) {
+            qCritical() << "Error initializing sketch system:" << ex.what();
+        }
+        catch (...) {
+            qCritical() << "Unknown error initializing sketch system";
+        }
     }
 
     void TyrexMainWindow::onCommandFinished()
     {
-        statusBar()->showMessage("Command completed successfully", 2000);
+        if (m_isInSketchMode) {
+            statusBar()->showMessage("Sketch command completed successfully", 2000);
+        }
+        else {
+            statusBar()->showMessage("Command completed successfully", 2000);
+        }
+        qDebug() << "Command finished notification received";
     }
 
     void TyrexMainWindow::startLineCommand()
     {
-        // Use direct line creation for simplicity
-        createSampleLine();
+        qDebug() << "=== TyrexMainWindow::startLineCommand() ===";
+
+        if (!m_commandManager) {
+            qWarning() << "Cannot start line command - command manager not initialized";
+            statusBar()->showMessage("Error: Command system not ready", 3000);
+            return;
+        }
+
+        // Use the command system to start the line command
+        bool success = m_commandManager->createAndStartCommand("Line");
+
+        if (success) {
+            qDebug() << "Line command started successfully through command system";
+            statusBar()->showMessage("Line command: Click to place first point", 0);
+        }
+        else {
+            qWarning() << "Failed to start line command";
+            statusBar()->showMessage("Error: Failed to start line command", 3000);
+        }
     }
 
     void TyrexMainWindow::createSampleLine()
     {
-        qDebug() << "Creating sample line directly";
+        qDebug() << "=== TyrexMainWindow::createSampleLine() ===";
 
         // Check if components are initialized
         if (!m_viewerManager || !m_modelSpace) {
@@ -168,7 +313,7 @@ namespace TyrexCAD {
         try {
             // Define line endpoints
             gp_Pnt startPoint(0.0, 0.0, 0.0);
-            gp_Pnt endPoint(150.0, 150.0, 150.0);  // Diagonal line
+            gp_Pnt endPoint(100.0, 100.0, 0.0);  // Diagonal line in XY plane
 
             // Define line color (cyan)
             Quantity_Color lineColor(0.0, 1.0, 1.0, Quantity_TOC_RGB);
@@ -192,6 +337,7 @@ namespace TyrexCAD {
 
             // Update status bar
             statusBar()->showMessage("Sample line created successfully", 3000);
+            qDebug() << "Sample line creation completed";
         }
         catch (const std::exception& ex) {
             qCritical() << "Exception creating sample line:" << ex.what();
@@ -205,112 +351,115 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::createTestGeometry()
     {
+        qDebug() << "=== TyrexMainWindow::createTestGeometry() ===";
+
         if (!m_modelSpace || !m_viewerManager) {
-            qWarning() << "Cannot create geometry - model space or viewer manager is null";
+            qCritical() << "Cannot create geometry - missing components"
+                << "ModelSpace:" << (m_modelSpace ? "OK" : "NULL")
+                << "ViewerManager:" << (m_viewerManager ? "OK" : "NULL");
             return;
         }
 
         try {
-            // Clear any existing shapes
+            // Clear existing shapes
             m_modelSpace->clear();
-            qDebug() << "Cleared previous shapes";
+            qDebug() << "Model space cleared";
 
-            // Creating test geometry for demonstration
-            qDebug() << "Creating test shapes...";
+            // Get context
+            Handle(AIS_InteractiveContext) context = m_viewerManager->context();
+            if (context.IsNull()) {
+                qCritical() << "AIS context is null!";
+                return;
+            }
+            qDebug() << "Got AIS context - valid";
 
-            // X-axis - Red line
-            Quantity_Color xAxisColor(1.0, 0.0, 0.0, Quantity_TOC_RGB); // Red
-            auto xAxis = std::make_shared<TyrexLineEntity>(
-                "test_line_x",       // ID
-                "default",           // Layer name
-                xAxisColor,          // Color
-                gp_Pnt(-200, 0, 0),  // Start point - negative side
-                gp_Pnt(200, 0, 0)    // End point - positive side
+            // Create simple test shapes - a square made of 4 lines
+            qDebug() << "Creating test entities...";
+
+            // Bottom line (Red)
+            Quantity_Color redColor(1.0, 0.0, 0.0, Quantity_TOC_RGB);
+            auto bottomLine = std::make_shared<TyrexLineEntity>(
+                "bottom_line", "default", redColor,
+                gp_Pnt(-50, -50, 0), gp_Pnt(50, -50, 0)
             );
-            m_modelSpace->addEntity(xAxis);
-            qDebug() << "Added X axis (red)";
+            m_modelSpace->addEntity(bottomLine);
+            qDebug() << "Added bottom line (red)";
 
-            // Y-axis - Green line
-            Quantity_Color yAxisColor(0.0, 1.0, 0.0, Quantity_TOC_RGB); // Green
-            auto yAxis = std::make_shared<TyrexLineEntity>(
-                "test_line_y",       // ID
-                "default",           // Layer name
-                yAxisColor,          // Color
-                gp_Pnt(0, -200, 0),  // Start point - negative side
-                gp_Pnt(0, 200, 0)    // End point - positive side
+            // Right line (Green)
+            Quantity_Color greenColor(0.0, 1.0, 0.0, Quantity_TOC_RGB);
+            auto rightLine = std::make_shared<TyrexLineEntity>(
+                "right_line", "default", greenColor,
+                gp_Pnt(50, -50, 0), gp_Pnt(50, 50, 0)
             );
-            m_modelSpace->addEntity(yAxis);
-            qDebug() << "Added Y axis (green)";
+            m_modelSpace->addEntity(rightLine);
+            qDebug() << "Added right line (green)";
 
-            // Z-axis - Blue line
-            Quantity_Color zAxisColor(0.0, 0.0, 1.0, Quantity_TOC_RGB); // Blue
-            auto zAxis = std::make_shared<TyrexLineEntity>(
-                "test_line_z",       // ID
-                "default",           // Layer name
-                zAxisColor,          // Color
-                gp_Pnt(0, 0, -200),  // Start point - negative side
-                gp_Pnt(0, 0, 200)    // End point - positive side
+            // Top line (Blue)
+            Quantity_Color blueColor(0.0, 0.0, 1.0, Quantity_TOC_RGB);
+            auto topLine = std::make_shared<TyrexLineEntity>(
+                "top_line", "default", blueColor,
+                gp_Pnt(50, 50, 0), gp_Pnt(-50, 50, 0)
             );
-            m_modelSpace->addEntity(zAxis);
-            qDebug() << "Added Z axis (blue)";
+            m_modelSpace->addEntity(topLine);
+            qDebug() << "Added top line (blue)";
 
-            // Center circle - Yellow
-            Quantity_Color circleColor(1.0, 1.0, 0.0, Quantity_TOC_RGB); // Yellow
-            auto circle = std::make_shared<TyrexCircleEntity>(
-                "test_circle_xy",    // ID
-                "default",           // Layer name
-                circleColor,         // Color
-                gp_Pnt(0, 0, 0),     // Center point
-                120.0                // Radius (adjust as needed)
+            // Left line (Yellow)
+            Quantity_Color yellowColor(1.0, 1.0, 0.0, Quantity_TOC_RGB);
+            auto leftLine = std::make_shared<TyrexLineEntity>(
+                "left_line", "default", yellowColor,
+                gp_Pnt(-50, 50, 0), gp_Pnt(-50, -50, 0)
             );
-            m_modelSpace->addEntity(circle);
-            qDebug() << "Added center circle";
+            m_modelSpace->addEntity(leftLine);
+            qDebug() << "Added left line (yellow)";
 
-            // Sample line - Cyan
-            Quantity_Color cyanColor(0.0, 1.0, 1.0, Quantity_TOC_RGB); // Cyan
-            auto sampleLine = std::make_shared<TyrexLineEntity>(
-                "sample_cyan_line",
-                "default",
-                cyanColor,
-                gp_Pnt(50, 50, 50),
-                gp_Pnt(150, 150, 150)
+            // Diagonal line (Cyan)
+            Quantity_Color cyanColor(0.0, 1.0, 1.0, Quantity_TOC_RGB);
+            auto diagonalLine = std::make_shared<TyrexLineEntity>(
+                "diagonal_line", "default", cyanColor,
+                gp_Pnt(-50, -50, 0), gp_Pnt(50, 50, 0)
             );
-            m_modelSpace->addEntity(sampleLine);
-            qDebug() << "Added sample line";
+            m_modelSpace->addEntity(diagonalLine);
+            qDebug() << "Added diagonal line (cyan)";
 
-            // Draw all entities
-            qDebug() << "Drawing all geometries...";
+            qDebug() << "All entities created, now drawing...";
+
+            // Force draw all
             m_modelSpace->drawAll();
+            qDebug() << "Model space drawAll() called";
 
-            // Set the view perspective
-            qDebug() << "Setting view perspective";
-            m_viewerManager->view()->SetProj(V3d_XposYnegZpos);  // Isometric view
+            // Update view
+            Handle(V3d_View) view = m_viewerManager->view();
+            if (!view.IsNull()) {
+                view->SetProj(V3d_Zpos);  // Top view
+                view->SetImmediateUpdate(Standard_True);
+                view->FitAll();
+                view->ZFitAll();
+                view->Redraw();
+                view->Update();
+                qDebug() << "View updated and fitted";
+            }
+            else {
+                qWarning() << "View is null!";
+            }
 
-            // Fit all in view
-            qDebug() << "Fitting view";
-            m_viewerManager->fitAll();
+            // Force context update
+            context->UpdateCurrentViewer();
+            qDebug() << "Context updated";
 
-            // Redraw the view
-            m_viewerManager->redraw();
-
-            // Debug: Number of created entities
-            qDebug() << "Created entities: 5";
-
-            // Update status
-            qDebug() << "Test geometries created successfully";
-            statusBar()->showMessage("Test geometry created and displayed", 3000);
+            statusBar()->showMessage("Test shapes created successfully!", 3000);
+            qDebug() << "=== createTestGeometry() completed successfully ===";
         }
         catch (const Standard_Failure& ex) {
-            qCritical() << "OpenCascade error creating test geometries:" << ex.GetMessageString();
-            statusBar()->showMessage("Error creating test geometries", 5000);
+            qCritical() << "OpenCascade error in createTestGeometry():" << ex.GetMessageString();
+            statusBar()->showMessage("OpenCascade error creating shapes", 3000);
         }
         catch (const std::exception& ex) {
-            qCritical() << "C++ error creating test geometries:" << ex.what();
-            statusBar()->showMessage("Error creating test geometries", 5000);
+            qCritical() << "Standard error in createTestGeometry():" << ex.what();
+            statusBar()->showMessage("Error creating shapes", 3000);
         }
         catch (...) {
-            qCritical() << "Unknown error creating test geometries";
-            statusBar()->showMessage("Error creating test geometries", 5000);
+            qCritical() << "Unknown error in createTestGeometry()";
+            statusBar()->showMessage("Unknown error creating shapes", 3000);
         }
     }
 
@@ -322,60 +471,46 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::createActions()
     {
-        // Create all file menu actions
+        qDebug() << "Creating actions...";
 
-        // New action
+        // === FILE ACTIONS ===
         m_newAction = new QAction(tr("&New"), this);
         m_newAction->setShortcuts(QKeySequence::New);
         m_newAction->setStatusTip(tr("Create a new file"));
         connect(m_newAction, &QAction::triggered, this, &TyrexMainWindow::newFile);
 
-        // Open action
         m_openAction = new QAction(tr("&Open..."), this);
         m_openAction->setShortcuts(QKeySequence::Open);
         m_openAction->setStatusTip(tr("Open an existing file"));
         connect(m_openAction, &QAction::triggered, this, &TyrexMainWindow::openFile);
 
-        // Save action
         m_saveAction = new QAction(tr("&Save"), this);
         m_saveAction->setShortcuts(QKeySequence::Save);
         m_saveAction->setStatusTip(tr("Save the document to disk"));
         connect(m_saveAction, &QAction::triggered, this, &TyrexMainWindow::saveFile);
 
-        // Save As action
         m_saveAsAction = new QAction(tr("Save &As..."), this);
         m_saveAsAction->setShortcuts(QKeySequence::SaveAs);
         m_saveAsAction->setStatusTip(tr("Save the document under a new name"));
         connect(m_saveAsAction, &QAction::triggered, this, &TyrexMainWindow::saveFileAs);
 
-        // Exit action
         m_exitAction = new QAction(tr("E&xit"), this);
         m_exitAction->setShortcuts(QKeySequence::Quit);
         m_exitAction->setStatusTip(tr("Exit the application"));
         connect(m_exitAction, &QAction::triggered, this, &QWidget::close);
 
-        // Drawing commands
+        // === 3D DRAWING COMMANDS ===
         m_lineAction = new QAction(tr("&Line"), this);
         m_lineAction->setStatusTip(tr("Create a line by selecting two points"));
-
-        // Connect line action to use command system
         connect(m_lineAction, &QAction::triggered, this, [this]() {
-            // Short delay to ensure all systems are initialized
-            QTimer::singleShot(100, this, [this]() {
-                if (m_viewerManager && m_modelSpace) {
-                    createSampleLine();
-                }
-                else {
-                    statusBar()->showMessage("System not ready, please try again", 2000);
-                }
-                });
+            qDebug() << "Line action triggered";
+            startLineCommand();
             });
 
-        // Direct line action (bypasses command system)
         m_directLineAction = new QAction(tr("&Direct Line"), this);
         m_directLineAction->setStatusTip(tr("Create a line directly"));
         connect(m_directLineAction, &QAction::triggered, this, [this]() {
-            // Short delay to ensure all systems are initialized
+            qDebug() << "Direct line action triggered";
             QTimer::singleShot(100, this, [this]() {
                 if (m_viewerManager && m_modelSpace) {
                     createSampleLine();
@@ -386,7 +521,17 @@ namespace TyrexCAD {
                 });
             });
 
-        // About action
+        m_testGeometryAction = new QAction(tr("Create Test &Shapes"), this);
+        m_testGeometryAction->setStatusTip(tr("Create test shapes for debugging"));
+        connect(m_testGeometryAction, &QAction::triggered, this, [this]() {
+            qDebug() << "Manual test geometry creation triggered";
+            createTestGeometry();
+            });
+
+        // === SKETCH ACTIONS ===
+        createSketchActions();
+
+        // === HELP ACTIONS ===
         m_aboutAction = new QAction(tr("&About"), this);
         m_aboutAction->setStatusTip(tr("Show the application's About box"));
         connect(m_aboutAction, &QAction::triggered, this, &TyrexMainWindow::about);
@@ -394,11 +539,45 @@ namespace TyrexCAD {
         qDebug() << "Actions created successfully";
     }
 
+    void TyrexMainWindow::createSketchActions()
+    {
+        qDebug() << "Creating sketch actions...";
+
+        // Toggle sketch mode
+        m_sketchModeAction = new QAction(tr("&Sketch Mode"), this);
+        m_sketchModeAction->setShortcut(QKeySequence(tr("Ctrl+K")));
+        m_sketchModeAction->setStatusTip(tr("Enter/Exit 2D parametric sketching mode"));
+        m_sketchModeAction->setCheckable(true);
+        m_sketchModeAction->setChecked(false);
+        connect(m_sketchModeAction, &QAction::triggered, this, &TyrexMainWindow::toggleSketchMode);
+
+        // Exit sketch mode (initially hidden)
+        m_exitSketchAction = new QAction(tr("Exit &Sketch"), this);
+        m_exitSketchAction->setShortcut(QKeySequence(tr("Esc")));
+        m_exitSketchAction->setStatusTip(tr("Exit sketch mode and return to 3D modeling"));
+        m_exitSketchAction->setVisible(false);
+        connect(m_exitSketchAction, &QAction::triggered, this, &TyrexMainWindow::exitSketchMode);
+
+        // Sketch line
+        m_sketchLineAction = new QAction(tr("Sketch &Line"), this);
+        m_sketchLineAction->setShortcut(QKeySequence(tr("L")));
+        m_sketchLineAction->setStatusTip(tr("Draw a line segment in sketch mode"));
+        m_sketchLineAction->setEnabled(false);
+        connect(m_sketchLineAction, &QAction::triggered, this, &TyrexMainWindow::startSketchLineCommand);
+
+        // Sketch circle
+        m_sketchCircleAction = new QAction(tr("Sketch &Circle"), this);
+        m_sketchCircleAction->setShortcut(QKeySequence(tr("C")));
+        m_sketchCircleAction->setStatusTip(tr("Draw a circle in sketch mode"));
+        m_sketchCircleAction->setEnabled(false);
+        connect(m_sketchCircleAction, &QAction::triggered, this, &TyrexMainWindow::startSketchCircleCommand);
+
+        qDebug() << "Sketch actions created successfully";
+    }
+
     void TyrexMainWindow::createMenus()
     {
-        // Create all menu items
-
-        // File menu
+        // === FILE MENU ===
         m_fileMenu = menuBar()->addMenu(tr("&File"));
         m_fileMenu->addAction(m_newAction);
         m_fileMenu->addAction(m_openAction);
@@ -407,47 +586,90 @@ namespace TyrexCAD {
         m_fileMenu->addSeparator();
         m_fileMenu->addAction(m_exitAction);
 
-        // Edit menu (placeholder for future functionality)
+        // === EDIT MENU ===
         m_editMenu = menuBar()->addMenu(tr("&Edit"));
 
-        // View menu (placeholder for future functionality)
+        // === VIEW MENU ===
         m_viewMenu = menuBar()->addMenu(tr("&View"));
+        m_viewMenu->addSeparator();
+        m_viewMenu->addAction(m_testGeometryAction);
 
-        // Add Draw menu
+        // === DRAW MENU (3D) ===
         m_drawMenu = menuBar()->addMenu(tr("&Draw"));
         m_drawMenu->addAction(m_lineAction);
-        m_drawMenu->addAction(m_directLineAction); // Add direct line action
+        m_drawMenu->addAction(m_directLineAction);
 
-        // Tools menu (placeholder for future functionality)
+        // === SKETCH MENU ===
+        createSketchMenus();
+
+        // === TOOLS MENU ===
         m_toolsMenu = menuBar()->addMenu(tr("&Tools"));
 
-        // Help menu
+        // === HELP MENU ===
         m_helpMenu = menuBar()->addMenu(tr("&Help"));
         m_helpMenu->addAction(m_aboutAction);
 
         qDebug() << "Menus created successfully";
     }
 
+    void TyrexMainWindow::createSketchMenus()
+    {
+        m_sketchMenu = menuBar()->addMenu(tr("&Sketch"));
+        m_sketchMenu->addAction(m_sketchModeAction);
+        m_sketchMenu->addAction(m_exitSketchAction);
+        m_sketchMenu->addSeparator();
+        m_sketchMenu->addAction(m_sketchLineAction);
+        m_sketchMenu->addAction(m_sketchCircleAction);
+
+        qDebug() << "Sketch menus created successfully";
+    }
+
     void TyrexMainWindow::createToolbars()
     {
-        // File toolbar
+        // === FILE TOOLBAR ===
         m_fileToolBar = addToolBar(tr("File"));
+        m_fileToolBar->setObjectName("FileToolBar");
         m_fileToolBar->addAction(m_newAction);
         m_fileToolBar->addAction(m_openAction);
         m_fileToolBar->addAction(m_saveAction);
 
-        // Edit toolbar (placeholder for future functionality)
+        // === EDIT TOOLBAR ===
         m_editToolBar = addToolBar(tr("Edit"));
+        m_editToolBar->setObjectName("EditToolBar");
 
-        // View toolbar (placeholder for future functionality)
+        // === VIEW TOOLBAR ===
         m_viewToolBar = addToolBar(tr("View"));
+        m_viewToolBar->setObjectName("ViewToolBar");
+        m_viewToolBar->addSeparator();
+        m_viewToolBar->addAction(m_testGeometryAction);
 
-        // Draw toolbar
+        // === DRAW TOOLBAR (3D) ===
         m_drawToolBar = addToolBar(tr("Draw"));
+        m_drawToolBar->setObjectName("DrawToolBar");
         m_drawToolBar->addAction(m_lineAction);
-        m_drawToolBar->addAction(m_directLineAction); // Add direct line action
+        m_drawToolBar->addAction(m_directLineAction);
+
+        // === SKETCH TOOLBAR ===
+        createSketchToolbars();
 
         qDebug() << "Toolbars created successfully";
+    }
+
+    void TyrexMainWindow::createSketchToolbars()
+    {
+        m_sketchToolBar = addToolBar(tr("Sketch"));
+        m_sketchToolBar->setObjectName("SketchToolBar");
+
+        // Mode control
+        m_sketchToolBar->addAction(m_sketchModeAction);
+        m_sketchToolBar->addAction(m_exitSketchAction);
+        m_sketchToolBar->addSeparator();
+
+        // Drawing tools
+        m_sketchToolBar->addAction(m_sketchLineAction);
+        m_sketchToolBar->addAction(m_sketchCircleAction);
+
+        qDebug() << "Sketch toolbars created successfully";
     }
 
     void TyrexMainWindow::setupConnections()
@@ -455,40 +677,220 @@ namespace TyrexCAD {
         // Additional connections not covered by action setup
     }
 
+    void TyrexMainWindow::updateSketchModeUI()
+    {
+        bool inSketchMode = m_sketchManager && m_sketchManager->isInSketchMode();
+        m_isInSketchMode = inSketchMode;
+
+        qDebug() << "Updating UI for sketch mode:" << inSketchMode;
+
+        // Update action states
+        m_sketchModeAction->setChecked(inSketchMode);
+        m_sketchModeAction->setText(inSketchMode ? tr("Exit Sketch &Mode") : tr("&Sketch Mode"));
+        m_sketchModeAction->setStatusTip(inSketchMode ?
+            tr("Exit sketch mode and return to 3D modeling") :
+            tr("Enter 2D parametric sketching mode"));
+
+        // Show/hide sketch-specific actions
+        m_exitSketchAction->setVisible(inSketchMode);
+        m_sketchLineAction->setEnabled(inSketchMode);
+        m_sketchCircleAction->setEnabled(inSketchMode);
+
+        // Update window title
+        QString baseTitle = "TyrexCAD";
+        if (inSketchMode) {
+            setWindowTitle(baseTitle + " - Sketch Mode");
+        }
+        else {
+            setWindowTitle(baseTitle);
+        }
+
+        // Update status bar
+        if (inSketchMode) {
+            statusBar()->showMessage("Sketch Mode Active - Select to edit, use tools to draw", 0);
+        }
+        else {
+            statusBar()->showMessage("3D Modeling Mode", 3000);
+        }
+
+        // Update view settings for sketch mode
+        if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+            Handle(V3d_View) view = m_viewerManager->view();
+            if (inSketchMode) {
+                // Set orthographic projection for sketch mode
+                view->SetProj(V3d_Zpos); // Top view
+                view->FitAll();
+            }
+            // In 3D mode, user can freely rotate/manipulate view
+        }
+
+        qDebug() << "UI update completed for sketch mode:" << inSketchMode;
+    }
+
+    void TyrexMainWindow::toggleSketchMode()
+    {
+        qDebug() << "=== TyrexMainWindow::toggleSketchMode() ===";
+
+        if (!m_sketchManager) {
+            qWarning() << "Cannot toggle sketch mode - sketch manager not initialized";
+            statusBar()->showMessage("Error: Sketch system not initialized", 3000);
+            return;
+        }
+
+        if (m_sketchManager->isInSketchMode()) {
+            exitSketchMode();
+        }
+        else {
+            enterSketchMode();
+        }
+    }
+
+    void TyrexMainWindow::enterSketchMode()
+    {
+        qDebug() << "=== TyrexMainWindow::enterSketchMode() ===";
+
+        if (!m_sketchManager) {
+            qWarning() << "Cannot enter sketch mode - sketch manager not initialized";
+            return;
+        }
+
+        // Cancel any active 3D commands
+        if (m_commandManager && m_commandManager->activeCommand()) {
+            m_commandManager->cancelCommand();
+        }
+
+        // Set interaction manager to sketch mode
+        auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+        if (viewWidget && viewWidget->interactionManager()) {
+            viewWidget->interactionManager()->setInteractionMode(
+                TyrexInteractionManager::InteractionMode::Sketch2D);
+        }
+
+        // Enter sketch mode
+        m_sketchManager->enterSketchMode();
+
+        qDebug() << "Entered sketch mode successfully";
+    }
+
+    void TyrexMainWindow::exitSketchMode()
+    {
+        qDebug() << "=== TyrexMainWindow::exitSketchMode() ===";
+
+        if (!m_sketchManager) {
+            return;
+        }
+
+        // Cancel any active sketch commands
+        if (m_commandManager && m_commandManager->activeCommand()) {
+            m_commandManager->cancelCommand();
+        }
+
+        // Exit sketch mode
+        m_sketchManager->exitSketchMode();
+
+        // Set interaction manager back to 3D mode
+        auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+        if (viewWidget && viewWidget->interactionManager()) {
+            viewWidget->interactionManager()->setInteractionMode(
+                TyrexInteractionManager::InteractionMode::Model3D);
+        }
+
+        qDebug() << "Exited sketch mode successfully";
+    }
+
+    void TyrexMainWindow::startSketchLineCommand()
+    {
+        qDebug() << "=== TyrexMainWindow::startSketchLineCommand() ===";
+
+        if (!m_sketchManager || !m_sketchManager->isInSketchMode()) {
+            qWarning() << "Cannot start sketch line - not in sketch mode";
+            statusBar()->showMessage("Error: Not in sketch mode", 3000);
+            return;
+        }
+
+        if (!m_commandManager) {
+            qWarning() << "Cannot start sketch line - no command manager";
+            return;
+        }
+
+        // Create and start sketch line command
+        auto lineCommand = std::make_shared<TyrexSketchLineCommand>(m_sketchManager.get());
+        m_commandManager->startCommand(lineCommand);
+
+        statusBar()->showMessage("Sketch Line: Click first point", 0);
+        qDebug() << "Started sketch line command";
+    }
+
+    void TyrexMainWindow::startSketchCircleCommand()
+    {
+        qDebug() << "=== TyrexMainWindow::startSketchCircleCommand() ===";
+
+        if (!m_sketchManager || !m_sketchManager->isInSketchMode()) {
+            qWarning() << "Cannot start sketch circle - not in sketch mode";
+            statusBar()->showMessage("Error: Not in sketch mode", 3000);
+            return;
+        }
+
+        if (!m_commandManager) {
+            qWarning() << "Cannot start sketch circle - no command manager";
+            return;
+        }
+
+        // Create and start sketch circle command
+        auto circleCommand = std::make_shared<TyrexSketchCircleCommand>(m_sketchManager.get());
+        m_commandManager->startCommand(circleCommand);
+
+        statusBar()->showMessage("Sketch Circle: Click center point", 0);
+        qDebug() << "Started sketch circle command";
+    }
+
+    void TyrexMainWindow::onSketchEntitySelected(const std::string& entityId)
+    {
+        statusBar()->showMessage(
+            QString("Selected sketch entity: %1").arg(QString::fromStdString(entityId)), 3000);
+
+        qDebug() << "Sketch entity selected:" << QString::fromStdString(entityId);
+    }
+
+    void TyrexMainWindow::onSketchEntityModified(const std::string& entityId)
+    {
+        statusBar()->showMessage(
+            QString("Modified sketch entity: %1").arg(QString::fromStdString(entityId)), 2000);
+
+        qDebug() << "Sketch entity modified:" << QString::fromStdString(entityId);
+
+        // Here you could mark document as modified, update property panels, etc.
+    }
+
+    // === FILE OPERATIONS ===
     void TyrexMainWindow::newFile()
     {
-        // New file implementation
         statusBar()->showMessage(tr("New file created"), 2000);
     }
 
     void TyrexMainWindow::openFile()
     {
-        // Show file dialog for opening files
         QString fileName = QFileDialog::getOpenFileName(this,
             tr("Open CAD File"), "",
             tr("CAD Files (*.tcad);;All Files (*)"));
 
         if (!fileName.isEmpty()) {
-            // Process the selected file
             statusBar()->showMessage(tr("File loaded: %1").arg(fileName), 2000);
         }
     }
 
     void TyrexMainWindow::saveFile()
     {
-        // Save file implementation
         statusBar()->showMessage(tr("File saved"), 2000);
     }
 
     void TyrexMainWindow::saveFileAs()
     {
-        // Show file dialog for saving files
         QString fileName = QFileDialog::getSaveFileName(this,
             tr("Save CAD File"), "",
             tr("CAD Files (*.tcad);;All Files (*)"));
 
         if (!fileName.isEmpty()) {
-            // Save to the selected file
             statusBar()->showMessage(tr("File saved as: %1").arg(fileName), 2000);
         }
     }
@@ -497,6 +899,11 @@ namespace TyrexCAD {
     {
         QMessageBox::about(this, tr("About TyrexCAD"),
             tr("TyrexCAD is a modern CAD application using Qt and OpenCascade.\n\n"
+                "Features:\n"
+                "• 3D Modeling\n"
+                "• 2D Parametric Sketching\n"
+                "• Real-time interaction\n"
+                "• Professional CAD tools\n\n"
                 "Version: 1.0.0\n"
                 "Build: Development"));
     }

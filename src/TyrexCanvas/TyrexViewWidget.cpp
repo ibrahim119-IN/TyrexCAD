@@ -22,13 +22,14 @@
 #include <QShowEvent>
 #include <QVBoxLayout>
 #include <QDebug>
-#include <QMetaObject>
+#include <QTimer>
 
 namespace TyrexCAD {
 
     TyrexViewWidget::TyrexViewWidget(QWidget* parent)
         : QWidget(parent)
         , m_viewerManager(nullptr)
+        , m_interactionManager(nullptr)
     {
         // Set widget properties for optimal OpenGL rendering
         setAttribute(Qt::WA_OpaquePaintEvent);
@@ -36,17 +37,19 @@ namespace TyrexCAD {
         setMouseTracking(true);  // Enable mouse tracking for hover events
         setFocusPolicy(Qt::StrongFocus);
 
-        // Create layout
-        QVBoxLayout* layout = new QVBoxLayout(this);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(0);
-        setLayout(layout);
+        // Set minimum size
+        setMinimumSize(400, 300);
 
-        // Initialize manager instances
-        initializeManagers();
+        qDebug() << "TyrexViewWidget constructed";
+
+        // Initialize immediately - don't wait for show event
+        QTimer::singleShot(50, this, &TyrexViewWidget::initializeManagers);
     }
 
-    TyrexViewWidget::~TyrexViewWidget() = default;
+    TyrexViewWidget::~TyrexViewWidget()
+    {
+        qDebug() << "TyrexViewWidget destructor";
+    }
 
     std::shared_ptr<TyrexViewerManager> TyrexViewWidget::viewerManager() const
     {
@@ -103,42 +106,76 @@ namespace TyrexCAD {
     void TyrexViewWidget::showEvent(QShowEvent* e)
     {
         QWidget::showEvent(e);
+        qDebug() << "TyrexViewWidget::showEvent called";
 
-        // Setup view once widget becomes visible
-        if (m_viewerManager) {
-            // Use Qt::QueuedConnection to ensure this runs after the event is fully processed
-            QMetaObject::invokeMethod(this, [this]() {
-                m_viewerManager->fitAll();
-                m_viewerManager->redraw();
-                }, Qt::QueuedConnection);
+        // Ensure initialization happens
+        if (!m_viewerManager) {
+            QTimer::singleShot(100, this, &TyrexViewWidget::initializeManagers);
         }
     }
 
     void TyrexViewWidget::initializeManagers()
     {
-        // 1. Create the viewer manager first
-        m_viewerManager = std::make_shared<TyrexViewerManager>(this);
-
-        // 2. Create the interaction manager
-        m_interactionManager = std::make_unique<TyrexInteractionManager>();
-
-        // 3. Connect the managers
-        if (m_viewerManager && m_interactionManager) {
-            // Set viewer manager in interaction manager
-            m_interactionManager->setViewerManager(m_viewerManager.get());
-
-            // Set interaction manager in viewer manager
-            m_viewerManager->setInteractionManager(m_interactionManager.get());
-
-            qDebug() << "Viewer and interaction managers initialized and connected";
-
-            // Initial view setup
-            m_viewerManager->fitAll();
-            m_viewerManager->redraw();
+        if (m_viewerManager) {
+            qDebug() << "Managers already initialized, skipping";
+            return;
         }
 
-        // 4. Emit initialization completed signal
-        emit viewerInitialized();
+        qDebug() << "Starting manager initialization...";
+
+        try {
+            // 1. Create the viewer manager first
+            m_viewerManager = std::make_shared<TyrexViewerManager>(this);
+
+            // 2. Verify viewer manager creation
+            if (!m_viewerManager) {
+                qCritical() << "Failed to create viewer manager!";
+                return;
+            }
+
+            Handle(AIS_InteractiveContext) context = m_viewerManager->context();
+            Handle(V3d_View) view = m_viewerManager->view();
+
+            if (context.IsNull() || view.IsNull()) {
+                qCritical() << "Viewer manager created but context/view is null!";
+                return;
+            }
+
+            // 3. Create the interaction manager
+            m_interactionManager = std::make_unique<TyrexInteractionManager>();
+
+            // 4. Verify interaction manager creation
+            if (!m_interactionManager) {
+                qCritical() << "Failed to create interaction manager!";
+                return;
+            }
+
+            // 5. Connect the managers
+            m_interactionManager->setViewerManager(m_viewerManager.get());
+            m_viewerManager->setInteractionManager(m_interactionManager.get());
+
+            qDebug() << "Viewer and interaction managers initialized successfully";
+
+            // 6. Setup initial view
+            view->SetProj(V3d_Zpos);  // Top view
+            view->SetImmediateUpdate(Standard_True);
+            view->FitAll();
+            view->Redraw();
+
+            // 7. Emit initialization completed signal
+            emit viewerInitialized();
+
+            qDebug() << "Manager initialization completed - signal emitted";
+        }
+        catch (const Standard_Failure& ex) {
+            qCritical() << "OpenCascade error during initialization:" << ex.GetMessageString();
+        }
+        catch (const std::exception& ex) {
+            qCritical() << "Error during initialization:" << ex.what();
+        }
+        catch (...) {
+            qCritical() << "Unknown error during initialization";
+        }
     }
 
 } // namespace TyrexCAD

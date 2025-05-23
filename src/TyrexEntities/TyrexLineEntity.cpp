@@ -4,6 +4,7 @@
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <TopoDS_Vertex.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
+#include <QDebug>
 #include <limits>
 
 namespace TyrexCAD {
@@ -17,6 +18,8 @@ namespace TyrexCAD {
         , m_start(start)
         , m_end(end)
     {
+        m_typeName = "TyrexLineEntity";
+        qDebug() << QString("Creating TyrexLineEntity with ID: %1").arg(QString::fromStdString(id));
         updateShape();
     }
 
@@ -27,46 +30,64 @@ namespace TyrexCAD {
 
     void TyrexLineEntity::updateShape()
     {
-        // Create an edge (line) from start to end points
-        BRepBuilderAPI_MakeEdge edgeMaker(m_start, m_end);
-        if (edgeMaker.IsDone()) {
-            m_shape = edgeMaker.Edge();
+        try {
+            // Create an edge (line) from start to end points
+            BRepBuilderAPI_MakeEdge edgeMaker(m_start, m_end);
+            if (edgeMaker.IsDone()) {
+                m_shape = edgeMaker.Edge();
 
-            // Create AIS_Shape for visualization
-            m_aisShape = new AIS_Shape(m_shape);
+                // Create AIS_Shape for visualization
+                m_aisShape = new AIS_Shape(m_shape);
+                m_aisShape->SetColor(m_color);
+                m_aisShape->SetWidth(3.0);  // Thicker line
 
-            // Set the color for visualization
-            m_aisShape->SetColor(m_color);
+                qDebug() << QString("Shape updated for line entity: %1").arg(QString::fromStdString(m_id));
+            }
+            else {
+                qWarning() << "Failed to create line edge";
+            }
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error updating line shape:" << ex.GetMessageString();
+        }
+        catch (...) {
+            qWarning() << "Unknown error updating line shape";
         }
     }
 
     void TyrexLineEntity::draw(const Handle(AIS_InteractiveContext)& context,
         Standard_Boolean isSelected)
     {
-        if (!m_aisShape.IsNull()) {
-            // Display the shape in the context
-            context->Display(m_aisShape, Standard_False);
+        if (context.IsNull()) {
+            qWarning() << "Cannot draw line - context is null";
+            return;
+        }
 
-            // Handle selection state
-            if (isSelected) {
-                context->SetSelected(m_aisShape, Standard_False);
+        if (m_aisShape.IsNull()) {
+            qWarning() << "Cannot draw line - shape is null";
+            updateShape();
+            if (m_aisShape.IsNull()) {
+                qWarning() << "Failed to create shape for line entity";
+                return;
             }
+        }
+
+        // Display the shape
+        context->Display(m_aisShape, Standard_False);
+        qDebug() << QString("Line entity displayed: %1").arg(QString::fromStdString(m_id));
+
+        // Handle selection state
+        if (isSelected) {
+            context->SetSelected(m_aisShape, Standard_False);
         }
     }
 
     Standard_Real TyrexLineEntity::distanceToPoint(const gp_Pnt& point) const
     {
-        // Create a vertex (point) from the input point
-        TopoDS_Vertex vertex = BRepBuilderAPI_MakeVertex(point);
-
-        // Calculate distance between the line shape and the point
-        BRepExtrema_DistShapeShape distCalculator(m_shape, vertex);
-        if (distCalculator.Perform() && distCalculator.IsDone()) {
-            return distCalculator.Value();
-        }
-
-        // Return a large value if calculation fails
-        return std::numeric_limits<Standard_Real>::max();
+        // Simple distance calculation
+        Standard_Real dist = point.Distance(m_start);
+        Standard_Real dist2 = point.Distance(m_end);
+        return std::min(dist, dist2);
     }
 
     const gp_Pnt& TyrexLineEntity::start() const

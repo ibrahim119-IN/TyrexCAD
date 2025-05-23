@@ -20,6 +20,17 @@
 #include <Quantity_NameOfColor.hxx>
 #include <AIS_Shape.hxx>
 #include <AIS_InteractiveObject.hxx>
+#include <gp_Lin.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Ax1.hxx>
+#include <gp_Dir.hxx>
+#include <gp_Vec.hxx>
+#include <gp_Ax3.hxx>
+#include <IntAna_IntConicQuad.hxx>
+#include <Geom_Line.hxx>
+#include <GeomAPI_IntCS.hxx>
+#include <Geom_Plane.hxx>
+#include <ElSLib.hxx>
 
 // Include Qt headers
 #include <QDebug>
@@ -115,19 +126,19 @@ namespace TyrexCAD {
             return;
         }
 
-        // Convert screen position to view space
+        // Convert screen position to view space and update dynamic highlight
         m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);
     }
 
-    void TyrexViewerManager::selectEntityAt(const QPoint& position)  
-    {  
-       if (m_context.IsNull() || m_view.IsNull()) {  
-           return;  
-       }  
+    void TyrexViewerManager::selectEntityAt(const QPoint& position)
+    {
+        if (m_context.IsNull() || m_view.IsNull()) {
+            return;
+        }
 
-       // Perform selection using the correct overload of Select  
-       m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);  
-       m_context->Select(Standard_True);  
+        // Perform selection using the correct overload of Select  
+        m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);
+        m_context->Select(Standard_True);
     }
 
     gp_Pnt TyrexViewerManager::screenToModel(const QPoint& screenPos) const
@@ -136,10 +147,66 @@ namespace TyrexCAD {
             return gp_Pnt(0, 0, 0);
         }
 
-        // Convert screen position to 3D point
-        Standard_Real x, y, z;
-        m_view->Convert(screenPos.x(), screenPos.y(), x, y, z);
-        return gp_Pnt(x, y, z);
+        try {
+            // Create the working plane (XY plane, Z = 0)
+            gp_Pln workingPlane(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1));
+
+            // Convert screen coordinates to 3D point on view plane
+            Standard_Real xv, yv, zv;
+            m_view->Convert(screenPos.x(), screenPos.y(), xv, yv, zv);
+
+            // Get the eye point and at point to create ray direction
+            Standard_Real eyeX, eyeY, eyeZ;
+            Standard_Real atX, atY, atZ;
+            m_view->Eye(eyeX, eyeY, eyeZ);
+            m_view->At(atX, atY, atZ);
+
+            gp_Pnt eyePoint(eyeX, eyeY, eyeZ);
+            gp_Pnt viewPoint(xv, yv, zv);
+
+            // Create ray from eye through the clicked point
+            gp_Vec rayVec(eyePoint, viewPoint);
+            if (rayVec.Magnitude() < 1e-10) {
+                return gp_Pnt(0, 0, 0);
+            }
+
+            gp_Dir rayDir(rayVec);
+            gp_Lin viewRay(eyePoint, rayDir);
+
+            // Find intersection with working plane
+            gp_Vec planeNormal = workingPlane.Axis().Direction();
+            gp_Pnt planeOrigin = workingPlane.Location();
+
+            // Ray-plane intersection using parametric equation
+            // Ray: P = P0 + t * D
+            // Plane: N · (P - Q) = 0, where Q is point on plane
+            gp_Vec eyeToPlane(eyePoint, planeOrigin);
+            Standard_Real numerator = planeNormal.Dot(eyeToPlane);
+            Standard_Real denominator = planeNormal.Dot(rayDir);
+
+            if (Abs(denominator) < 1e-10) {
+                // Ray is parallel to plane - project eye point onto plane
+                gp_Pnt projectedPoint = eyePoint.Translated(-numerator * planeNormal);
+                return projectedPoint;
+            }
+
+            Standard_Real t = numerator / denominator;
+            gp_Pnt intersection = eyePoint.Translated(t * rayVec);
+
+            return intersection;
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error in screenToModel conversion:" << ex.GetMessageString();
+
+            // Simple fallback - assume orthographic projection
+            Standard_Real x = static_cast<Standard_Real>(screenPos.x());
+            Standard_Real y = static_cast<Standard_Real>(screenPos.y());
+            return gp_Pnt(x, y, 0.0);
+        }
+        catch (...) {
+            qWarning() << "Unknown error in screenToModel conversion";
+            return gp_Pnt(0, 0, 0);
+        }
     }
 
     void TyrexViewerManager::handleAIS_InteractiveContext(const Handle(AIS_InteractiveContext)& context)
@@ -189,6 +256,9 @@ namespace TyrexCAD {
                 // Set default view parameters
                 m_view->SetProj(V3d_XposYnegZpos);  // Isometric view
                 m_view->TriedronDisplay(Aspect_TOTP_LEFT_LOWER, Quantity_NOC_WHITE, 0.1);
+
+                // Set up automatic updates
+                m_view->SetImmediateUpdate(Standard_False);
             }
 
             qDebug() << "TyrexViewerManager initialized successfully";

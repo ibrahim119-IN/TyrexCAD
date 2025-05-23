@@ -1,6 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClCompile Include="D:\Projects\TyrexCAD\build\x64-debug\TyrexCAD_autogen\mocs_compilation_Debug.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexApp\TyrexMainWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -76,6 +79,27 @@
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexViewerManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchCircleCommand.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchCircleEntity.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchEntity.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchInteractionHandler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchLineCommand.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchLineEntity.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSnapping\TyrexSnapManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -95,6 +119,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\build\x64-debug\TyrexCAD_autogen\mocs_compilation_Release.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\build\x64-debug\TyrexCAD_autogen\mocs_compilation_MinSizeRel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\build\x64-debug\TyrexCAD_autogen\mocs_compilation_RelWithDebInfo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -175,6 +208,30 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexViewerManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchCircleCommand.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchCircleEntity.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchEntity.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchInteractionHandler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchLineCommand.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchLineEntity.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSnapping\TyrexSnapManager.h">

@@ -60,6 +60,7 @@ namespace TyrexCAD {
         // Draw the entity if context is available
         if (!m_context.IsNull()) {
             entity->draw(m_context, Standard_False);
+            qDebug() << QString("Added and drew entity: %1").arg(QString::fromStdString(entity->getId()));
         }
     }
 
@@ -119,16 +120,23 @@ namespace TyrexCAD {
             return;
         }
 
-        // Clear existing display
+        qDebug() << QString("Drawing %1 entities").arg(m_entities.size());
+
+        // Clear existing display first
         m_context->RemoveAll(Standard_False);
 
         // Draw all entities
         for (const auto& entity : m_entities) {
-            entity->draw(m_context, entity->isSelected());
+            if (entity) {
+                entity->draw(m_context, entity->isSelected());
+                qDebug() << QString("Drew entity: %1").arg(QString::fromStdString(entity->getId()));
+            }
         }
 
         // Update display
         m_context->UpdateCurrentViewer();
+
+        qDebug() << "Finished drawing all entities";
     }
 
     void TyrexModelSpace::clear()
@@ -147,48 +155,48 @@ namespace TyrexCAD {
         selectAtScreenPoint(screenPos, view, SelectionMode::Replace);
     }
 
-    void TyrexModelSpace::selectAtScreenPoint(const QPoint& screenPos, const Handle(V3d_View)& view, SelectionMode mode)  
-    {  
-       if (m_context.IsNull() || view.IsNull()) {  
-           qDebug() << "Warning: Cannot select - null context or view";  
-           return;  
-       }  
+    void TyrexModelSpace::selectAtScreenPoint(const QPoint& screenPos, const Handle(V3d_View)& view, SelectionMode mode)
+    {
+        if (m_context.IsNull() || view.IsNull()) {
+            qDebug() << "Warning: Cannot select - null context or view";
+            return;
+        }
 
-       // Determine selection mode  
-       Standard_Boolean updateViewer = Standard_True;  
+        // Determine selection mode  
+        Standard_Boolean updateViewer = Standard_True;
 
-       switch (mode) {  
-       case SelectionMode::Replace:  
-           m_context->ClearSelected(Standard_False);  
-           // Updated to use the correct overload of Select  
-           m_context->MoveTo(screenPos.x(), screenPos.y(), view, Standard_True);  
-           m_context->Select(Standard_True);  
-           break;  
+        switch (mode) {
+        case SelectionMode::Replace:
+            m_context->ClearSelected(Standard_False);
+            // Updated to use the correct overload of Select  
+            m_context->MoveTo(screenPos.x(), screenPos.y(), view, Standard_True);
+            m_context->Select(Standard_True);
+            break;
 
-       case SelectionMode::Add:  
-           m_context->MoveTo(screenPos.x(), screenPos.y(), view, Standard_True);  
-           m_context->ShiftSelect(Standard_True);  
-           break;  
+        case SelectionMode::Add:
+            m_context->MoveTo(screenPos.x(), screenPos.y(), view, Standard_True);
+            m_context->ShiftSelect(Standard_True);
+            break;
 
-       case SelectionMode::Remove:  
-           m_context->MoveTo(screenPos.x(), screenPos.y(), view, Standard_True);  
-           m_context->ShiftSelect(Standard_False);  
-           break;  
-       }  
+        case SelectionMode::Remove:
+            m_context->MoveTo(screenPos.x(), screenPos.y(), view, Standard_True);
+            m_context->ShiftSelect(Standard_False);
+            break;
+        }
 
-       // Update selection state of entities  
-       for (const auto& entity : m_entities) {  
-           Handle(AIS_Shape) shape = entity->getAISShape();  
-           if (!shape.IsNull()) {  
-               bool selected = m_context->IsSelected(shape);  
-               entity->setSelected(selected);  
-           }  
-       }  
+        // Update selection state of entities  
+        for (const auto& entity : m_entities) {
+            Handle(AIS_Shape) shape = entity->getAISShape();
+            if (!shape.IsNull()) {
+                bool selected = m_context->IsSelected(shape);
+                entity->setSelected(selected);
+            }
+        }
 
-       // Update display  
-       if (updateViewer) {  
-           m_context->UpdateCurrentViewer();  
-       }  
+        // Update display  
+        if (updateViewer) {
+            m_context->UpdateCurrentViewer();
+        }
     }
 
     void TyrexModelSpace::clearSelection()
