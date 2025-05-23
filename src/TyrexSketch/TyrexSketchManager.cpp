@@ -9,6 +9,8 @@
 #include "TyrexSketch/TyrexSketchEntity.h"
 #include "TyrexSketch/TyrexSketchLineEntity.h"
 #include "TyrexSketch/TyrexSketchCircleEntity.h"
+#include "TyrexSketch/TyrexSketchConfig.h"           // NEW INCLUDE
+#include "TyrexSketch/TyrexSketchDisplayHelper.h"     // NEW INCLUDE
 #include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexCanvas/TyrexCanvasOverlay.h"
 
@@ -27,11 +29,13 @@
 #include <Quantity_Color.hxx>
 #include <Quantity_NameOfColor.hxx>
 #include <Prs3d_PointAspect.hxx>
+#include <Prs3d_Drawer.hxx>
 #include <ElSLib.hxx>
 #include <Graphic3d_Camera.hxx>
 
 // Qt includes
 #include <QDebug>
+#include <QTimer>
 #include <cmath>
 
 namespace TyrexCAD {
@@ -77,6 +81,9 @@ namespace TyrexCAD {
                 });
         }
 
+        // Initialize sketch configuration
+        m_sketchConfig = TyrexSketchConfig::autocadConfig();
+
         qDebug() << "TyrexSketchManager created";
     }
 
@@ -114,44 +121,126 @@ namespace TyrexCAD {
     void TyrexSketchManager::enterSketchMode()
     {
         if (m_isInSketchMode) {
-            return; // Already in sketch mode
+            return;
         }
 
         m_isInSketchMode = true;
         m_currentMode = InteractionMode::ObjectSelect;
 
-        // Set up view for sketch mode with 2D orthographic projection
+        // CRITICAL FIX 1: Set view BEFORE configuring overlay
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
             Handle(V3d_View) view = m_viewerManager->view();
 
-            // Change background color to indicate sketch mode
-            view->SetBackgroundColor(Quantity_Color(0.95, 0.95, 0.98, Quantity_TOC_RGB)); // Light blue-gray
+            // Set black background first
+            view->SetBackgroundColor(Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB));
 
-            // Set view to 2D mode using viewer manager
-            m_viewerManager->set2DMode();
+            // CRITICAL FIX 2: Ensure window is mapped before operations
+            if (!view->Window().IsNull()) {
+                view->Window()->Map();
+            }
 
-            qDebug() << "Sketch mode: Set 2D orthographic projection";
+            // Set to exact top view with proper camera setup
+            view->SetProj(V3d_Zpos);
+
+            // CRITICAL FIX 3: Set camera to orthographic mode properly
+            Handle(Graphic3d_Camera) camera = view->Camera();
+            if (!camera.IsNull()) {
+                // Save current view bounds
+                Standard_Real xmin, ymin, xmax, ymax;
+                view->WindowFit(xmin, ymin, xmax, ymax);
+
+                // Set orthographic with proper aspect ratio
+                camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+                camera->SetZFocus(Graphic3d_Camera::FocusType_Absolute, 0.0);
+
+                // Reset camera orientation for true 2D
+                camera->SetUp(gp_Dir(0, 1, 0));
+                camera->SetDirection(gp_Dir(0, 0, -1));
+
+                // Apply the camera changes
+                view->SetCamera(camera);
+            }
+
+            // CRITICAL FIX 4: Configure rendering for 2D
+            Graphic3d_RenderingParams& params = view->ChangeRenderingParams();
+            params.Method = Graphic3d_RM_RASTERIZATION;
+            params.IsAntialiasingEnabled = Standard_True;
+            params.NbMsaaSamples = 4;
+            params.IsShadowEnabled = Standard_False;
+            params.IsReflectionEnabled = Standard_False;
+            params.IsTransparentShadowEnabled = Standard_False;
+
+            // Apply optimal 2D rendering settings
+            TyrexSketchDisplayHelper::setupOptimal2DRendering(view);
+
+            // CRITICAL FIX 5: Update view before creating overlay
+            view->MustBeResized();
+            view->FitAll(0.01, Standard_False);
+            view->Update();
+
+            // Configure selection and highlight styles
+            Handle(Prs3d_Drawer) selectionStyle = new Prs3d_Drawer();
+            selectionStyle->SetColor(m_sketchConfig.canvas.selectionColor);
+            selectionStyle->SetDisplayMode(1);
+            selectionStyle->LineAspect()->SetWidth(m_sketchConfig.entityDisplay.selectedLineWidth);
+            m_context->SetSelectionStyle(selectionStyle);
+
+            Handle(Prs3d_Drawer) highlightStyle = new Prs3d_Drawer();
+            highlightStyle->SetColor(m_sketchConfig.canvas.highlightColor);
+            highlightStyle->SetDisplayMode(1);
+            highlightStyle->LineAspect()->SetWidth(m_sketchConfig.entityDisplay.selectedLineWidth);
+            m_context->SetHighlightStyle(Prs3d_TypeOfHighlight_Dynamic, highlightStyle);
+
+            qDebug() << "Sketch mode: Applied AutoCAD-like configuration";
         }
 
-        // Show grid and axes in sketch mode
+        // CRITICAL FIX 6: Initialize overlay with proper config
         if (m_canvasOverlay) {
+            GridConfig gridConfig;
+
+            // AutoCAD-like dark theme
+            gridConfig.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
+            gridConfig.gridColorMajor = Quantity_Color(0.5, 0.5, 0.5, Quantity_TOC_RGB);
+            gridConfig.gridColorMinor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
+            gridConfig.axisColorX = Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB);
+            gridConfig.axisColorY = Quantity_Color(0.0, 1.0, 0.0, Quantity_TOC_RGB);
+
+            // Grid settings
+            gridConfig.style = GridStyle::Lines;  // Start with lines
+            gridConfig.baseSpacing = 10.0;
+            gridConfig.majorLineInterval = 5;
+            gridConfig.lineWidthMajor = 0.5;
+            gridConfig.lineWidthMinor = 0.25;
+            gridConfig.adaptiveSpacing = true;
+            gridConfig.minSpacingPixels = 20.0;
+            gridConfig.maxSpacingPixels = 80.0;
+            gridConfig.showOriginMarker = true;
+            gridConfig.gridExtensionFactor = 1.2;
+
+            // Apply configuration
+            m_canvasOverlay->setGridConfig(gridConfig);
             m_canvasOverlay->setGridVisible(true);
             m_canvasOverlay->setAxisVisible(true);
-            m_canvasOverlay->update();
+
+            // CRITICAL FIX 7: Force overlay update after view is ready
+            QTimer::singleShot(100, this, [this]() {
+                if (m_canvasOverlay) {
+                    m_canvasOverlay->redraw();
+                }
+                });
         }
 
-        // Clear any existing selections
+        // Clear selections
         clearSelection();
 
-        // Update context display settings for sketch mode
+        // Update context
         if (!m_context.IsNull()) {
-            // Set display mode to wireframe for better sketch visibility
             m_context->SetDisplayMode(AIS_WireFrame, Standard_False);
             m_context->UpdateCurrentViewer();
         }
 
         emit sketchModeEntered();
-        qDebug() << "Entered sketch mode with 2D view and canvas overlay";
+        qDebug() << "Entered sketch mode with fixed initialization sequence";
     }
 
     void TyrexSketchManager::exitSketchMode()
@@ -253,7 +342,7 @@ namespace TyrexCAD {
 
         // Draw the entity if context is available and we're in sketch mode
         if (!m_context.IsNull() && m_isInSketchMode) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
             m_context->UpdateCurrentViewer();
         }
 
@@ -315,45 +404,33 @@ namespace TyrexCAD {
         }
 
         try {
-            // Get the OpenCascade view
             Handle(V3d_View) view = m_viewerManager->view();
             if (view.IsNull()) {
                 qWarning() << "Cannot convert screen to sketch - no view available";
                 return gp_Pnt2d(0, 0);
             }
 
-            // Convert screen position to view coordinates
+            // Use improved 2D conversion
             Standard_Real xv, yv, zv;
             view->Convert(screenPoint.x(), screenPoint.y(), xv, yv, zv);
 
-            // In orthographic 2D mode, we can directly use the view coordinates
-            // The sketch plane is the XY plane (Z=0)
-            gp_Pnt sketchPoint3D(xv, yv, 0.0);
-
-            // Project the 3D point onto our sketch plane to get 2D coordinates
-            Standard_Real u, v;
-            ElSLib::Parameters(m_sketchPlane, sketchPoint3D, u, v);
-
-            gp_Pnt2d result(u, v);
+            // For true 2D mode, we work in the XY plane
+            gp_Pnt2d result(xv, yv);
 
             // Apply grid snapping if enabled
-            if (m_canvasOverlay && m_canvasOverlay->isGridVisible()) {
+            if (m_canvasOverlay && m_canvasOverlay->isGridVisible() && m_sketchConfig.grid.snapEnabled) {
                 result = m_canvasOverlay->snapToGrid(result);
+            }
+
+            // Apply ortho mode if enabled
+            if (m_sketchConfig.interaction.orthoMode && m_firstPointSet) {
+                result = applyOrthoMode(result);
             }
 
             return result;
         }
         catch (const Standard_Failure& ex) {
             qWarning() << "OpenCascade error in screenToSketch:" << ex.GetMessageString();
-
-            // Fallback to viewer manager conversion
-            gp_Pnt worldPoint = m_viewerManager->screenToModel(screenPoint);
-            Standard_Real u, v;
-            ElSLib::Parameters(m_sketchPlane, worldPoint, u, v);
-            return gp_Pnt2d(u, v);
-        }
-        catch (...) {
-            qWarning() << "Unknown error in screenToSketch";
             return gp_Pnt2d(0, 0);
         }
     }
@@ -577,7 +654,7 @@ namespace TyrexCAD {
 
         // Redraw entity
         if (!m_context.IsNull()) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
         }
 
         // Update control points
@@ -599,7 +676,7 @@ namespace TyrexCAD {
 
         // Redraw entity
         if (!m_context.IsNull()) {
-            controlPoint.entity->draw(m_context, controlPoint.entity->isSelected());
+            drawSketchEntity(controlPoint.entity);
         }
 
         // Update control points
@@ -621,7 +698,7 @@ namespace TyrexCAD {
 
         // Redraw all entities
         for (auto& entity : m_sketchEntities) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
         }
 
         // Redraw control points if in sketch mode
@@ -645,7 +722,7 @@ namespace TyrexCAD {
 
         // Update entity visuals
         for (auto& entity : m_sketchEntities) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
         }
     }
 
@@ -725,7 +802,7 @@ namespace TyrexCAD {
         entity->setHighlighted(true);
 
         if (!m_context.IsNull()) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
         }
     }
 
@@ -738,7 +815,7 @@ namespace TyrexCAD {
         entity->setHighlighted(false);
 
         if (!m_context.IsNull()) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
         }
     }
 
@@ -779,6 +856,62 @@ namespace TyrexCAD {
 
         // Update control points after drag
         showControlPoints();
+    }
+
+    // NEW HELPER METHODS
+    gp_Pnt2d TyrexSketchManager::applyOrthoMode(const gp_Pnt2d& point) const
+    {
+        if (!m_firstPointSet) return point;
+
+        // Calculate angle from first point to current point
+        gp_Vec2d vec(m_firstPoint, point);
+        double angle = atan2(vec.Y(), vec.X()) * 180.0 / M_PI;
+
+        // Round to nearest ortho angle (0, 90, 180, 270)
+        double orthoAngle = round(angle / 90.0) * 90.0;
+
+        // Apply ortho constraint
+        double distance = m_firstPoint.Distance(point);
+        double radians = orthoAngle * M_PI / 180.0;
+
+        return gp_Pnt2d(
+            m_firstPoint.X() + distance * cos(radians),
+            m_firstPoint.Y() + distance * sin(radians)
+        );
+    }
+
+    void TyrexSketchManager::drawSketchEntity(std::shared_ptr<TyrexSketchEntity> entity)
+    {
+        if (!entity || m_context.IsNull()) return;
+
+        // Apply entity styling based on configuration
+        if (!entity->getAISShape().IsNull()) {
+            Handle(AIS_Shape) shape = entity->getAISShape();
+
+            // Set color based on entity state
+            if (entity->isSelected()) {
+                shape->SetColor(m_sketchConfig.canvas.selectionColor);
+                shape->SetWidth(m_sketchConfig.entityDisplay.selectedLineWidth);
+            }
+            else if (entity->isHighlighted()) {
+                shape->SetColor(m_sketchConfig.canvas.highlightColor);
+                shape->SetWidth(m_sketchConfig.entityDisplay.selectedLineWidth);
+            }
+            else {
+                shape->SetColor(m_sketchConfig.entityDisplay.defaultLineColor);
+                shape->SetWidth(m_sketchConfig.entityDisplay.defaultLineWidth);
+            }
+
+            // Apply line style
+            Handle(Prs3d_LineAspect) lineAspect = new Prs3d_LineAspect(
+                shape->Color(),
+                Aspect_TOL_SOLID,
+                shape->Width()
+            );
+            shape->Attributes()->SetLineAspect(lineAspect);
+        }
+
+        entity->draw(m_context, entity->isSelected());
     }
 
 } // namespace TyrexCAD

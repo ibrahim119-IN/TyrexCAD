@@ -228,6 +228,12 @@
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchCircleEntity.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchDisplayHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchEntity.h">
       <Filter>Header Files</Filter>
     </ClInclude>

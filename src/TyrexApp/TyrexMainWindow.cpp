@@ -18,12 +18,9 @@
 
  // Include sketch system
 #include "TyrexSketch/TyrexSketch.h"
-
-
-// IMPORTANT: Add this include for TyrexSketchManager 
 #include "TyrexSketch/TyrexSketchManager.h"
-
-// باقي الكود يبقى كما هو...
+#include "TyrexSketch/TyrexSketchConfig.h"
+#include "TyrexSketch/TyrexSketchDisplayHelper.h"
 
 // OpenCascade
 #include <Standard_Handle.hxx>
@@ -46,6 +43,8 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QDebug>
+#include <QActionGroup>
+#include <QToolButton>
 
 namespace TyrexCAD {
 
@@ -62,7 +61,14 @@ namespace TyrexCAD {
         m_sketchModeAction(nullptr),
         m_exitSketchAction(nullptr),
         m_sketchLineAction(nullptr),
-        m_sketchCircleAction(nullptr)
+        m_sketchCircleAction(nullptr),
+        m_toggleGridAction(nullptr),
+        m_toggleSnapAction(nullptr),
+        m_toggleOrthoAction(nullptr),
+        m_gridStyleGroup(nullptr),
+        m_gridLinesAction(nullptr),
+        m_gridDotsAction(nullptr),
+        m_gridCrossesAction(nullptr)
     {
         setupUI();
         initializeViewers();
@@ -227,24 +233,39 @@ namespace TyrexCAD {
         }
 
         try {
-            // Create sketch manager using convenience function
+            // Create sketch manager with enhanced configuration
             m_sketchManager = Sketch::createSketchManager(context, m_viewerManager.get(), this);
 
-            // Connect sketch manager signals
+            // Connect sketch manager signals with enhanced handlers
             connect(m_sketchManager.get(), &TyrexSketchManager::sketchModeEntered,
-                this, &TyrexMainWindow::updateSketchModeUI);
+                this, [this]() {
+                    updateSketchModeUI();
+                    setupSketchModeToolbars();
+                    updateStatusBar("Sketch Mode Active - Grid Snap: ON | Ortho: OFF | Dynamic Input: ON");
+                });
 
             connect(m_sketchManager.get(), &TyrexSketchManager::sketchModeExited,
-                this, &TyrexMainWindow::updateSketchModeUI);
+                this, [this]() {
+                    updateSketchModeUI();
+                    restoreNormalToolbars();
+                    updateStatusBar("3D Modeling Mode");
+                });
 
             connect(m_sketchManager.get(), &TyrexSketchManager::entitySelected,
-                this, &TyrexMainWindow::onSketchEntitySelected);
+                this, [this](const std::string& entityId) {
+                    onSketchEntitySelected(entityId);
+                    updatePropertyPanel(entityId);
+                });
 
             connect(m_sketchManager.get(), &TyrexSketchManager::entityModified,
-                this, &TyrexMainWindow::onSketchEntityModified);
+                this, [this](const std::string& entityId) {
+                    onSketchEntityModified(entityId);
+                    setDocumentModified(true);
+                });
 
             connect(m_sketchManager.get(), &TyrexSketchManager::selectionCleared,
                 this, [this]() {
+                    clearPropertyPanel();
                     statusBar()->showMessage("Selection cleared", 2000);
                 });
 
@@ -255,13 +276,13 @@ namespace TyrexCAD {
                 qDebug() << "Sketch manager connected to interaction manager";
             }
 
-            qDebug() << "Sketch system initialized successfully";
+            // Create sketch mode actions
+            createAdvancedSketchActions();
+
+            qDebug() << "Sketch system initialized successfully with enhanced features";
         }
         catch (const std::exception& ex) {
             qCritical() << "Error initializing sketch system:" << ex.what();
-        }
-        catch (...) {
-            qCritical() << "Unknown error initializing sketch system";
         }
     }
 
@@ -575,6 +596,78 @@ namespace TyrexCAD {
         qDebug() << "Sketch actions created successfully";
     }
 
+    void TyrexMainWindow::createAdvancedSketchActions()
+    {
+        // Grid toggle action
+        m_toggleGridAction = new QAction(tr("Toggle &Grid"), this);
+        m_toggleGridAction->setShortcut(QKeySequence(tr("F7")));
+        m_toggleGridAction->setCheckable(true);
+        m_toggleGridAction->setChecked(true);
+        m_toggleGridAction->setStatusTip(tr("Toggle grid visibility"));
+        connect(m_toggleGridAction, &QAction::triggered, this, [this](bool checked) {
+            if (m_sketchManager) {
+                m_sketchManager->setGridVisible(checked);
+                statusBar()->showMessage(checked ? "Grid ON" : "Grid OFF", 2000);
+            }
+            });
+
+        // Snap toggle action
+        m_toggleSnapAction = new QAction(tr("Toggle &Snap"), this);
+        m_toggleSnapAction->setShortcut(QKeySequence(tr("F9")));
+        m_toggleSnapAction->setCheckable(true);
+        m_toggleSnapAction->setChecked(true);
+        m_toggleSnapAction->setStatusTip(tr("Toggle grid snap"));
+        connect(m_toggleSnapAction, &QAction::triggered, this, [this](bool checked) {
+            if (m_sketchManager && m_sketchManager->canvasOverlay()) {
+                auto config = m_sketchManager->canvasOverlay()->getGridConfig();
+                // TODO: Add snap enable/disable to grid config
+                statusBar()->showMessage(checked ? "Snap ON" : "Snap OFF", 2000);
+            }
+            });
+
+        // Ortho mode action
+        m_toggleOrthoAction = new QAction(tr("Toggle &Ortho"), this);
+        m_toggleOrthoAction->setShortcut(QKeySequence(tr("F8")));
+        m_toggleOrthoAction->setCheckable(true);
+        m_toggleOrthoAction->setChecked(false);
+        m_toggleOrthoAction->setStatusTip(tr("Toggle orthogonal mode"));
+        connect(m_toggleOrthoAction, &QAction::triggered, this, [this](bool checked) {
+            // TODO: Implement ortho mode in sketch manager
+            statusBar()->showMessage(checked ? "Ortho ON" : "Ortho OFF", 2000);
+            });
+
+        // Grid style actions
+        m_gridStyleGroup = new QActionGroup(this);
+
+        m_gridLinesAction = new QAction(tr("Grid &Lines"), this);
+        m_gridLinesAction->setCheckable(true);
+        m_gridLinesAction->setChecked(true);
+        m_gridStyleGroup->addAction(m_gridLinesAction);
+        connect(m_gridLinesAction, &QAction::triggered, this, [this]() {
+            if (m_sketchManager && m_sketchManager->canvasOverlay()) {
+                m_sketchManager->canvasOverlay()->setGridStyle(GridStyle::Lines);
+            }
+            });
+
+        m_gridDotsAction = new QAction(tr("Grid &Dots"), this);
+        m_gridDotsAction->setCheckable(true);
+        m_gridStyleGroup->addAction(m_gridDotsAction);
+        connect(m_gridDotsAction, &QAction::triggered, this, [this]() {
+            if (m_sketchManager && m_sketchManager->canvasOverlay()) {
+                m_sketchManager->canvasOverlay()->setGridStyle(GridStyle::Dots);
+            }
+            });
+
+        m_gridCrossesAction = new QAction(tr("Grid &Crosses"), this);
+        m_gridCrossesAction->setCheckable(true);
+        m_gridStyleGroup->addAction(m_gridCrossesAction);
+        connect(m_gridCrossesAction, &QAction::triggered, this, [this]() {
+            if (m_sketchManager && m_sketchManager->canvasOverlay()) {
+                m_sketchManager->canvasOverlay()->setGridStyle(GridStyle::Crosses);
+            }
+            });
+    }
+
     void TyrexMainWindow::createMenus()
     {
         // === FILE MENU ===
@@ -759,6 +852,11 @@ namespace TyrexCAD {
             m_commandManager->cancelCommand();
         }
 
+        // Apply optimal 2D rendering settings
+        if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+            TyrexSketchDisplayHelper::setupOptimal2DRendering(m_viewerManager->view());
+        }
+
         // Set interaction manager to sketch mode
         auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
         if (viewWidget && viewWidget->interactionManager()) {
@@ -766,10 +864,13 @@ namespace TyrexCAD {
                 TyrexInteractionManager::InteractionMode::Sketch2D);
         }
 
-        // Enter sketch mode
+        // Enter sketch mode with enhanced features
         m_sketchManager->enterSketchMode();
 
-        qDebug() << "Entered sketch mode successfully";
+        // Show sketch status in status bar
+        updateSketchStatusBar();
+
+        qDebug() << "Entered sketch mode successfully with enhanced UI";
     }
 
     void TyrexMainWindow::exitSketchMode()
@@ -860,6 +961,114 @@ namespace TyrexCAD {
         qDebug() << "Sketch entity modified:" << QString::fromStdString(entityId);
 
         // Here you could mark document as modified, update property panels, etc.
+    }
+
+    void TyrexMainWindow::updateSketchStatusBar()
+    {
+        if (!m_sketchManager || !m_sketchManager->isInSketchMode()) {
+            return;
+        }
+
+        QString status = "Sketch Mode | ";
+
+        // Grid status
+        if (m_sketchManager->canvasOverlay()) {
+            bool gridVisible = m_sketchManager->canvasOverlay()->isGridVisible();
+            double spacing = m_sketchManager->canvasOverlay()->getCurrentGridSpacing();
+            status += QString("Grid: %1 (Spacing: %2) | ")
+                .arg(gridVisible ? "ON" : "OFF")
+                .arg(spacing, 0, 'f', 2);
+        }
+
+        // Snap status
+        status += QString("Snap: %1 | ").arg(m_toggleSnapAction->isChecked() ? "ON" : "OFF");
+
+        // Ortho status
+        status += QString("Ortho: %1 | ").arg(m_toggleOrthoAction->isChecked() ? "ON" : "OFF");
+
+        // Selection count
+        auto selected = m_sketchManager->getSelectedEntities();
+        if (!selected.empty()) {
+            status += QString("Selected: %1 objects").arg(selected.size());
+        }
+        else {
+            status += "Ready";
+        }
+
+        statusBar()->showMessage(status);
+    }
+
+    void TyrexMainWindow::setupSketchModeToolbars()
+    {
+        // Add sketch-specific toolbar items
+        if (m_sketchToolBar) {
+            m_sketchToolBar->addSeparator();
+            m_sketchToolBar->addAction(m_toggleGridAction);
+            m_sketchToolBar->addAction(m_toggleSnapAction);
+            m_sketchToolBar->addAction(m_toggleOrthoAction);
+            m_sketchToolBar->addSeparator();
+
+            // Grid style submenu
+            QToolButton* gridStyleButton = new QToolButton();
+            gridStyleButton->setText("Grid Style");
+            gridStyleButton->setPopupMode(QToolButton::InstantPopup);
+
+            QMenu* gridStyleMenu = new QMenu(gridStyleButton);
+            gridStyleMenu->addAction(m_gridLinesAction);
+            gridStyleMenu->addAction(m_gridDotsAction);
+            gridStyleMenu->addAction(m_gridCrossesAction);
+            gridStyleButton->setMenu(gridStyleMenu);
+
+            m_sketchToolBar->addWidget(gridStyleButton);
+        }
+    }
+
+    void TyrexMainWindow::restoreNormalToolbars()
+    {
+        // Remove sketch-specific toolbar items
+        if (m_sketchToolBar) {
+            // Clear extra actions added for sketch mode
+            auto actions = m_sketchToolBar->actions();
+            for (auto it = actions.rbegin(); it != actions.rend(); ++it) {
+                if (*it == m_toggleGridAction ||
+                    *it == m_toggleSnapAction ||
+                    *it == m_toggleOrthoAction ||
+                    (*it)->isSeparator()) {
+                    m_sketchToolBar->removeAction(*it);
+                }
+            }
+        }
+    }
+
+    // Add property panel update methods
+    void TyrexMainWindow::updatePropertyPanel(const std::string& entityId)
+    {
+        // This would update a property panel with entity properties
+        // For now, just show in status bar
+        auto entity = m_sketchManager->findSketchEntity(entityId);
+        if (entity) {
+            QString info = QString("Selected: %1 (Type: %2)")
+                .arg(QString::fromStdString(entityId))
+                .arg(static_cast<int>(entity->getType()));
+            statusBar()->showMessage(info, 5000);
+        }
+    }
+
+    void TyrexMainWindow::clearPropertyPanel()
+    {
+        // Clear property panel
+        statusBar()->showMessage("No selection", 2000);
+    }
+
+    void TyrexMainWindow::setDocumentModified(bool modified)
+    {
+        // Mark document as modified
+        setWindowModified(modified);
+    }
+
+    void TyrexMainWindow::updateStatusBar(const QString& message)
+    {
+        statusBar()->showMessage(message);
     }
 
     // === FILE OPERATIONS ===

@@ -10,18 +10,23 @@
  // OpenCascade includes
 #include <AIS_Shape.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Wire.hxx>
 #include <TopoDS_Compound.hxx>
 #include <BRep_Builder.hxx>
 #include <Prs3d_LineAspect.hxx>
+#include <Prs3d_PointAspect.hxx>
 #include <Aspect_TypeOfLine.hxx>
+#include <Graphic3d_ArrayOfPoints.hxx>
 #include <Graphic3d_ArrayOfPolylines.hxx>
-#include <Prs3d_Root.hxx>
-#include <Prs3d_Presentation.hxx>
-#include <PrsMgr_PresentationManager3d.hxx>
-#include <gp_Lin2d.hxx>
+#include <Graphic3d_ArrayOfSegments.hxx>
+#include <AIS_PointCloud.hxx>
+#include <AIS_Line.hxx>
+#include <Geom_CartesianPoint.hxx>
+#include <Geom_Line.hxx>
+#include <gp_Lin.hxx>
 
 // Qt includes
 #include <QDebug>
@@ -41,11 +46,21 @@ namespace TyrexCAD {
         , m_axisVisible(true)
         , m_currentScale(1.0)
         , m_dynamicGridSpacing(10.0)
-        , m_viewMin(-100, -100)  // Default bounds
-        , m_viewMax(100, 100)    // Default bounds
+        , m_viewCenter(0, 0)
+        , m_viewMin(-100, -100)
+        , m_viewMax(100, 100)
+        , m_viewWidth(800)
+        , m_viewHeight(600)
         , m_gridPointsCacheDirty(true)
     {
         qDebug() << "TyrexCanvasOverlay created";
+
+        // Set default AutoCAD-like colors
+        m_gridConfig.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);      // Black
+        m_gridConfig.gridColorMajor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);      // Dark gray
+        m_gridConfig.gridColorMinor = Quantity_Color(0.2, 0.2, 0.2, Quantity_TOC_RGB);      // Darker gray
+        m_gridConfig.axisColorX = Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB);          // Red
+        m_gridConfig.axisColorY = Quantity_Color(0.0, 1.0, 0.0, Quantity_TOC_RGB);          // Green
 
         // Schedule initial update after construction
         QTimer::singleShot(100, this, [this]() {
@@ -68,22 +83,12 @@ namespace TyrexCAD {
 
     void TyrexCanvasOverlay::update()
     {
-        // Prevent recursive updates
         static bool updating = false;
-        if (updating) {
-            return;
-        }
+        if (updating) return;
         updating = true;
 
         try {
             if (m_view.IsNull() || m_context.IsNull()) {
-                updating = false;
-                return;
-            }
-
-            // Check if view has a valid window
-            if (m_view->Window().IsNull()) {
-                qDebug() << "TyrexCanvasOverlay::update() - View window not ready yet";
                 updating = false;
                 return;
             }
@@ -101,67 +106,10 @@ namespace TyrexCAD {
                 updateAxesGeometry();
             }
 
-            // Mark grid points cache as dirty
             m_gridPointsCacheDirty = true;
 
-            // Safely update display without immediate viewer update
+            // Update display
             if (!m_context.IsNull()) {
-                // Schedule viewer update for next event loop iteration
-                QTimer::singleShot(0, this, [this]() {
-                    if (!m_context.IsNull()) {
-                        try {
-                            m_context->UpdateCurrentViewer();
-                        }
-                        catch (const Standard_Failure& ex) {
-                            qWarning() << "Error updating viewer:" << ex.GetMessageString();
-                        }
-                        catch (...) {
-                            qWarning() << "Unknown error updating viewer";
-                        }
-                    }
-                    });
-            }
-
-            emit overlayUpdated();
-        }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error in TyrexCanvasOverlay::update():" << ex.GetMessageString();
-        }
-        catch (...) {
-            qWarning() << "Unknown error in TyrexCanvasOverlay::update()";
-        }
-
-        updating = false;
-    }
-
-    void TyrexCanvasOverlay::redraw()
-    {
-        try {
-            clearOverlay();
-            update();
-        }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error in redraw:" << ex.GetMessageString();
-        }
-        catch (...) {
-            qWarning() << "Unknown error in redraw";
-        }
-    }
-
-    void TyrexCanvasOverlay::setGridVisible(bool visible)
-    {
-        if (m_gridVisible == visible) {
-            return;
-        }
-
-        m_gridVisible = visible;
-
-        try {
-            if (!m_gridVisible && !m_gridObject.IsNull() && !m_context.IsNull()) {
-                m_context->Remove(m_gridObject, Standard_False);
-                m_gridObject.Nullify();
-
-                // Deferred update
                 QTimer::singleShot(0, this, [this]() {
                     if (!m_context.IsNull()) {
                         try {
@@ -171,12 +119,41 @@ namespace TyrexCAD {
                     }
                     });
             }
-            else if (m_gridVisible) {
-                updateGridGeometry();
-            }
+
+            emit overlayUpdated();
         }
         catch (const Standard_Failure& ex) {
-            qWarning() << "Error in setGridVisible:" << ex.GetMessageString();
+            qWarning() << "Error in update():" << ex.GetMessageString();
+        }
+
+        updating = false;
+    }
+
+    void TyrexCanvasOverlay::redraw()
+    {
+        clearOverlay();
+        update();
+    }
+
+    void TyrexCanvasOverlay::setGridVisible(bool visible)
+    {
+        if (m_gridVisible == visible) return;
+
+        m_gridVisible = visible;
+
+        if (!m_gridVisible) {
+            // Remove grid objects
+            if (!m_gridLinesObject.IsNull() && !m_context.IsNull()) {
+                m_context->Remove(m_gridLinesObject, Standard_False);
+                m_gridLinesObject.Nullify();
+            }
+            if (!m_gridDotsObject.IsNull() && !m_context.IsNull()) {
+                m_context->Remove(m_gridDotsObject, Standard_False);
+                m_gridDotsObject.Nullify();
+            }
+        }
+        else {
+            updateGridGeometry();
         }
     }
 
@@ -187,14 +164,12 @@ namespace TyrexCAD {
 
     void TyrexCanvasOverlay::setAxisVisible(bool visible)
     {
-        if (m_axisVisible == visible) {
-            return;
-        }
+        if (m_axisVisible == visible) return;
 
         m_axisVisible = visible;
 
-        try {
-            if (!m_axisVisible && !m_context.IsNull()) {
+        if (!m_axisVisible) {
+            if (!m_context.IsNull()) {
                 if (!m_xAxisObject.IsNull()) {
                     m_context->Remove(m_xAxisObject, Standard_False);
                     m_xAxisObject.Nullify();
@@ -203,23 +178,14 @@ namespace TyrexCAD {
                     m_context->Remove(m_yAxisObject, Standard_False);
                     m_yAxisObject.Nullify();
                 }
-
-                // Deferred update
-                QTimer::singleShot(0, this, [this]() {
-                    if (!m_context.IsNull()) {
-                        try {
-                            m_context->UpdateCurrentViewer();
-                        }
-                        catch (...) {}
-                    }
-                    });
-            }
-            else {
-                updateAxesGeometry();
+                if (!m_originMarker.IsNull()) {
+                    m_context->Remove(m_originMarker, Standard_False);
+                    m_originMarker.Nullify();
+                }
             }
         }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error in setAxisVisible:" << ex.GetMessageString();
+        else {
+            updateAxesGeometry();
         }
     }
 
@@ -232,6 +198,12 @@ namespace TyrexCAD {
     {
         m_gridConfig = config;
         m_gridPointsCacheDirty = true;
+
+        // Update background color
+        if (!m_view.IsNull()) {
+            m_view->SetBackgroundColor(m_gridConfig.backgroundColor);
+        }
+
         update();
     }
 
@@ -240,23 +212,34 @@ namespace TyrexCAD {
         return m_gridConfig;
     }
 
+    void TyrexCanvasOverlay::setGridStyle(GridStyle style)
+    {
+        if (m_gridConfig.style != style) {
+            m_gridConfig.style = style;
+            updateGridGeometry();
+            emit gridStyleChanged(style);
+        }
+    }
+
+    GridStyle TyrexCanvasOverlay::getGridStyle() const
+    {
+        return m_gridConfig.style;
+    }
+
     std::vector<gp_Pnt2d> TyrexCanvasOverlay::getVisibleGridPoints() const
     {
         if (m_gridPointsCacheDirty) {
             m_cachedGridPoints.clear();
 
             if (m_gridVisible && m_dynamicGridSpacing > 0) {
-                // Calculate grid intersection points
                 double spacing = m_dynamicGridSpacing;
 
-                // Find grid bounds
                 double xMin = std::floor(m_viewMin.X() / spacing) * spacing;
                 double xMax = std::ceil(m_viewMax.X() / spacing) * spacing;
                 double yMin = std::floor(m_viewMin.Y() / spacing) * spacing;
                 double yMax = std::ceil(m_viewMax.Y() / spacing) * spacing;
 
-                // Generate intersection points (with reasonable limits)
-                int maxPoints = 10000; // Prevent memory issues
+                int maxPoints = 10000;
                 int pointCount = 0;
 
                 for (double x = xMin; x <= xMax && pointCount < maxPoints; x += spacing) {
@@ -291,340 +274,458 @@ namespace TyrexCAD {
         return gp_Pnt2d(x, y);
     }
 
+    bool TyrexCanvasOverlay::isOnGridLine(const QPoint& screenPos, double tolerance) const
+    {
+        if (!m_gridVisible) return false;
+
+        gp_Pnt2d worldPos = screenToWorld(screenPos);
+        double spacing = m_dynamicGridSpacing;
+
+        double xRemainder = std::fmod(std::abs(worldPos.X()), spacing);
+        double yRemainder = std::fmod(std::abs(worldPos.Y()), spacing);
+
+        double minRemainder = std::min(xRemainder, spacing - xRemainder);
+        double minRemainderY = std::min(yRemainder, spacing - yRemainder);
+
+        return (minRemainder <= tolerance || minRemainderY <= tolerance);
+    }
+
+    gp_Pnt2d TyrexCanvasOverlay::screenToWorld(const QPoint& screenPos) const
+    {
+        if (m_view.IsNull()) return gp_Pnt2d(0, 0);
+
+        Standard_Real x, y, z;
+        m_view->Convert(screenPos.x(), screenPos.y(), x, y, z);
+        return gp_Pnt2d(x, y);
+    }
+
+    QPoint TyrexCanvasOverlay::worldToScreen(const gp_Pnt2d& worldPos) const
+    {
+        if (m_view.IsNull()) return QPoint(0, 0);
+
+        Standard_Integer x, y;
+        m_view->Convert(worldPos.X(), worldPos.Y(), 0.0, x, y);
+        return QPoint(x, y);
+    }
+
     void TyrexCanvasOverlay::calculateDynamicSpacing()
     {
-        if (m_view.IsNull()) {
-            return;
-        }
+        if (m_view.IsNull()) return;
 
         try {
-            // Get view scale
             m_currentScale = m_view->Scale();
 
-            // Calculate pixel spacing for base grid
-            double pixelSpacing = m_gridConfig.baseSpacing * m_currentScale;
+            // Calculate grid spacing like AutoCAD
+            double baseSpacing = m_gridConfig.baseSpacing;
+            double pixelSpacing = baseSpacing * m_currentScale;
 
-            // Adjust grid spacing to maintain reasonable pixel density
-            double factor = 1.0;
-            m_dynamicGridSpacing = m_gridConfig.baseSpacing;
+            // Adjust spacing to maintain reasonable density
+            m_dynamicGridSpacing = baseSpacing;
 
-            // Scale up if too dense
-            while (pixelSpacing < m_gridConfig.minSpacingPixels && factor < 1000) {
-                factor *= 10;
-                m_dynamicGridSpacing = m_gridConfig.baseSpacing * factor;
-                pixelSpacing = m_dynamicGridSpacing * m_currentScale;
-            }
+            if (m_gridConfig.adaptiveSpacing) {
+                // Scale up if too dense
+                while (pixelSpacing < m_gridConfig.minSpacingPixels) {
+                    m_dynamicGridSpacing *= 10.0;
+                    pixelSpacing = m_dynamicGridSpacing * m_currentScale;
+                }
 
-            // Scale down if too sparse
-            while (pixelSpacing > m_gridConfig.maxSpacingPixels && factor > 0.001) {
-                factor /= 10;
-                m_dynamicGridSpacing = m_gridConfig.baseSpacing * factor;
-                pixelSpacing = m_dynamicGridSpacing * m_currentScale;
+                // Scale down if too sparse
+                while (pixelSpacing > m_gridConfig.maxSpacingPixels && m_dynamicGridSpacing > 0.1) {
+                    m_dynamicGridSpacing /= 10.0;
+                    pixelSpacing = m_dynamicGridSpacing * m_currentScale;
+                }
             }
 
             emit gridSpacingChanged(m_dynamicGridSpacing);
 
-            qDebug() << "Dynamic grid spacing:" << m_dynamicGridSpacing
-                << "Scale:" << m_currentScale;
+            qDebug() << "Grid spacing:" << m_dynamicGridSpacing << "Scale:" << m_currentScale;
         }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error calculating dynamic spacing:" << ex.GetMessageString();
+        catch (...) {
+            qWarning() << "Error calculating dynamic spacing";
         }
     }
 
     void TyrexCanvasOverlay::updateViewBounds()
     {
-        if (m_view.IsNull()) {
-            return;
-        }
+        if (m_view.IsNull()) return;
 
         try {
-            // Initialize variables with safe defaults
-            Standard_Real xmin = -100.0, ymin = -100.0, xmax = 100.0, ymax = 100.0;
+            // Get view window dimensions
+            Standard_Integer width, height;
+            m_view->Window()->Size(width, height);
+            m_viewWidth = width;
+            m_viewHeight = height;
 
-            // Check if view has a window
-            if (!m_view->Window().IsNull() && m_view->Window()->IsMapped()) {
-                try {
-                    // Get view dimensions
-                    m_view->WindowFit(xmin, ymin, xmax, ymax);
+            // Convert corner points to world coordinates
+            Standard_Real x1, y1, z1, x2, y2, z2;
+            m_view->Convert(0, 0, x1, y1, z1);
+            m_view->Convert(width, height, x2, y2, z2);
 
-                    // Validate the values
-                    if (std::isnan(xmin) || std::isnan(ymin) || std::isnan(xmax) || std::isnan(ymax) ||
-                        std::isinf(xmin) || std::isinf(ymin) || std::isinf(xmax) || std::isinf(ymax)) {
-                        // Use defaults if values are invalid
-                        xmin = -100.0;
-                        ymin = -100.0;
-                        xmax = 100.0;
-                        ymax = 100.0;
-                    }
-                }
-                catch (...) {
-                    // Keep default values
-                }
-            }
+            m_viewMin.SetCoord(std::min(x1, x2), std::min(y1, y2));
+            m_viewMax.SetCoord(std::max(x1, x2), std::max(y1, y2));
 
-            // Convert to world coordinates
-            Standard_Real x1 = 0.0, y1 = 0.0, z1 = 0.0;
-            Standard_Real x2 = 0.0, y2 = 0.0, z2 = 0.0;
+            m_viewCenter.SetCoord((m_viewMin.X() + m_viewMax.X()) / 2.0,
+                (m_viewMin.Y() + m_viewMax.Y()) / 2.0);
 
-            try {
-                m_view->Convert(static_cast<int>(xmin), static_cast<int>(ymin), x1, y1, z1);
-                m_view->Convert(static_cast<int>(xmax), static_cast<int>(ymax), x2, y2, z2);
+            // Extend bounds if requested
+            if (m_gridConfig.gridExtensionFactor > 1.0) {
+                double width = m_viewMax.X() - m_viewMin.X();
+                double height = m_viewMax.Y() - m_viewMin.Y();
+                double extension = (m_gridConfig.gridExtensionFactor - 1.0) / 2.0;
 
-                // Validate converted values
-                if (!std::isnan(x1) && !std::isnan(y1) && !std::isnan(x2) && !std::isnan(y2) &&
-                    !std::isinf(x1) && !std::isinf(y1) && !std::isinf(x2) && !std::isinf(y2)) {
-                    m_viewMin.SetCoord(std::min(x1, x2), std::min(y1, y2));
-                    m_viewMax.SetCoord(std::max(x1, x2), std::max(y1, y2));
-                }
-            }
-            catch (...) {
-                // Keep existing bounds if conversion fails
+                m_viewMin.SetX(m_viewMin.X() - width * extension);
+                m_viewMin.SetY(m_viewMin.Y() - height * extension);
+                m_viewMax.SetX(m_viewMax.X() + width * extension);
+                m_viewMax.SetY(m_viewMax.Y() + height * extension);
             }
         }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error updating view bounds:" << ex.GetMessageString();
+        catch (...) {
+            qWarning() << "Error updating view bounds";
         }
     }
 
     void TyrexCanvasOverlay::updateGridGeometry()
     {
-        if (!m_gridVisible || m_context.IsNull()) {
-            return;
-        }
+        if (!m_gridVisible || m_context.IsNull()) return;
 
         try {
-            // Calculate grid lines
-            std::vector<gp_Pnt> lines;
-            std::vector<bool> majorLines;
-            calculateGridLines(lines, majorLines);
-
-            if (lines.empty()) {
-                return;
+            // Remove old grid objects
+            if (!m_gridLinesObject.IsNull()) {
+                m_context->Remove(m_gridLinesObject, Standard_False);
+                m_gridLinesObject.Nullify();
+            }
+            if (!m_gridDotsObject.IsNull()) {
+                m_context->Remove(m_gridDotsObject, Standard_False);
+                m_gridDotsObject.Nullify();
             }
 
-            // Create compound for all grid lines
-            BRep_Builder builder;
-            TopoDS_Compound compound;
-            builder.MakeCompound(compound);
-
-            // Build edges from line pairs
-            for (size_t i = 0; i < lines.size(); i += 2) {
-                if (i + 1 < lines.size()) {
-                    try {
-                        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(lines[i], lines[i + 1]);
-                        if (!edge.IsNull()) {
-                            builder.Add(compound, edge);
-                        }
-                    }
-                    catch (...) {
-                        // Skip invalid edges
-                    }
-                }
+            // Create new grid based on style
+            switch (m_gridConfig.style) {
+            case GridStyle::Lines:
+                createLineGrid();
+                break;
+            case GridStyle::Dots:
+                createDotGrid();
+                break;
+            case GridStyle::Crosses:
+                createCrossGrid();
+                break;
             }
-
-            // Remove old grid object
-            if (!m_gridObject.IsNull()) {
-                m_context->Remove(m_gridObject, Standard_False);
-            }
-
-            // Create new grid object
-            m_gridObject = new AIS_Shape(compound);
-
-            // Set grid appearance
-            m_gridObject->SetColor(m_gridConfig.gridColorMajor);
-            m_gridObject->SetWidth(m_gridConfig.lineWidthMinor);
-
-            // Display grid without selection
-            m_context->Display(m_gridObject, Standard_False);
-
-            // Make sure no selection mode is activated for the grid
-            m_context->Deactivate(m_gridObject);
-
-            // Don't set display priority - it causes errors in some OpenCascade versions
-            // m_context->SetDisplayPriority(m_gridObject, -1);
         }
         catch (const Standard_Failure& ex) {
             qWarning() << "Error updating grid geometry:" << ex.GetMessageString();
-        }
-        catch (...) {
-            qWarning() << "Unknown error updating grid geometry";
         }
     }
 
     void TyrexCanvasOverlay::updateAxesGeometry()
     {
-        if (!m_axisVisible || m_context.IsNull()) {
-            return;
-        }
+        if (!m_axisVisible || m_context.IsNull()) return;
 
         try {
-            // Calculate axis extents
-            double margin = m_dynamicGridSpacing * 2;
-            double xMin = m_viewMin.X() - margin;
-            double xMax = m_viewMax.X() + margin;
-            double yMin = m_viewMin.Y() - margin;
-            double yMax = m_viewMax.Y() + margin;
-
-            // X-axis (red)
-            try {
-                TopoDS_Edge xAxis = BRepBuilderAPI_MakeEdge(
-                    gp_Pnt(xMin, 0, 0),
-                    gp_Pnt(xMax, 0, 0)
-                );
-
-                if (!m_xAxisObject.IsNull()) {
-                    m_context->Remove(m_xAxisObject, Standard_False);
-                }
-
-                m_xAxisObject = new AIS_Shape(xAxis);
-                m_xAxisObject->SetColor(Quantity_NOC_RED);
-                m_xAxisObject->SetWidth(2.0);
-
-                // Display without selection
-                m_context->Display(m_xAxisObject, Standard_False);
-                m_context->Deactivate(m_xAxisObject);
-
-                // Don't set display priority - it causes errors
-                // m_context->SetDisplayPriority(m_xAxisObject, 0);
+            // Remove old axes
+            if (!m_xAxisObject.IsNull()) {
+                m_context->Remove(m_xAxisObject, Standard_False);
             }
-            catch (...) {
-                qWarning() << "Error creating X-axis";
+            if (!m_yAxisObject.IsNull()) {
+                m_context->Remove(m_yAxisObject, Standard_False);
+            }
+            if (!m_originMarker.IsNull()) {
+                m_context->Remove(m_originMarker, Standard_False);
             }
 
-            // Y-axis (green)
-            try {
-                TopoDS_Edge yAxis = BRepBuilderAPI_MakeEdge(
-                    gp_Pnt(0, yMin, 0),
-                    gp_Pnt(0, yMax, 0)
-                );
+            // X-axis
+            TopoDS_Edge xAxis = BRepBuilderAPI_MakeEdge(
+                gp_Pnt(m_viewMin.X(), 0, 0),
+                gp_Pnt(m_viewMax.X(), 0, 0)
+            );
+            m_xAxisObject = new AIS_Shape(xAxis);
+            m_xAxisObject->SetColor(m_gridConfig.axisColorX);
+            m_xAxisObject->SetWidth(m_gridConfig.axisLineWidth);
+            m_context->Display(m_xAxisObject, Standard_False);
+            m_context->Deactivate(m_xAxisObject);
 
-                if (!m_yAxisObject.IsNull()) {
-                    m_context->Remove(m_yAxisObject, Standard_False);
-                }
+            // Y-axis
+            TopoDS_Edge yAxis = BRepBuilderAPI_MakeEdge(
+                gp_Pnt(0, m_viewMin.Y(), 0),
+                gp_Pnt(0, m_viewMax.Y(), 0)
+            );
+            m_yAxisObject = new AIS_Shape(yAxis);
+            m_yAxisObject->SetColor(m_gridConfig.axisColorY);
+            m_yAxisObject->SetWidth(m_gridConfig.axisLineWidth);
+            m_context->Display(m_yAxisObject, Standard_False);
+            m_context->Deactivate(m_yAxisObject);
 
-                m_yAxisObject = new AIS_Shape(yAxis);
-                m_yAxisObject->SetColor(Quantity_NOC_GREEN);
-                m_yAxisObject->SetWidth(2.0);
-
-                // Display without selection
-                m_context->Display(m_yAxisObject, Standard_False);
-                m_context->Deactivate(m_yAxisObject);
-
-                // Don't set display priority - it causes errors
-                // m_context->SetDisplayPriority(m_yAxisObject, 0);
-            }
-            catch (...) {
-                qWarning() << "Error creating Y-axis";
+            // Origin marker
+            if (m_gridConfig.showOriginMarker) {
+                createOriginMarker();
             }
         }
         catch (const Standard_Failure& ex) {
-            qWarning() << "Error updating axes geometry:" << ex.GetMessageString();
-        }
-        catch (...) {
-            qWarning() << "Unknown error updating axes geometry";
+            qWarning() << "Error updating axes:" << ex.GetMessageString();
         }
     }
 
     void TyrexCanvasOverlay::clearOverlay()
     {
-        if (m_context.IsNull()) {
-            return;
-        }
+        if (m_context.IsNull()) return;
 
         try {
-            if (!m_gridObject.IsNull()) {
-                m_context->Remove(m_gridObject, Standard_False);
-                m_gridObject.Nullify();
+            if (!m_gridLinesObject.IsNull()) {
+                m_context->Remove(m_gridLinesObject, Standard_False);
+                m_gridLinesObject.Nullify();
             }
-
+            if (!m_gridDotsObject.IsNull()) {
+                m_context->Remove(m_gridDotsObject, Standard_False);
+                m_gridDotsObject.Nullify();
+            }
             if (!m_xAxisObject.IsNull()) {
                 m_context->Remove(m_xAxisObject, Standard_False);
                 m_xAxisObject.Nullify();
             }
-
             if (!m_yAxisObject.IsNull()) {
                 m_context->Remove(m_yAxisObject, Standard_False);
                 m_yAxisObject.Nullify();
             }
-        }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error clearing overlay:" << ex.GetMessageString();
+            if (!m_originMarker.IsNull()) {
+                m_context->Remove(m_originMarker, Standard_False);
+                m_originMarker.Nullify();
+            }
         }
         catch (...) {
-            qWarning() << "Unknown error clearing overlay";
+            qWarning() << "Error clearing overlay";
         }
     }
 
-    void TyrexCanvasOverlay::calculateGridLines(std::vector<gp_Pnt>& lines,
-        std::vector<bool>& majorLines) const
+    void TyrexCanvasOverlay::createLineGrid()
     {
-        lines.clear();
-        majorLines.clear();
+        Handle(Graphic3d_ArrayOfPolylines) gridLines = createGridLines();
+        if (gridLines.IsNull() || gridLines->VertexNumber() == 0) return;
 
-        if (m_dynamicGridSpacing <= 0) {
-            return;
-        }
+        // Create compound for all grid lines
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
 
-        try {
-            double spacing = m_dynamicGridSpacing;
-            double minorSpacing = spacing / m_gridConfig.subdivisions;
+        // Build edges from line array
+        for (Standard_Integer i = 1; i <= gridLines->EdgeNumber(); i++) {
+            Standard_Integer v1, v2;
+            gridLines->Edge(i, v1, v2);
 
-            // Calculate grid bounds with safety checks
-            double xMin = std::max(-10000.0, std::floor(m_viewMin.X() / spacing) * spacing);
-            double xMax = std::min(10000.0, std::ceil(m_viewMax.X() / spacing) * spacing);
-            double yMin = std::max(-10000.0, std::floor(m_viewMin.Y() / spacing) * spacing);
-            double yMax = std::min(10000.0, std::ceil(m_viewMax.Y() / spacing) * spacing);
+            gp_Pnt p1(gridLines->Vertice(v1));
+            gp_Pnt p2(gridLines->Vertice(v2));
 
-            // Limit number of lines
-            int xLines = static_cast<int>((xMax - xMin) / spacing) + 1;
-            int yLines = static_cast<int>((yMax - yMin) / spacing) + 1;
-
-            if (xLines > m_gridConfig.maxLinesPerAxis ||
-                yLines > m_gridConfig.maxLinesPerAxis) {
-                qDebug() << "Too many grid lines, skipping minor divisions";
-                minorSpacing = spacing; // Skip subdivisions
-            }
-
-            // Generate vertical lines
-            int lineCount = 0;
-            const int maxLineCount = 1000; // Safety limit
-
-            for (double x = xMin; x <= xMax && lineCount < maxLineCount; x += minorSpacing) {
-                lines.emplace_back(x, yMin, 0);
-                lines.emplace_back(x, yMax, 0);
-
-                // Check if major line
-                bool isMajor = std::fmod(std::abs(x), spacing) < 1e-6;
-                majorLines.push_back(isMajor);
-                majorLines.push_back(isMajor);
-
-                lineCount++;
-            }
-
-            // Generate horizontal lines
-            for (double y = yMin; y <= yMax && lineCount < maxLineCount; y += minorSpacing) {
-                lines.emplace_back(xMin, y, 0);
-                lines.emplace_back(xMax, y, 0);
-
-                // Check if major line
-                bool isMajor = std::fmod(std::abs(y), spacing) < 1e-6;
-                majorLines.push_back(isMajor);
-                majorLines.push_back(isMajor);
-
-                lineCount++;
+            TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(p1, p2);
+            if (!edge.IsNull()) {
+                builder.Add(compound, edge);
             }
         }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error calculating grid lines:" << ex.GetMessageString();
-            lines.clear();
-            majorLines.clear();
+
+        m_gridLinesObject = new AIS_Shape(compound);
+        m_gridLinesObject->SetColor(m_gridConfig.gridColorMinor);
+        m_gridLinesObject->SetWidth(m_gridConfig.lineWidthMinor);
+
+        m_context->Display(m_gridLinesObject, Standard_False);
+        m_context->Deactivate(m_gridLinesObject);
+    }
+
+    void TyrexCanvasOverlay::createDotGrid()
+    {
+        Handle(Graphic3d_ArrayOfPoints) gridDots = createGridDots();
+        if (gridDots.IsNull() || gridDots->VertexNumber() == 0) return;
+
+        // Create compound of vertices
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+
+        for (Standard_Integer i = 1; i <= gridDots->VertexNumber(); i++) {
+            gp_Pnt p = gridDots->Vertice(i);
+            TopoDS_Vertex vertex = BRepBuilderAPI_MakeVertex(p);
+            builder.Add(compound, vertex);
         }
-        catch (...) {
-            qWarning() << "Unknown error calculating grid lines";
-            lines.clear();
-            majorLines.clear();
+
+        m_gridDotsObject = new AIS_Shape(compound);
+        m_gridDotsObject->SetColor(m_gridConfig.gridColorMinor);
+
+        m_context->Display(m_gridDotsObject, Standard_False);
+        m_context->Deactivate(m_gridDotsObject);
+    }
+
+    void TyrexCanvasOverlay::createCrossGrid()
+    {
+        // Create crosses at grid intersections
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+
+        double spacing = m_dynamicGridSpacing;
+        double crossSize = spacing * 0.1; // 10% of grid spacing
+
+        double xMin = std::floor(m_viewMin.X() / spacing) * spacing;
+        double xMax = std::ceil(m_viewMax.X() / spacing) * spacing;
+        double yMin = std::floor(m_viewMin.Y() / spacing) * spacing;
+        double yMax = std::ceil(m_viewMax.Y() / spacing) * spacing;
+
+        for (double x = xMin; x <= xMax; x += spacing) {
+            for (double y = yMin; y <= yMax; y += spacing) {
+                // Horizontal line of cross
+                TopoDS_Edge hLine = BRepBuilderAPI_MakeEdge(
+                    gp_Pnt(x - crossSize, y, 0),
+                    gp_Pnt(x + crossSize, y, 0)
+                );
+                builder.Add(compound, hLine);
+
+                // Vertical line of cross
+                TopoDS_Edge vLine = BRepBuilderAPI_MakeEdge(
+                    gp_Pnt(x, y - crossSize, 0),
+                    gp_Pnt(x, y + crossSize, 0)
+                );
+                builder.Add(compound, vLine);
+            }
         }
+
+        m_gridLinesObject = new AIS_Shape(compound);
+        m_gridLinesObject->SetColor(m_gridConfig.gridColorMinor);
+        m_gridLinesObject->SetWidth(m_gridConfig.lineWidthMinor);
+
+        m_context->Display(m_gridLinesObject, Standard_False);
+        m_context->Deactivate(m_gridLinesObject);
+    }
+
+    Handle(Graphic3d_ArrayOfPolylines) TyrexCanvasOverlay::createGridLines() const
+    {
+        double spacing = m_dynamicGridSpacing;
+        int majorInterval = m_gridConfig.majorLineInterval;
+
+        double xMin = std::floor(m_viewMin.X() / spacing) * spacing;
+        double xMax = std::ceil(m_viewMax.X() / spacing) * spacing;
+        double yMin = std::floor(m_viewMin.Y() / spacing) * spacing;
+        double yMax = std::ceil(m_viewMax.Y() / spacing) * spacing;
+
+        // Count lines
+        int xLines = static_cast<int>((xMax - xMin) / spacing) + 1;
+        int yLines = static_cast<int>((yMax - yMin) / spacing) + 1;
+        int totalVertices = (xLines + yLines) * 2;
+
+        Handle(Graphic3d_ArrayOfPolylines) gridLines =
+            new Graphic3d_ArrayOfPolylines(totalVertices, xLines + yLines);
+
+        // Vertical lines
+        int lineIndex = 0;
+        for (double x = xMin; x <= xMax; x += spacing) {
+            gridLines->AddVertex(x, yMin, 0);
+            gridLines->AddVertex(x, yMax, 0);
+            gridLines->AddBound(2);
+
+            // Set color based on major/minor
+            lineIndex = static_cast<int>(std::round(x / spacing));
+            if (lineIndex % majorInterval == 0) {
+                gridLines->SetBoundColor(gridLines->BoundNumber(), m_gridConfig.gridColorMajor);
+            }
+            else {
+                gridLines->SetBoundColor(gridLines->BoundNumber(), m_gridConfig.gridColorMinor);
+            }
+        }
+
+        // Horizontal lines
+        for (double y = yMin; y <= yMax; y += spacing) {
+            gridLines->AddVertex(xMin, y, 0);
+            gridLines->AddVertex(xMax, y, 0);
+            gridLines->AddBound(2);
+
+            // Set color based on major/minor
+            lineIndex = static_cast<int>(std::round(y / spacing));
+            if (lineIndex % majorInterval == 0) {
+                gridLines->SetBoundColor(gridLines->BoundNumber(), m_gridConfig.gridColorMajor);
+            }
+            else {
+                gridLines->SetBoundColor(gridLines->BoundNumber(), m_gridConfig.gridColorMinor);
+            }
+        }
+
+        return gridLines;
+    }
+
+    Handle(Graphic3d_ArrayOfPoints) TyrexCanvasOverlay::createGridDots() const
+    {
+        double spacing = m_dynamicGridSpacing;
+
+        double xMin = std::floor(m_viewMin.X() / spacing) * spacing;
+        double xMax = std::ceil(m_viewMax.X() / spacing) * spacing;
+        double yMin = std::floor(m_viewMin.Y() / spacing) * spacing;
+        double yMax = std::ceil(m_viewMax.Y() / spacing) * spacing;
+
+        // Count points
+        int xPoints = static_cast<int>((xMax - xMin) / spacing) + 1;
+        int yPoints = static_cast<int>((yMax - yMin) / spacing) + 1;
+        int totalPoints = xPoints * yPoints;
+
+        Handle(Graphic3d_ArrayOfPoints) gridDots = new Graphic3d_ArrayOfPoints(totalPoints);
+
+        int majorInterval = m_gridConfig.majorLineInterval;
+
+        for (double x = xMin; x <= xMax; x += spacing) {
+            for (double y = yMin; y <= yMax; y += spacing) {
+                gridDots->AddVertex(x, y, 0);
+
+                // Set color based on major/minor
+                int xIndex = static_cast<int>(std::round(x / spacing));
+                int yIndex = static_cast<int>(std::round(y / spacing));
+
+                if ((xIndex % majorInterval == 0) || (yIndex % majorInterval == 0)) {
+                    gridDots->SetVertexColor(gridDots->VertexNumber(), m_gridConfig.gridColorMajor);
+                }
+                else {
+                    gridDots->SetVertexColor(gridDots->VertexNumber(), m_gridConfig.gridColorMinor);
+                }
+            }
+        }
+
+        return gridDots;
+    }
+
+    void TyrexCanvasOverlay::createOriginMarker()
+    {
+        // Create a small circle at origin
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+
+        double markerSize = m_dynamicGridSpacing * 0.2;
+
+        // Create circle edges
+        for (int i = 0; i < 360; i += 30) {
+            double angle1 = i * M_PI / 180.0;
+            double angle2 = (i + 30) * M_PI / 180.0;
+
+            gp_Pnt p1(markerSize * cos(angle1), markerSize * sin(angle1), 0);
+            gp_Pnt p2(markerSize * cos(angle2), markerSize * sin(angle2), 0);
+
+            TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(p1, p2);
+            builder.Add(compound, edge);
+        }
+
+        m_originMarker = new AIS_Shape(compound);
+        m_originMarker->SetColor(Quantity_NOC_WHITE);
+        m_originMarker->SetWidth(2.0);
+
+        m_context->Display(m_originMarker, Standard_False);
+        m_context->Deactivate(m_originMarker);
+    }
+
+    bool TyrexCanvasOverlay::shouldDrawLine(double coord, double min, double max) const
+    {
+        return coord >= min && coord <= max;
+    }
+
+    int TyrexCanvasOverlay::calculateGridDensity() const
+    {
+        double viewWidth = m_viewMax.X() - m_viewMin.X();
+        double viewHeight = m_viewMax.Y() - m_viewMin.Y();
+        double viewArea = viewWidth * viewHeight;
+        double gridCellArea = m_dynamicGridSpacing * m_dynamicGridSpacing;
+
+        return static_cast<int>(viewArea / gridCellArea);
     }
 
 } // namespace TyrexCAD

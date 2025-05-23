@@ -23,6 +23,7 @@
 class QAction;
 class QMenu;
 class QToolBar;
+class QActionGroup;
 
 namespace TyrexCAD {
     class TyrexViewerManager;
@@ -122,6 +123,11 @@ namespace TyrexCAD {
         void createSketchActions();
 
         /**
+         * @brief Create advanced sketch actions (grid, snap, ortho)
+         */
+        void createAdvancedSketchActions();
+
+        /**
          * @brief Create sketch-related menus
          */
         void createSketchMenus();
@@ -135,6 +141,44 @@ namespace TyrexCAD {
          * @brief Update UI for sketch mode changes
          */
         void updateSketchModeUI();
+
+        /**
+         * @brief Update sketch status bar with detailed information
+         */
+        void updateSketchStatusBar();
+
+        /**
+         * @brief Setup sketch mode specific toolbars
+         */
+        void setupSketchModeToolbars();
+
+        /**
+         * @brief Restore normal toolbars when exiting sketch mode
+         */
+        void restoreNormalToolbars();
+
+        /**
+         * @brief Update property panel with entity information
+         * @param entityId ID of the entity to display
+         */
+        void updatePropertyPanel(const std::string& entityId);
+
+        /**
+         * @brief Clear the property panel
+         */
+        void clearPropertyPanel();
+
+        /**
+         * @brief Set document modified state
+         * @param modified True if document is modified
+         */
+        void setDocumentModified(bool modified);
+
+        /**
+         * @brief Update status bar with custom message
+         * @param message Message to display
+         */
+        void updateStatusBar(const QString& message);
 
     private:
         // === CORE COMPONENTS ===
@@ -169,6 +213,17 @@ namespace TyrexCAD {
         QAction* m_exitSketchAction;
         QAction* m_sketchLineAction;
         QAction* m_sketchCircleAction;
+
+        // === ADVANCED SKETCH ACTIONS ===
+        QAction* m_toggleGridAction;
+        QAction* m_toggleSnapAction;
+        QAction* m_toggleOrthoAction;
+
+        // Grid style actions
+        QActionGroup* m_gridStyleGroup;
+        QAction* m_gridLinesAction;
+        QAction* m_gridDotsAction;
+        QAction* m_gridCrossesAction;
 
         // === MENUS ===
         QMenu* m_fileMenu;

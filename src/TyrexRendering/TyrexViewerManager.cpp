@@ -129,7 +129,16 @@ namespace TyrexCAD {
     {
         if (!m_view.IsNull()) {
             try {
-                m_view->Pan(dx, dy);
+                // Scale pan speed based on current zoom level
+                double scale = m_view->Scale();
+                double panSpeed = 1.0 / scale;
+
+                // Apply scaled pan
+                m_view->Pan(static_cast<Standard_Integer>(dx * panSpeed),
+                    static_cast<Standard_Integer>(dy * panSpeed),
+                    1.0,
+                    Standard_True);
+
                 emit viewChanged();
             }
             catch (const Standard_Failure& ex) {
@@ -161,6 +170,28 @@ namespace TyrexCAD {
             }
             catch (const Standard_Failure& ex) {
                 qWarning() << "Error during zoom:" << ex.GetMessageString();
+            }
+        }
+    }
+
+    void TyrexViewerManager::zoomAtPoint(const QPoint& center, double factor)
+    {
+        if (!m_view.IsNull()) {
+            try {
+                // Start zoom at specific point
+                m_view->StartZoomAtPoint(center.x(), center.y());
+
+                // Apply zoom
+                m_view->ZoomAtPoint(0, 0, static_cast<Standard_Integer>(center.x()),
+                    static_cast<Standard_Integer>(center.y()));
+
+                // Update scale
+                m_view->SetScale(m_view->Scale() * factor);
+
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during zoom at point:" << ex.GetMessageString();
             }
         }
     }
@@ -203,6 +234,32 @@ namespace TyrexCAD {
         }
 
         try {
+            if (m_is2DMode) {
+                // Simplified conversion for 2D mode
+                Standard_Real xv, yv, zv;
+                m_view->Convert(screenPos.x(), screenPos.y(), xv, yv, zv);
+
+                // In 2D mode, Z is always 0
+                return gp_Pnt(xv, yv, 0.0);
+            }
+            else {
+                // Use 3D conversion
+                return screenToModel3D(screenPos);
+            }
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error in screenToModel conversion:" << ex.GetMessageString();
+            return gp_Pnt(0, 0, 0);
+        }
+    }
+
+    gp_Pnt TyrexViewerManager::screenToModel3D(const QPoint& screenPos) const
+    {
+        if (m_view.IsNull()) {
+            return gp_Pnt(0, 0, 0);
+        }
+
+        try {
             // Create the working plane (XY plane, Z = 0)
             gp_Pln workingPlane(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1));
 
@@ -233,8 +290,6 @@ namespace TyrexCAD {
             gp_Pnt planeOrigin = workingPlane.Location();
 
             // Ray-plane intersection using parametric equation
-            // Ray: P = P0 + t * D
-            // Plane: N · (P - Q) = 0, where Q is point on plane
             gp_Vec eyeToPlane(eyePoint, planeOrigin);
             Standard_Real numerator = planeNormal.Dot(eyeToPlane);
             Standard_Real denominator = planeNormal.Dot(rayDir);
@@ -251,7 +306,7 @@ namespace TyrexCAD {
             return intersection;
         }
         catch (const Standard_Failure& ex) {
-            qWarning() << "Error in screenToModel conversion:" << ex.GetMessageString();
+            qWarning() << "Error in screenToModel3D conversion:" << ex.GetMessageString();
 
             // Simple fallback - assume orthographic projection
             Standard_Real x = static_cast<Standard_Real>(screenPos.x());
@@ -259,7 +314,7 @@ namespace TyrexCAD {
             return gp_Pnt(x, y, 0.0);
         }
         catch (...) {
-            qWarning() << "Unknown error in screenToModel conversion";
+            qWarning() << "Unknown error in screenToModel3D conversion";
             return gp_Pnt(0, 0, 0);
         }
     }
@@ -274,14 +329,45 @@ namespace TyrexCAD {
                 Handle(Graphic3d_Camera) camera = m_view->Camera();
                 if (!camera.IsNull()) {
                     camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+
+                    // Set proper camera parameters for 2D view
+                    camera->SetUp(gp_Dir(0, 1, 0));      // Y-up
+                    camera->SetDirection(gp_Dir(0, 0, -1)); // Looking down Z-axis
+
+                    // Disable perspective
+                    camera->SetZFocus(Graphic3d_Camera::FocusType_Absolute, 1.0);
                 }
 
-                // Set top view
+                // Set exact top view
                 m_view->SetProj(V3d_Zpos);
 
-                // Fit all
-                m_view->FitAll();
+                // Reset view orientation to ensure proper 2D alignment
+                m_view->SetAt(0, 0, 0);    // Look at origin
+                m_view->SetUp(0, 1, 0);    // Y is up
+
+                // Disable rotation for true 2D mode
+                m_view->SetViewOrientationDefault();
+
+                // Set view parameters for 2D
+                m_view->SetTwist(0);  // No twist
+
+                // Configure depth rendering
+                m_view->ChangeRenderingParams().IsAntialiasingEnabled = Standard_True;
+                m_view->ChangeRenderingParams().NbMsaaSamples = 4;
+                m_view->ChangeRenderingParams().Method = Graphic3d_RM_RASTERIZATION;
+
+                // Disable depth testing for true 2D overlay
+                m_view->ChangeRenderingParams().ToEnableDepthTest = Standard_False;
+
+                // Set Z range for 2D mode
+                m_view->SetZSize(1000.0); // Large Z range to avoid clipping
+
+                // Fit all content
+                m_view->FitAll(0.01, Standard_True);
                 m_view->ZFitAll();
+
+                // Force update
+                m_view->Invalidate();
                 m_view->Redraw();
 
                 qDebug() << "View set to 2D mode (orthographic projection)";
@@ -305,13 +391,27 @@ namespace TyrexCAD {
                 Handle(Graphic3d_Camera) camera = m_view->Camera();
                 if (!camera.IsNull()) {
                     camera->SetProjectionType(Graphic3d_Camera::Projection_Perspective);
+
+                    // Restore perspective parameters
+                    camera->SetZFocus(Graphic3d_Camera::FocusType_Relative, 1.0);
+                    camera->SetFOVy(45.0); // Standard FOV
                 }
+
+                // Enable depth testing for 3D
+                m_view->ChangeRenderingParams().ToEnableDepthTest = Standard_True;
 
                 // Set isometric view
                 m_view->SetProj(V3d_XposYnegZpos);
 
+                // Restore rotation capability
+                m_view->SetViewOrientationDefault();
+
                 // Fit all
-                m_view->FitAll();
+                m_view->FitAll(0.01, Standard_True);
+                m_view->ZFitAll();
+
+                // Force update
+                m_view->Invalidate();
                 m_view->Redraw();
 
                 qDebug() << "View set to 3D mode (perspective projection)";
