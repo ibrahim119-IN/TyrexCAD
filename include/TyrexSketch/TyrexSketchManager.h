@@ -23,6 +23,9 @@
 #include <V3d_View.hxx>
 #include <AIS_InteractiveContext.hxx>
 
+// Include sketch config for TyrexSketchConfig type
+#include "TyrexSketch/TyrexSketchConfig.h"
+
 namespace TyrexCAD {
 
     // Forward declarations
@@ -317,6 +320,13 @@ namespace TyrexCAD {
         std::vector<Handle(AIS_InteractiveObject)> m_controlPointObjects;
         std::vector<Handle(AIS_InteractiveObject)> m_highlightObjects;
 
+        // Sketch configuration
+        TyrexSketchConfig m_sketchConfig;
+
+        // Ortho mode support
+        bool m_firstPointSet;
+        gp_Pnt2d m_firstPoint;
+
         /**
          * @brief Update visual feedback for current selection
          */
@@ -373,6 +383,19 @@ namespace TyrexCAD {
          * @brief End current drag operation
          */
         void endDrag();
+
+        /**
+         * @brief Apply ortho mode constraints to a point
+         * @param point Input point
+         * @return Constrained point
+         */
+        gp_Pnt2d applyOrthoMode(const gp_Pnt2d& point) const;
+
+        /**
+         * @brief Draw a sketch entity with proper styling
+         * @param entity Entity to draw
+         */
+        void drawSketchEntity(std::shared_ptr<TyrexSketchEntity> entity);
     };
 
 } // namespace TyrexCAD

@@ -14,6 +14,9 @@
 
 namespace TyrexCAD {
 
+    // Forward declaration - GridStyle is defined in TyrexCanvasOverlay.h
+    enum class GridStyle;
+
     /**
      * @brief Configuration for sketch mode appearance and behavior
      */
@@ -33,7 +36,7 @@ namespace TyrexCAD {
             bool snapEnabled = true;
             double baseSpacing = 10.0;
             int majorLineInterval = 5;
-            GridStyle style = GridStyle::Lines;
+            int style = 0; // Will be cast to GridStyle enum when used
 
             // Colors
             Quantity_Color majorColor{ 0.3, 0.3, 0.3, Quantity_TOC_RGB };
@@ -102,7 +105,7 @@ namespace TyrexCAD {
             TyrexSketchConfig config;
             // AutoCAD-like settings
             config.canvas.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
-            config.grid.style = GridStyle::Dots;
+            config.grid.style = 1; // Dots style
             config.grid.majorColor = Quantity_Color(0.4, 0.4, 0.4, Quantity_TOC_RGB);
             config.grid.minorColor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
             return config;

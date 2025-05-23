@@ -645,7 +645,6 @@ namespace TyrexCAD {
 
         return gridLines;
     }
-
     Handle(Graphic3d_ArrayOfPoints) TyrexCanvasOverlay::createGridDots() const
     {
         double spacing = m_dynamicGridSpacing;

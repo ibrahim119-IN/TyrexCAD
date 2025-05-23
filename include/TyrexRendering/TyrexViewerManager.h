@@ -174,6 +174,13 @@ namespace TyrexCAD {
          * @brief Initialize the viewer components
          */
         void initialize();
+       
+    /**
+     * @brief Convert screen coordinates to 3D model coordinates
+     * @param screenPos Screen position
+     * @return 3D point in model space
+     */
+        gp_Pnt screenToModel3D(const QPoint& screenPos) const;
     };
 
 } // namespace TyrexCAD

@@ -15,6 +15,7 @@
 #include "TyrexCore/TyrexLineCommand.h"
 #include "TyrexInteraction/TyrexInteractionManager.h"
 #include "TyrexCore/TyrexSelectionMode.h"
+#include "TyrexCanvas/TyrexCanvasOverlay.h" // للوصول إلى GridStyle
 
  // Include sketch system
 #include "TyrexSketch/TyrexSketch.h"

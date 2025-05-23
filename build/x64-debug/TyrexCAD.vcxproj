@@ -539,6 +539,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketch.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchCircleCommand.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchCircleEntity.cpp" />
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchConfig.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchEntity.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchInteractionHandler.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchLineCommand.cpp" />

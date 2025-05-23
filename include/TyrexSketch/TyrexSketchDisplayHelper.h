@@ -12,7 +12,10 @@
 #include <V3d_View.hxx>
 #include <AIS_InteractiveContext.hxx>
 #include <Graphic3d_GraphicDriver.hxx>
-#include <OpenGl_Context.hxx>
+#include <Graphic3d_RenderingParams.hxx>
+#include <Graphic3d_Camera.hxx>
+#include <Standard_Integer.hxx>
+#include <gp_Pnt2d.hxx>
 
 namespace TyrexCAD {
 
@@ -38,12 +41,11 @@ namespace TyrexCAD {
             params.IsTransparentShadowEnabled = Standard_False;
             params.Method = Graphic3d_RM_RASTERIZATION;
 
-            // Optimize depth buffer for 2D
-            params.ToEnableDepthTest = Standard_False;
-            params.ToEnableDepthWrite = Standard_False;
+            // Note: ToEnableDepthTest and ToEnableDepthWrite may not exist in all versions
+            // These are handled internally by OpenCascade based on projection type
 
             // Set resolution for better line quality
-            params.Resolution = 96.0; // Standard screen DPI
+            params.Resolution = static_cast<unsigned int>(96); // Standard screen DPI
 
             // Disable stereo for 2D
             params.StereoMode = Graphic3d_StereoMode_QuadBuffer;
@@ -65,6 +67,7 @@ namespace TyrexCAD {
             const gp_Pnt2d& max) {
             // This would create an OpenGL display list for the grid
             // For better performance on repeated redraws
+            // Implementation depends on specific OpenGL context
         }
 
         /**
@@ -81,19 +84,26 @@ namespace TyrexCAD {
             Standard_Real halfWidth = width / 2.0;
             Standard_Real halfHeight = height / 2.0;
 
-            // Set view volume to match window pixels
-            view->Camera()->SetOrthographicProjection(
-                -halfWidth, halfWidth,
-                -halfHeight, halfHeight,
-                -1000.0, 1000.0
-            );
+            // Get camera and set orthographic projection
+            Handle(Graphic3d_Camera) camera = view->Camera();
+            if (!camera.IsNull()) {
+                // Set projection type to orthographic
+                camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
 
-            // Center at origin
-            view->Camera()->SetCenter(gp_Pnt(0, 0, 0));
+                // Set orthographic projection window
+                // Note: SetOrthographicProjection method signature varies by OpenCascade version
+                // Using SetScale and SetCenter instead for compatibility
+                Standard_Real scale = 1.0;
+                camera->SetScale(scale);
+                camera->SetCenter(gp_Pnt(0, 0, 0));
 
-            // Look down Z axis
-            view->Camera()->SetDirection(gp_Dir(0, 0, -1));
-            view->Camera()->SetUp(gp_Dir(0, 1, 0));
+                // Set view volume
+                camera->SetZRange(-1000.0, 1000.0);
+
+                // Look down Z axis
+                camera->SetDirection(gp_Dir(0, 0, -1));
+                camera->SetUp(gp_Dir(0, 1, 0));
+            }
         }
 
         /**
@@ -135,6 +145,7 @@ namespace TyrexCAD {
             const Quantity_Color& color,
             double width) {
             // Implementation would use OpenGL smooth lines
+            // This is a placeholder for actual implementation
         }
 
         /**
@@ -144,6 +155,7 @@ namespace TyrexCAD {
             const std::vector<gp_Pnt>& points,
             const Quantity_Color& color) {
             // Batch drawing implementation for better performance
+            // This is a placeholder for actual implementation
         }
     };
 

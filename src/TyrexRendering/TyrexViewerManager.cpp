@@ -32,11 +32,18 @@
 #include <Geom_Plane.hxx>
 #include <ElSLib.hxx>
 #include <Graphic3d_Camera.hxx>
+#include <Prs3d_LineAspect.hxx>
+#include <Prs3d_Drawer.hxx>
+#include <Aspect_TypeOfLine.hxx>
+#include <V3d_TypeOfOrientation.hxx>
+#include <Graphic3d_RenderingParams.hxx>
 
 // Include Qt headers
 #include <QDebug>
 #include <QPoint>
 #include <QTimer>
+
+#include <cmath>
 
 namespace TyrexCAD {
 
@@ -181,8 +188,8 @@ namespace TyrexCAD {
                 // Start zoom at specific point
                 m_view->StartZoomAtPoint(center.x(), center.y());
 
-                // Apply zoom
-                m_view->ZoomAtPoint(0, 0, static_cast<Standard_Integer>(center.x()),
+                // Apply zoom - note the correct method name
+                m_view->Zoom(0, 0, static_cast<Standard_Integer>(center.x()),
                     static_cast<Standard_Integer>(center.y()));
 
                 // Update scale
@@ -243,7 +250,7 @@ namespace TyrexCAD {
                 return gp_Pnt(xv, yv, 0.0);
             }
             else {
-                // Use 3D conversion
+                // Use 3D conversion - implement inline
                 return screenToModel3D(screenPos);
             }
         }
@@ -294,7 +301,7 @@ namespace TyrexCAD {
             Standard_Real numerator = planeNormal.Dot(eyeToPlane);
             Standard_Real denominator = planeNormal.Dot(rayDir);
 
-            if (Abs(denominator) < 1e-10) {
+            if (std::abs(denominator) < 1e-10) {
                 // Ray is parallel to plane - project eye point onto plane
                 gp_Pnt projectedPoint = eyePoint.Translated(-numerator * planeNormal);
                 return projectedPoint;
@@ -356,9 +363,6 @@ namespace TyrexCAD {
                 m_view->ChangeRenderingParams().NbMsaaSamples = 4;
                 m_view->ChangeRenderingParams().Method = Graphic3d_RM_RASTERIZATION;
 
-                // Disable depth testing for true 2D overlay
-                m_view->ChangeRenderingParams().ToEnableDepthTest = Standard_False;
-
                 // Set Z range for 2D mode
                 m_view->SetZSize(1000.0); // Large Z range to avoid clipping
 
@@ -396,9 +400,6 @@ namespace TyrexCAD {
                     camera->SetZFocus(Graphic3d_Camera::FocusType_Relative, 1.0);
                     camera->SetFOVy(45.0); // Standard FOV
                 }
-
-                // Enable depth testing for 3D
-                m_view->ChangeRenderingParams().ToEnableDepthTest = Standard_True;
 
                 // Set isometric view
                 m_view->SetProj(V3d_XposYnegZpos);

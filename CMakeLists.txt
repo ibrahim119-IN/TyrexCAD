@@ -38,7 +38,7 @@ file(GLOB_RECURSE TYREXCAD_HEADERS
 add_executable(TyrexCAD 
     ${TYREXCAD_SOURCES} 
     ${TYREXCAD_HEADERS}
- "include/TyrexSketch/TyrexSketchDisplayHelper.h" "include/TyrexSketch/TyrexSketchConfig.h")
+ "include/TyrexSketch/TyrexSketchDisplayHelper.h" "include/TyrexSketch/TyrexSketchConfig.h" "src/TyrexSketch/TyrexSketchConfig.cpp")
 
 # ================== Qt Integration (via vcpkg) ==================
 find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets OpenGL)

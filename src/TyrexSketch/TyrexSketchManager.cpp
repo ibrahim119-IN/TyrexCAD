@@ -9,8 +9,8 @@
 #include "TyrexSketch/TyrexSketchEntity.h"
 #include "TyrexSketch/TyrexSketchLineEntity.h"
 #include "TyrexSketch/TyrexSketchCircleEntity.h"
-#include "TyrexSketch/TyrexSketchConfig.h"           // NEW INCLUDE
-#include "TyrexSketch/TyrexSketchDisplayHelper.h"     // NEW INCLUDE
+#include "TyrexSketch/TyrexSketchConfig.h"
+#include "TyrexSketch/TyrexSketchDisplayHelper.h"
 #include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexCanvas/TyrexCanvasOverlay.h"
 
@@ -38,6 +38,10 @@
 #include <QTimer>
 #include <cmath>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 namespace TyrexCAD {
 
     TyrexSketchManager::TyrexSketchManager(
@@ -54,6 +58,8 @@ namespace TyrexCAD {
         , m_lastMousePos(0, 0)
         , m_draggedEntity(nullptr)
         , m_dragStartPosition(0, 0)
+        , m_firstPointSet(false)
+        , m_firstPoint(0, 0)
     {
         // Initialize empty control point for dragging
         m_draggedControlPoint.entity = nullptr;
@@ -127,14 +133,14 @@ namespace TyrexCAD {
         m_isInSketchMode = true;
         m_currentMode = InteractionMode::ObjectSelect;
 
-        // CRITICAL FIX 1: Set view BEFORE configuring overlay
+        // Set view BEFORE configuring overlay
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
             Handle(V3d_View) view = m_viewerManager->view();
 
             // Set black background first
             view->SetBackgroundColor(Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB));
 
-            // CRITICAL FIX 2: Ensure window is mapped before operations
+            // Ensure window is mapped before operations
             if (!view->Window().IsNull()) {
                 view->Window()->Map();
             }
@@ -142,7 +148,7 @@ namespace TyrexCAD {
             // Set to exact top view with proper camera setup
             view->SetProj(V3d_Zpos);
 
-            // CRITICAL FIX 3: Set camera to orthographic mode properly
+            // Set camera to orthographic mode properly
             Handle(Graphic3d_Camera) camera = view->Camera();
             if (!camera.IsNull()) {
                 // Save current view bounds
@@ -161,7 +167,7 @@ namespace TyrexCAD {
                 view->SetCamera(camera);
             }
 
-            // CRITICAL FIX 4: Configure rendering for 2D
+            // Configure rendering for 2D
             Graphic3d_RenderingParams& params = view->ChangeRenderingParams();
             params.Method = Graphic3d_RM_RASTERIZATION;
             params.IsAntialiasingEnabled = Standard_True;
@@ -173,7 +179,7 @@ namespace TyrexCAD {
             // Apply optimal 2D rendering settings
             TyrexSketchDisplayHelper::setupOptimal2DRendering(view);
 
-            // CRITICAL FIX 5: Update view before creating overlay
+            // Update view before creating overlay
             view->MustBeResized();
             view->FitAll(0.01, Standard_False);
             view->Update();
@@ -194,7 +200,7 @@ namespace TyrexCAD {
             qDebug() << "Sketch mode: Applied AutoCAD-like configuration";
         }
 
-        // CRITICAL FIX 6: Initialize overlay with proper config
+        // Initialize overlay with proper config
         if (m_canvasOverlay) {
             GridConfig gridConfig;
 
@@ -222,7 +228,7 @@ namespace TyrexCAD {
             m_canvasOverlay->setGridVisible(true);
             m_canvasOverlay->setAxisVisible(true);
 
-            // CRITICAL FIX 7: Force overlay update after view is ready
+            // Force overlay update after view is ready
             QTimer::singleShot(100, this, [this]() {
                 if (m_canvasOverlay) {
                     m_canvasOverlay->redraw();
@@ -246,7 +252,7 @@ namespace TyrexCAD {
     void TyrexSketchManager::exitSketchMode()
     {
         if (!m_isInSketchMode) {
-            return; // Not in sketch mode
+            return;
         }
 
         // End any active drag operations
@@ -858,7 +864,6 @@ namespace TyrexCAD {
         showControlPoints();
     }
 
-    // NEW HELPER METHODS
     gp_Pnt2d TyrexSketchManager::applyOrthoMode(const gp_Pnt2d& point) const
     {
         if (!m_firstPointSet) return point;
