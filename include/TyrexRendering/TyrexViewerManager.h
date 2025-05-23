@@ -149,6 +149,12 @@ namespace TyrexCAD {
          */
         void set3DMode();
 
+    signals:
+        /**
+         * @brief Emitted when view changes (pan, zoom, rotate)
+         */
+        void viewChanged();
+
     private:
         // OpenCascade components
         Handle(V3d_Viewer) m_viewer;

@@ -83,6 +83,9 @@ namespace TyrexCAD {
         if (!m_view.IsNull() && m_parentWidget) {
             m_view->MustBeResized();
             m_view->Redraw();
+
+            // Notify about view change
+            emit viewChanged();
         }
     }
 
@@ -91,6 +94,9 @@ namespace TyrexCAD {
         if (!m_view.IsNull()) {
             m_view->FitAll();
             m_view->ZFitAll();
+
+            // Notify about view change
+            emit viewChanged();
         }
     }
 
@@ -105,6 +111,9 @@ namespace TyrexCAD {
     {
         if (!m_view.IsNull()) {
             m_view->Pan(dx, dy);
+
+            // Notify about view change
+            emit viewChanged();
         }
     }
 
@@ -113,6 +122,9 @@ namespace TyrexCAD {
         if (!m_view.IsNull() && !m_is2DMode) {
             // Only allow rotation in 3D mode
             m_view->Rotate(dx, dy);
+
+            // Notify about view change
+            emit viewChanged();
         }
     }
 
@@ -120,6 +132,9 @@ namespace TyrexCAD {
     {
         if (!m_view.IsNull()) {
             m_view->SetScale(m_view->Scale() * factor);
+
+            // Notify about view change
+            emit viewChanged();
         }
     }
 
@@ -231,6 +246,9 @@ namespace TyrexCAD {
             m_view->ZFitAll();
 
             qDebug() << "View set to 2D mode (orthographic projection)";
+
+            // Notify about view change
+            emit viewChanged();
         }
     }
 
@@ -252,6 +270,9 @@ namespace TyrexCAD {
             m_view->FitAll();
 
             qDebug() << "View set to 3D mode (perspective projection)";
+
+            // Notify about view change
+            emit viewChanged();
         }
     }
 

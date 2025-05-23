@@ -259,6 +259,30 @@ namespace TyrexCAD {
          * @brief Emitted when exiting sketch mode
          */
         void sketchModeExited();
+        /**
+        * @brief Get the canvas overlay system
+        * @return Pointer to canvas overlay
+         */
+        TyrexCanvasOverlay* canvasOverlay() const;
+
+        /**
+         * @brief Set grid visibility
+         * @param visible True to show grid
+         */
+        void setGridVisible(bool visible);
+
+        /**
+         * @brief Set axes visibility
+         * @param visible True to show axes
+         */
+        void setAxesVisible(bool visible);
+
+        /**
+         * @brief Snap point to grid
+         * @param point Input point
+         * @return Snapped point if grid is active
+         */
+        gp_Pnt2d snapToGrid(const gp_Pnt2d& point) const;
 
     private:
         // Core components
@@ -272,6 +296,9 @@ namespace TyrexCAD {
         // Entity management
         std::vector<std::shared_ptr<TyrexSketchEntity>> m_sketchEntities;
         std::unordered_map<std::string, std::shared_ptr<TyrexSketchEntity>> m_entityMap;
+
+        // Canvas overlay system
+        std::unique_ptr<TyrexCanvasOverlay> m_canvasOverlay;
 
         // Selection and interaction
         std::vector<std::shared_ptr<TyrexSketchEntity>> m_selectedEntities;

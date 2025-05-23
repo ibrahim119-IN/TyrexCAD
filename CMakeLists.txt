@@ -24,10 +24,19 @@ set(OCCT_LIB_DIR "${OCCT_INSTALL_DIR}/win64/vc14/lib")
 set(OCCT_DLL_DIR "${OCCT_INSTALL_DIR}/win64/vc14/bin")
 
 # ================== Sources ==================
-file(GLOB_RECURSE TYREXCAD_SOURCES src/*.cpp)
-file(GLOB_RECURSE TYREXCAD_HEADERS include/*.h)
+file(GLOB_RECURSE TYREXCAD_SOURCES 
+    src/*.cpp
+    src/TyrexCanvas/TyrexCanvasOverlay.cpp
+)
+file(GLOB_RECURSE TYREXCAD_HEADERS 
+    include/*.h
+    include/TyrexCanvas/TyrexCanvasOverlay.h
+)
 
-add_executable(TyrexCAD ${TYREXCAD_SOURCES} ${TYREXCAD_HEADERS} "include/TyrexSketch/TyrexSketchManager.h" "include/TyrexSketch/TyrexSketchEntity.h" "include/TyrexSketch/TyrexSketchLineEntity.h" "include/TyrexSketch/TyrexSketchCircleEntity.h" "include/TyrexSketch/TyrexSketchInteractionHandler.h"  "src/TyrexSketch/TyrexSketchManager.cpp" "src/TyrexSketch/TyrexSketchLineEntity.cpp" "src/TyrexSketch/TyrexSketchCircleEntity.cpp" "src/TyrexSketch/TyrexSketchInteractionHandler.cpp" "src/TyrexSketch/TyrexSketchEntity.cpp" "include/TyrexSketch/TyrexSketchLineCommand.h" "include/TyrexSketch/TyrexSketchCircleCommand.h" "src/TyrexSketch/TyrexSketchLineCommand.cpp" "src/TyrexSketch/TyrexSketchCircleCommand.cpp" "include/TyrexSketch/TyrexSketch.h")
+add_executable(TyrexCAD 
+    ${TYREXCAD_SOURCES} 
+    ${TYREXCAD_HEADERS}
+)
 
 # ================== Qt Integration (via vcpkg) ==================
 find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
@@ -55,8 +64,6 @@ target_link_libraries(TyrexCAD PRIVATE
     TKGeomBase TKMath TKG3d TKG2d TKBRep TKTopAlgo TKPrim TKBO
     TKOpenGl TKService TKV3d TKernel
 )
-
-
 
 # ================== DLL Copy ==================
 add_custom_command(TARGET TyrexCAD POST_BUILD

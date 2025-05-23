@@ -10,6 +10,7 @@
 #include "TyrexSketch/TyrexSketchLineEntity.h"
 #include "TyrexSketch/TyrexSketchCircleEntity.h"
 #include "TyrexRendering/TyrexViewerManager.h"
+#include "TyrexCanvas/TyrexCanvasOverlay.h"
 
  // OpenCascade includes
 #include <Standard_Handle.hxx>
@@ -55,6 +56,26 @@ namespace TyrexCAD {
         m_draggedControlPoint.type = ControlPointType::Endpoint;
         m_draggedControlPoint.index = -1;
         m_draggedControlPoint.position = gp_Pnt2d(0, 0);
+
+        // Initialize canvas overlay
+        m_canvasOverlay = std::make_unique<TyrexCanvasOverlay>(m_context,
+            m_viewerManager ? m_viewerManager->view() : nullptr, this);
+
+        // Connect overlay signals
+        connect(m_canvasOverlay.get(), &TyrexCanvasOverlay::gridSpacingChanged,
+            this, [this](double spacing) {
+                qDebug() << "Grid spacing changed to:" << spacing;
+            });
+
+        // Connect to viewer manager signals if available
+        if (m_viewerManager) {
+            connect(m_viewerManager, &TyrexViewerManager::viewChanged,
+                this, [this]() {
+                    if (m_canvasOverlay && m_isInSketchMode) {
+                        m_canvasOverlay->update();
+                    }
+                });
+        }
 
         qDebug() << "TyrexSketchManager created";
     }
@@ -112,6 +133,13 @@ namespace TyrexCAD {
             qDebug() << "Sketch mode: Set 2D orthographic projection";
         }
 
+        // Show grid and axes in sketch mode
+        if (m_canvasOverlay) {
+            m_canvasOverlay->setGridVisible(true);
+            m_canvasOverlay->setAxisVisible(true);
+            m_canvasOverlay->update();
+        }
+
         // Clear any existing selections
         clearSelection();
 
@@ -123,7 +151,7 @@ namespace TyrexCAD {
         }
 
         emit sketchModeEntered();
-        qDebug() << "Entered sketch mode with 2D view";
+        qDebug() << "Entered sketch mode with 2D view and canvas overlay";
     }
 
     void TyrexSketchManager::exitSketchMode()
@@ -140,6 +168,12 @@ namespace TyrexCAD {
         // Hide control points and clear selections
         hideControlPoints();
         clearSelection();
+
+        // Optionally hide grid when exiting sketch mode
+        if (m_canvasOverlay) {
+            m_canvasOverlay->setGridVisible(false);
+            m_canvasOverlay->update();
+        }
 
         // Restore normal view settings
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
@@ -170,6 +204,33 @@ namespace TyrexCAD {
     bool TyrexSketchManager::isInSketchMode() const
     {
         return m_isInSketchMode;
+    }
+
+    TyrexCanvasOverlay* TyrexSketchManager::canvasOverlay() const
+    {
+        return m_canvasOverlay.get();
+    }
+
+    void TyrexSketchManager::setGridVisible(bool visible)
+    {
+        if (m_canvasOverlay) {
+            m_canvasOverlay->setGridVisible(visible);
+        }
+    }
+
+    void TyrexSketchManager::setAxesVisible(bool visible)
+    {
+        if (m_canvasOverlay) {
+            m_canvasOverlay->setAxisVisible(visible);
+        }
+    }
+
+    gp_Pnt2d TyrexSketchManager::snapToGrid(const gp_Pnt2d& point) const
+    {
+        if (m_canvasOverlay && m_canvasOverlay->isGridVisible()) {
+            return m_canvasOverlay->snapToGrid(point);
+        }
+        return point;
     }
 
     void TyrexSketchManager::addSketchEntity(std::shared_ptr<TyrexSketchEntity> entity)
@@ -273,7 +334,14 @@ namespace TyrexCAD {
             Standard_Real u, v;
             ElSLib::Parameters(m_sketchPlane, sketchPoint3D, u, v);
 
-            return gp_Pnt2d(u, v);
+            gp_Pnt2d result(u, v);
+
+            // Apply grid snapping if enabled
+            if (m_canvasOverlay && m_canvasOverlay->isGridVisible()) {
+                result = m_canvasOverlay->snapToGrid(result);
+            }
+
+            return result;
         }
         catch (const Standard_Failure& ex) {
             qWarning() << "OpenCascade error in screenToSketch:" << ex.GetMessageString();
@@ -544,6 +612,11 @@ namespace TyrexCAD {
     {
         if (m_context.IsNull()) {
             return;
+        }
+
+        // Update canvas overlay if needed
+        if (m_canvasOverlay && m_isInSketchMode) {
+            m_canvasOverlay->update();
         }
 
         // Redraw all entities
