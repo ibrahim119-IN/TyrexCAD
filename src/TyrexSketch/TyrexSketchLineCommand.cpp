@@ -16,6 +16,7 @@
 #include <Quantity_Color.hxx>
 #include <Prs3d_LineAspect.hxx>
 #include <Aspect_TypeOfLine.hxx>
+#include <AIS_InteractiveContext.hxx>
 
 // Qt includes
 #include <QDebug>
@@ -31,7 +32,7 @@ namespace TyrexCAD {
         , m_firstPoint(0, 0)
         , m_secondPoint(0, 0)
         , m_continuousMode(false)
-        , m_previewLine(nullptr)
+        , m_minimumLength(1.0)
         , m_previewShape(nullptr)
     {
         qDebug() << "TyrexSketchLineCommand created";
@@ -39,7 +40,7 @@ namespace TyrexCAD {
 
     TyrexSketchLineCommand::~TyrexSketchLineCommand()
     {
-        cleanupPreview();
+        removePreview();
         qDebug() << "TyrexSketchLineCommand destroyed";
     }
 
@@ -53,7 +54,7 @@ namespace TyrexCAD {
         m_secondPoint = gp_Pnt2d(0, 0);
 
         // Clean up any existing preview
-        cleanupPreview();
+        removePreview();
 
         qDebug() << "Sketch line command started - click to place first point";
     }
@@ -61,7 +62,7 @@ namespace TyrexCAD {
     void TyrexSketchLineCommand::cancel()
     {
         // Clean up preview
-        cleanupPreview();
+        removePreview();
 
         // Call base class cancel
         TyrexCommand::cancel();
@@ -104,29 +105,24 @@ namespace TyrexCAD {
                 .arg(m_secondPoint.X(), 0, 'f', 3)
                 .arg(m_secondPoint.Y(), 0, 'f', 3);
 
-            // Enhanced validation with meaningful threshold
-            const double MIN_LINE_LENGTH = 1.0; // 1 unit minimum length
-            double lineLength = m_firstPoint.Distance(m_secondPoint);
+            // Validate line
+            if (!validateLine(m_firstPoint, m_secondPoint)) {
+                qWarning() << QString("Line too short! Minimum length is %1 units")
+                    .arg(m_minimumLength);
 
-            if (lineLength < MIN_LINE_LENGTH) {
-                qWarning() << QString("Line too short (length: %1). Minimum length is %2 units")
-                    .arg(lineLength, 0, 'f', 3)
-                    .arg(MIN_LINE_LENGTH);
+                // Clean up preview
+                removePreview();
 
-                // Clean up preview and don't finish if too short
-                cleanupPreview();
-
-                if (!m_continuousMode) {
-                    m_isFinished = true;
-                }
+                // Don't finish command - let user try again
                 return;
             }
 
             // Remove preview before creating final shape
-            cleanupPreview();
+            removePreview();
 
             // Create the actual line entity
             if (createLine()) {
+                double lineLength = m_firstPoint.Distance(m_secondPoint);
                 qDebug() << QString("Line created successfully with length: %1")
                     .arg(lineLength, 0, 'f', 3);
 
@@ -160,17 +156,8 @@ namespace TyrexCAD {
         // Convert current mouse position to 2D coordinates
         gp_Pnt2d currentPoint = m_sketchManager->screenToSketch(point);
 
-        // Validate line length before showing preview
-        const double MIN_PREVIEW_LENGTH = 1.0;
-        double currentLength = m_firstPoint.Distance(currentPoint);
-
-        if (currentLength >= MIN_PREVIEW_LENGTH) {
-            updatePreview(currentPoint);
-        }
-        else {
-            // Remove preview for too short lines
-            removePreview();
-        }
+        // Update preview
+        updatePreview(currentPoint);
     }
 
     void TyrexSketchLineCommand::onMouseRelease(const QPoint& /*point*/)
@@ -190,6 +177,17 @@ namespace TyrexCAD {
         return m_continuousMode;
     }
 
+    void TyrexSketchLineCommand::setMinimumLength(double minLength)
+    {
+        m_minimumLength = std::max(0.1, minLength);
+        qDebug() << "Minimum line length set to:" << m_minimumLength;
+    }
+
+    double TyrexSketchLineCommand::getMinimumLength() const
+    {
+        return m_minimumLength;
+    }
+
     bool TyrexSketchLineCommand::createLine()
     {
         if (!m_sketchManager) {
@@ -201,13 +199,7 @@ namespace TyrexCAD {
             // Generate unique ID for the line
             std::string lineId = generateLineId();
 
-            // Calculate line length for debugging
-            double lineLength = m_firstPoint.Distance(m_secondPoint);
-            qDebug() << QString("Creating sketch line with ID: %1, length: %2")
-                .arg(QString::fromStdString(lineId))
-                .arg(lineLength, 0, 'f', 3);
-
-            // Create the line entity with explicit sketch plane
+            // Create the line entity
             auto lineEntity = std::make_shared<TyrexSketchLineEntity>(
                 lineId,
                 m_sketchManager->sketchPlane(),
@@ -215,20 +207,21 @@ namespace TyrexCAD {
                 m_secondPoint
             );
 
-            // Set sketch-specific color (blue for lines in sketch mode)
+            // Set sketch-specific color
             Quantity_Color sketchColor(0.2, 0.5, 1.0, Quantity_TOC_RGB); // Light blue
             lineEntity->setColor(sketchColor);
 
-            // Force shape update before adding to manager
+            // Force shape update
             lineEntity->updateShape();
 
-            // Add the entity to sketch manager - this will display it
+            // Add to sketch manager
             m_sketchManager->addSketchEntity(lineEntity);
 
-            // Force immediate redraw to ensure visibility
+            // Force redraw
             m_sketchManager->redrawSketch();
 
-            qDebug() << QString("Sketch line entity created and displayed successfully");
+            qDebug() << QString("Sketch line entity created with ID: %1")
+                .arg(QString::fromStdString(lineId));
 
             return true;
         }
@@ -257,11 +250,19 @@ namespace TyrexCAD {
             return;
         }
 
+        // Validate preview line
+        double distance = m_firstPoint.Distance(currentPoint);
+        if (distance < m_minimumLength * 0.5) {
+            // Too short for preview - remove any existing preview
+            removePreview();
+            return;
+        }
+
         try {
             // Remove existing preview if any
             removePreview();
 
-            // Convert 2D points to 3D using the sketch plane
+            // Convert 2D points to 3D
             gp_Pnt startPoint3D = m_sketchManager->sketchToWorld(m_firstPoint);
             gp_Pnt endPoint3D = m_sketchManager->sketchToWorld(currentPoint);
 
@@ -271,33 +272,29 @@ namespace TyrexCAD {
                 TopoDS_Edge previewEdge = edgeMaker.Edge();
                 m_previewShape = new AIS_Shape(previewEdge);
 
-                // Set preview appearance (light gray dashed line)
-                Quantity_Color previewColor(0.6, 0.6, 0.6, Quantity_TOC_RGB);
+                // Set preview appearance
+                Quantity_Color previewColor(0.0, 0.8, 0.8, Quantity_TOC_RGB); // Cyan
                 m_previewShape->SetColor(previewColor);
-                m_previewShape->SetWidth(1.5);
-                m_previewShape->SetTransparency(0.3);
+                m_previewShape->SetWidth(2.0);
+                m_previewShape->SetTransparency(0.2);
 
                 // Set dashed line style
                 Handle(Prs3d_LineAspect) lineAspect = new Prs3d_LineAspect(
-                    previewColor, Aspect_TOL_DASH, 1.5);
+                    previewColor, Aspect_TOL_DASH, 2.0);
                 m_previewShape->Attributes()->SetLineAspect(lineAspect);
 
-                // Display preview
+                // Display preview without updating viewer immediately
                 context->Display(m_previewShape, Standard_False);
                 context->UpdateCurrentViewer();
-
-                qDebug() << QString("Preview updated for line from (%1,%2) to (%3,%4)")
-                    .arg(m_firstPoint.X(), 0, 'f', 2)
-                    .arg(m_firstPoint.Y(), 0, 'f', 2)
-                    .arg(currentPoint.X(), 0, 'f', 2)
-                    .arg(currentPoint.Y(), 0, 'f', 2);
             }
         }
         catch (const Standard_Failure& ex) {
-            qWarning() << "OpenCascade error updating line preview:" << ex.GetMessageString();
+            qWarning() << "Error updating line preview:" << ex.GetMessageString();
+            removePreview();
         }
         catch (...) {
             qWarning() << "Unknown error updating line preview";
+            removePreview();
         }
     }
 
@@ -308,43 +305,30 @@ namespace TyrexCAD {
             if (!context.IsNull()) {
                 try {
                     context->Remove(m_previewShape, Standard_True);
-                    context->UpdateCurrentViewer();
-                    qDebug() << "Preview line removed";
+                    m_previewShape.Nullify();
                 }
                 catch (const Standard_Failure& ex) {
                     qWarning() << "Error removing preview:" << ex.GetMessageString();
                 }
-            }
-            m_previewShape.Nullify();
-        }
-    }
-
-    void TyrexSketchLineCommand::cleanupPreview()
-    {
-        // Remove AIS preview shape
-        removePreview();
-
-        // Clean up entity-based preview (legacy)
-        if (m_previewLine && m_sketchManager) {
-            try {
-                m_sketchManager->removeSketchEntity(m_previewLine->getId());
-                m_previewLine = nullptr;
-                m_sketchManager->redrawSketch();
-                qDebug() << "Preview line entity cleaned up";
-            }
-            catch (const std::exception& ex) {
-                qWarning() << "Error cleaning up preview entity:" << ex.what();
+                catch (...) {
+                    qWarning() << "Unknown error removing preview";
+                }
             }
         }
     }
 
     std::string TyrexSketchLineCommand::generateLineId() const
     {
-        // Generate unique ID using timestamp and counter
         static int counter = 0;
         std::stringstream ss;
         ss << "sketch_line_" << std::setfill('0') << std::setw(6) << ++counter;
         return ss.str();
+    }
+
+    bool TyrexSketchLineCommand::validateLine(const gp_Pnt2d& start, const gp_Pnt2d& end) const
+    {
+        double length = start.Distance(end);
+        return length >= m_minimumLength;
     }
 
 } // namespace TyrexCAD

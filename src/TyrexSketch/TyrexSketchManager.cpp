@@ -99,23 +99,17 @@ namespace TyrexCAD {
         m_isInSketchMode = true;
         m_currentMode = InteractionMode::ObjectSelect;
 
-        // Set up view for sketch mode with visual changes
+        // Set up view for sketch mode with 2D orthographic projection
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
             Handle(V3d_View) view = m_viewerManager->view();
 
             // Change background color to indicate sketch mode
             view->SetBackgroundColor(Quantity_Color(0.95, 0.95, 0.98, Quantity_TOC_RGB)); // Light blue-gray
 
-            // Set view to look down on the sketch plane (orthographic top view)
-            view->SetProj(V3d_Zpos);  // Top view for XY plane
-            view->Camera()->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+            // Set view to 2D mode using viewer manager
+            m_viewerManager->set2DMode();
 
-            // Fit all and update
-            view->FitAll();
-            view->ZFitAll();
-            view->Redraw();
-
-            qDebug() << "Sketch mode: Set orthographic projection and light background";
+            qDebug() << "Sketch mode: Set 2D orthographic projection";
         }
 
         // Clear any existing selections
@@ -129,7 +123,7 @@ namespace TyrexCAD {
         }
 
         emit sketchModeEntered();
-        qDebug() << "Entered sketch mode with visual enhancements";
+        qDebug() << "Entered sketch mode with 2D view";
     }
 
     void TyrexSketchManager::exitSketchMode()
@@ -154,15 +148,10 @@ namespace TyrexCAD {
             // Restore original background color
             view->SetBackgroundColor(Quantity_NOC_DARKSLATEGRAY);
 
-            // Restore perspective projection
-            view->Camera()->SetProjectionType(Graphic3d_Camera::Projection_Perspective);
+            // Set view back to 3D mode using viewer manager
+            m_viewerManager->set3DMode();
 
-            // Set back to isometric view
-            view->SetProj(V3d_XposYnegZpos);
-            view->FitAll();
-            view->Redraw();
-
-            qDebug() << "Sketch mode: Restored perspective projection and dark background";
+            qDebug() << "Sketch mode: Restored 3D perspective projection";
         }
 
         // Restore normal display mode
@@ -175,7 +164,7 @@ namespace TyrexCAD {
         m_currentMode = InteractionMode::None;
 
         emit sketchModeExited();
-        qDebug() << "Exited sketch mode and restored normal view";
+        qDebug() << "Exited sketch mode and restored 3D view";
     }
 
     bool TyrexSketchManager::isInSketchMode() const
@@ -276,40 +265,24 @@ namespace TyrexCAD {
             Standard_Real xv, yv, zv;
             view->Convert(screenPoint.x(), screenPoint.y(), xv, yv, zv);
 
-            // Create 3D point from view coordinates
-            gp_Pnt viewPoint(xv, yv, zv);
-
-            // For sketch mode, we can use a simpler approach since we're in orthographic projection
-            // The sketch plane is typically the XY plane (Z=0)
+            // In orthographic 2D mode, we can directly use the view coordinates
+            // The sketch plane is the XY plane (Z=0)
             gp_Pnt sketchPoint3D(xv, yv, 0.0);
 
             // Project the 3D point onto our sketch plane to get 2D coordinates
             Standard_Real u, v;
             ElSLib::Parameters(m_sketchPlane, sketchPoint3D, u, v);
 
-            gp_Pnt2d result(u, v);
-
-            // Debug output for coordinate conversion
-            qDebug() << QString("Screen (%1,%2) → Sketch (%3,%4)")
-                .arg(screenPoint.x())
-                .arg(screenPoint.y())
-                .arg(result.X(), 0, 'f', 3)
-                .arg(result.Y(), 0, 'f', 3);
-
-            return result;
+            return gp_Pnt2d(u, v);
         }
         catch (const Standard_Failure& ex) {
             qWarning() << "OpenCascade error in screenToSketch:" << ex.GetMessageString();
 
-            // Fallback: use simple screen-to-model conversion
+            // Fallback to viewer manager conversion
             gp_Pnt worldPoint = m_viewerManager->screenToModel(screenPoint);
             Standard_Real u, v;
             ElSLib::Parameters(m_sketchPlane, worldPoint, u, v);
             return gp_Pnt2d(u, v);
-        }
-        catch (const std::exception& ex) {
-            qWarning() << "Error in screenToSketch:" << ex.what();
-            return gp_Pnt2d(0, 0);
         }
         catch (...) {
             qWarning() << "Unknown error in screenToSketch";
@@ -482,7 +455,7 @@ namespace TyrexCAD {
 
             // Determine control point type based on entity type and index
             if (entity->getType() == SketchEntityType::Line) {
-                cp.type = (i == 0) ? ControlPointType::Endpoint : ControlPointType::Endpoint;
+                cp.type = ControlPointType::Endpoint;
             }
             else if (entity->getType() == SketchEntityType::Circle) {
                 cp.type = (i == 0) ? ControlPointType::Endpoint : ControlPointType::RadiusPoint;
@@ -500,15 +473,12 @@ namespace TyrexCAD {
         ControlPoint result;
         result.entity = nullptr;
 
+        gp_Pnt2d screenSketch = screenToSketch(screenPos);
+
         for (auto& entity : m_selectedEntities) {
             auto controlPoints = getControlPoints(entity);
 
             for (const auto& cp : controlPoints) {
-                // Convert control point to screen coordinates
-                gp_Pnt worldPoint = sketchToWorld(cp.position);
-                // Would need screen projection here - for now use distance in 2D
-                gp_Pnt2d screenSketch = screenToSketch(screenPos);
-
                 double distance = cp.position.Distance(screenSketch);
                 if (distance <= tolerance) {
                     return cp;
@@ -662,8 +632,11 @@ namespace TyrexCAD {
         Handle(AIS_Point) aisPoint = new AIS_Point(geomPoint);
 
         // Set appearance based on control point type
+        Quantity_Color pointColor = (point.type == ControlPointType::Endpoint) ?
+            Quantity_NOC_YELLOW : Quantity_NOC_CYAN;
+
         Handle(Prs3d_PointAspect) pointAspect = new Prs3d_PointAspect(
-            Aspect_TOM_STAR, Quantity_NOC_YELLOW, 10.0);
+            Aspect_TOM_STAR, pointColor, 10.0);
 
         aisPoint->Attributes()->SetPointAspect(pointAspect);
 

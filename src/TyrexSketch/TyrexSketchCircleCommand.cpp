@@ -9,7 +9,18 @@
 #include "TyrexSketch/TyrexSketchManager.h"
 #include "TyrexSketch/TyrexSketchCircleEntity.h"
 
- // Qt includes
+ // OpenCascade includes
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Ax2.hxx>
+#include <TopoDS_Edge.hxx>
+#include <AIS_Shape.hxx>
+#include <Quantity_Color.hxx>
+#include <Prs3d_LineAspect.hxx>
+#include <Aspect_TypeOfLine.hxx>
+#include <AIS_InteractiveContext.hxx>
+
+// Qt includes
 #include <QDebug>
 #include <sstream>
 #include <iomanip>
@@ -25,15 +36,15 @@ namespace TyrexCAD {
         , m_centerPointSet(false)
         , m_centerPoint(0, 0)
         , m_radiusPoint(0, 0)
-        , m_minimumRadius(2.0)  // Increased minimum radius for better visibility
-        , m_previewCircle(nullptr)
+        , m_minimumRadius(2.0)
+        , m_previewShape(nullptr)
     {
         qDebug() << "TyrexSketchCircleCommand created";
     }
 
     TyrexSketchCircleCommand::~TyrexSketchCircleCommand()
     {
-        cleanupPreview();
+        removePreview();
         qDebug() << "TyrexSketchCircleCommand destroyed";
     }
 
@@ -47,7 +58,7 @@ namespace TyrexCAD {
         m_radiusPoint = gp_Pnt2d(0, 0);
 
         // Clean up any existing preview
-        cleanupPreview();
+        removePreview();
 
         qDebug() << "Sketch circle command started - click to place center point";
     }
@@ -55,7 +66,7 @@ namespace TyrexCAD {
     void TyrexSketchCircleCommand::cancel()
     {
         // Clean up preview
-        cleanupPreview();
+        removePreview();
 
         // Call base class cancel
         TyrexCommand::cancel();
@@ -88,24 +99,14 @@ namespace TyrexCAD {
                 .arg(m_centerPoint.X(), 0, 'f', 3)
                 .arg(m_centerPoint.Y(), 0, 'f', 3);
 
-            if (m_definitionMethod == CircleDefinitionMethod::CenterRadius) {
-                qDebug() << QString("Move mouse and click to set radius (minimum: %1)")
-                    .arg(m_minimumRadius);
-            }
-            else if (m_definitionMethod == CircleDefinitionMethod::CenterDiameter) {
-                qDebug() << QString("Move mouse and click to set diameter (minimum: %1)")
-                    .arg(m_minimumRadius * 2.0);
-            }
+            qDebug() << QString("Move mouse and click to set radius (minimum: %1)")
+                .arg(m_minimumRadius);
         }
         else {
             // Set the radius/diameter point and create the circle
             m_radiusPoint = sketchPoint;
 
-            qDebug() << QString("Radius point set at (%1, %2)")
-                .arg(m_radiusPoint.X(), 0, 'f', 3)
-                .arg(m_radiusPoint.Y(), 0, 'f', 3);
-
-            // Calculate radius based on definition method
+            // Calculate radius
             double radius = 0.0;
             if (m_definitionMethod == CircleDefinitionMethod::CenterRadius) {
                 radius = calculateRadius(m_centerPoint, m_radiusPoint);
@@ -114,20 +115,23 @@ namespace TyrexCAD {
                 radius = calculateRadiusFromDiameter(m_centerPoint, m_radiusPoint);
             }
 
-            qDebug() << QString("Calculated radius: %1 (minimum: %2)")
-                .arg(radius, 0, 'f', 3)
-                .arg(m_minimumRadius);
+            qDebug() << QString("Calculated radius: %1").arg(radius, 0, 'f', 3);
 
-            // Validate circle with enhanced feedback
+            // Validate circle
             if (!validateCircle(m_centerPoint, radius)) {
                 qWarning() << QString("Circle too small! Radius %1 is below minimum of %2")
                     .arg(radius, 0, 'f', 3)
                     .arg(m_minimumRadius);
 
+                // Clean up preview
+                removePreview();
+
                 // Don't finish command - let user try again
-                qWarning() << "Try again with a larger radius";
                 return;
             }
+
+            // Remove preview before creating final shape
+            removePreview();
 
             // Create the actual circle entity
             if (createCircle()) {
@@ -151,23 +155,8 @@ namespace TyrexCAD {
         // Convert current mouse position to 2D coordinates
         gp_Pnt2d currentPoint = m_sketchManager->screenToSketch(point);
 
-        // Calculate current radius
-        double radius = 0.0;
-        if (m_definitionMethod == CircleDefinitionMethod::CenterRadius) {
-            radius = calculateRadius(m_centerPoint, currentPoint);
-        }
-        else if (m_definitionMethod == CircleDefinitionMethod::CenterDiameter) {
-            radius = calculateRadiusFromDiameter(m_centerPoint, currentPoint);
-        }
-
-        // Only show preview if circle would be large enough
-        if (radius >= m_minimumRadius) {
-            updatePreview(currentPoint);
-        }
-        else {
-            // Hide preview for too small circles
-            cleanupPreview();
-        }
+        // Update preview
+        updatePreview(currentPoint);
     }
 
     void TyrexSketchCircleCommand::onMouseRelease(const QPoint& /*point*/)
@@ -205,9 +194,6 @@ namespace TyrexCAD {
             return false;
         }
 
-        // Clean up preview before creating final circle
-        cleanupPreview();
-
         try {
             // Calculate final radius
             double radius = 0.0;
@@ -218,14 +204,10 @@ namespace TyrexCAD {
                 radius = calculateRadiusFromDiameter(m_centerPoint, m_radiusPoint);
             }
 
-            // Generate unique ID for the circle
+            // Generate unique ID
             std::string circleId = generateCircleId();
 
-            qDebug() << QString("Creating sketch circle with ID: %1, radius: %2")
-                .arg(QString::fromStdString(circleId))
-                .arg(radius, 0, 'f', 3);
-
-            // Create the circle entity with explicit sketch plane
+            // Create the circle entity
             auto circleEntity = std::make_shared<TyrexSketchCircleEntity>(
                 circleId,
                 m_sketchManager->sketchPlane(),
@@ -233,20 +215,22 @@ namespace TyrexCAD {
                 radius
             );
 
-            // Set sketch-specific color (orange for circles in sketch mode)
+            // Set sketch-specific color
             Quantity_Color sketchColor(1.0, 0.5, 0.0, Quantity_TOC_RGB); // Orange
             circleEntity->setColor(sketchColor);
 
-            // Force shape update before adding to manager
+            // Force shape update
             circleEntity->updateShape();
 
-            // Add the entity to sketch manager - this will display it
+            // Add to sketch manager
             m_sketchManager->addSketchEntity(circleEntity);
 
-            // Force immediate redraw to ensure visibility
+            // Force redraw
             m_sketchManager->redrawSketch();
 
-            qDebug() << QString("Sketch circle entity created and displayed successfully");
+            qDebug() << QString("Sketch circle entity created with ID: %1, radius: %2")
+                .arg(QString::fromStdString(circleId))
+                .arg(radius, 0, 'f', 3);
 
             return true;
         }
@@ -270,6 +254,11 @@ namespace TyrexCAD {
             return;
         }
 
+        Handle(AIS_InteractiveContext) context = m_sketchManager->context();
+        if (context.IsNull()) {
+            return;
+        }
+
         // Calculate radius for preview
         double radius = 0.0;
         if (m_definitionMethod == CircleDefinitionMethod::CenterRadius) {
@@ -279,67 +268,73 @@ namespace TyrexCAD {
             radius = calculateRadiusFromDiameter(m_centerPoint, currentPoint);
         }
 
-        try {
-            if (!m_previewCircle) {
-                // Create new preview circle with unique ID
-                std::string previewId = generateCircleId() + "_preview";
-                m_previewCircle = std::make_shared<TyrexSketchCircleEntity>(
-                    previewId,
-                    m_sketchManager->sketchPlane(),
-                    m_centerPoint,
-                    radius
-                );
-
-                // Set preview appearance (gray dashed style)
-                Quantity_Color previewColor(0.7, 0.7, 0.7, Quantity_TOC_RGB);
-                m_previewCircle->setColor(previewColor);
-
-                // Force shape creation
-                m_previewCircle->updateShape();
-
-                // Add to sketch manager temporarily
-                m_sketchManager->addSketchEntity(m_previewCircle);
-            }
-            else {
-                // Update existing preview circle radius
-                m_previewCircle->setRadius(radius);
-                m_previewCircle->updateShape();
-
-                // Ensure it's displayed
-                if (!m_sketchManager->context().IsNull()) {
-                    m_previewCircle->draw(m_sketchManager->context(), false);
-                }
-            }
-
-            // Force redraw to show preview
-            m_sketchManager->redrawSketch();
+        // Check if radius is too small for preview
+        if (radius < m_minimumRadius * 0.5) {
+            removePreview();
+            return;
         }
-        catch (const std::exception& ex) {
-            qWarning() << "Error updating circle preview:" << ex.what();
+
+        try {
+            // Remove existing preview
+            removePreview();
+
+            // Convert center to 3D
+            gp_Pnt center3D = m_sketchManager->sketchToWorld(m_centerPoint);
+
+            // Create coordinate system for the circle
+            gp_Dir zDir = m_sketchManager->sketchPlane().Axis().Direction();
+            gp_Ax2 axis(center3D, zDir);
+
+            // Create circle geometry
+            gp_Circ circle(axis, radius);
+
+            // Create preview edge
+            BRepBuilderAPI_MakeEdge edgeMaker(circle);
+            if (edgeMaker.IsDone()) {
+                TopoDS_Edge previewEdge = edgeMaker.Edge();
+                m_previewShape = new AIS_Shape(previewEdge);
+
+                // Set preview appearance
+                Quantity_Color previewColor(1.0, 0.65, 0.0, Quantity_TOC_RGB); // Orange
+                m_previewShape->SetColor(previewColor);
+                m_previewShape->SetWidth(2.0);
+                m_previewShape->SetTransparency(0.2);
+
+                // Set dashed line style
+                Handle(Prs3d_LineAspect) lineAspect = new Prs3d_LineAspect(
+                    previewColor, Aspect_TOL_DASH, 2.0);
+                m_previewShape->Attributes()->SetLineAspect(lineAspect);
+
+                // Display preview
+                context->Display(m_previewShape, Standard_False);
+                context->UpdateCurrentViewer();
+            }
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error updating circle preview:" << ex.GetMessageString();
+            removePreview();
         }
         catch (...) {
             qWarning() << "Unknown error updating circle preview";
+            removePreview();
         }
     }
 
-    void TyrexSketchCircleCommand::cleanupPreview()
+    void TyrexSketchCircleCommand::removePreview()
     {
-        if (m_previewCircle && m_sketchManager) {
-            try {
-                // Remove preview circle from sketch manager
-                m_sketchManager->removeSketchEntity(m_previewCircle->getId());
-                m_previewCircle = nullptr;
-
-                // Force redraw to remove preview
-                m_sketchManager->redrawSketch();
-
-                qDebug() << "Preview circle cleaned up";
-            }
-            catch (const std::exception& ex) {
-                qWarning() << "Error cleaning up preview:" << ex.what();
-            }
-            catch (...) {
-                qWarning() << "Unknown error cleaning up preview";
+        if (!m_previewShape.IsNull() && m_sketchManager) {
+            Handle(AIS_InteractiveContext) context = m_sketchManager->context();
+            if (!context.IsNull()) {
+                try {
+                    context->Remove(m_previewShape, Standard_True);
+                    m_previewShape.Nullify();
+                }
+                catch (const Standard_Failure& ex) {
+                    qWarning() << "Error removing preview:" << ex.GetMessageString();
+                }
+                catch (...) {
+                    qWarning() << "Unknown error removing preview";
+                }
             }
         }
     }
@@ -351,14 +346,11 @@ namespace TyrexCAD {
 
     double TyrexSketchCircleCommand::calculateRadiusFromDiameter(const gp_Pnt2d& centerPt, const gp_Pnt2d& diameterPt) const
     {
-        // In diameter mode, the diameter point defines the end of a diameter
-        // So radius is half the distance from center to diameter point
         return centerPt.Distance(diameterPt) * 0.5;
     }
 
     std::string TyrexSketchCircleCommand::generateCircleId() const
     {
-        // Generate unique ID using timestamp and counter
         static int counter = 0;
         std::stringstream ss;
         ss << "sketch_circle_" << std::setfill('0') << std::setw(6) << ++counter;
@@ -372,7 +364,7 @@ namespace TyrexCAD {
             return false;
         }
 
-        // Check for reasonable maximum (optional safety check)
+        // Check for reasonable maximum
         const double MAX_RADIUS = 10000.0;
         if (radius > MAX_RADIUS) {
             qWarning() << QString("Circle too large! Maximum radius is %1").arg(MAX_RADIUS);
