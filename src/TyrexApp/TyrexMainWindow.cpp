@@ -1117,5 +1117,44 @@ namespace TyrexCAD {
                 "Version: 1.0.0\n"
                 "Build: Development"));
     }
+    void TyrexMainWindow::createAdvancedSketchActions()
+    {
+        // Grid toggle action  
+        m_toggleGridAction = new QAction(tr("Toggle &Grid"), this);
+        m_toggleGridAction->setShortcut(QKeySequence(tr("F7")));
+        m_toggleGridAction->setCheckable(true);
+        m_toggleGridAction->setChecked(true);
+        m_toggleGridAction->setStatusTip(tr("Toggle grid visibility"));
 
+        connect(m_toggleGridAction, &QAction::triggered, this, [this](bool checked) {
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                viewWidget->setGridEnabled(checked);
+                statusBar()->showMessage(checked ? "Grid ON" : "Grid OFF", 2000);
+            }
+            });
+
+        // Grid spacing controls
+        m_gridSpacingAction = new QAction(tr("Grid &Spacing..."), this);
+        connect(m_gridSpacingAction, &QAction::triggered, this, [this]() {
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                GridConfig config = viewWidget->getGridConfig();
+
+                // Show grid configuration dialog
+                bool ok;
+                double newSpacing = QInputDialog::getDouble(this,
+                    tr("Grid Spacing"),
+                    tr("Enter grid spacing:"),
+                    config.baseSpacing, 0.1, 1000.0, 2, &ok);
+
+                if (ok) {
+                    config.baseSpacing = newSpacing;
+                    viewWidget->setGridConfig(config);
+                    statusBar()->showMessage(
+                        QString("Grid spacing set to %1").arg(newSpacing), 2000);
+                }
+            }
+            });
+    }
 } // namespace TyrexCAD

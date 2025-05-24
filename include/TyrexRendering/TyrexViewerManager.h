@@ -143,6 +143,13 @@ namespace TyrexCAD {
          * @brief Set view to 2D mode (orthographic with locked rotation)
          */
         void set2DMode();
+        
+        /**
+        * @brief Zoom at specific point
+        * @param center Center point for zoom
+        * @param factor Zoom factor
+        */
+        void zoomAtPoint(const QPoint& center, double factor);
 
         /**
          * @brief Set view to 3D mode (perspective with free rotation)

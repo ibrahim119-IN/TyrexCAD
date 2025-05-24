@@ -29,9 +29,14 @@
 #include <Quantity_Color.hxx>
 #include <Quantity_NameOfColor.hxx>
 #include <Prs3d_PointAspect.hxx>
+#include <Prs3d_LineAspect.hxx>
 #include <Prs3d_Drawer.hxx>
 #include <ElSLib.hxx>
 #include <Graphic3d_Camera.hxx>
+#include <AIS_Shape.hxx>
+#include <Graphic3d_AspectLine3d.hxx>
+#include <Aspect_TypeOfLine.hxx>
+#include <Aspect_TypeOfMarker.hxx>
 
 // Qt includes
 #include <QDebug>
@@ -137,67 +142,96 @@ namespace TyrexCAD {
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
             Handle(V3d_View) view = m_viewerManager->view();
 
-            // Set black background first
-            view->SetBackgroundColor(Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB));
+            try {
+                // Set black background first
+                view->SetBackgroundColor(Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB));
 
-            // Ensure window is mapped before operations
-            if (!view->Window().IsNull()) {
-                view->Window()->Map();
+                // Ensure window is mapped before operations
+                if (!view->Window().IsNull()) {
+                    view->Window()->Map();
+                }
+
+                // Set to exact top view with proper camera setup
+                view->SetProj(V3d_Zpos);
+
+                // Set camera to orthographic mode properly
+                Handle(Graphic3d_Camera) camera = view->Camera();
+                if (!camera.IsNull()) {
+                    // Initialize view bounds - not needed for orthographic setup
+                    // Standard_Real xmin = 0.0, ymin = 0.0, xmax = 100.0, ymax = 100.0;
+
+                    // Set orthographic with proper aspect ratio
+                    camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+                    camera->SetZFocus(Graphic3d_Camera::FocusType_Absolute, 0.0);
+
+                    // Reset camera orientation for true 2D
+                    camera->SetUp(gp_Dir(0, 1, 0));
+                    camera->SetDirection(gp_Dir(0, 0, -1));
+
+                    // Apply the camera changes
+                    view->SetCamera(camera);
+                }
+
+                // Configure rendering for 2D
+                Graphic3d_RenderingParams& params = view->ChangeRenderingParams();
+                params.Method = Graphic3d_RM_RASTERIZATION;
+                params.IsAntialiasingEnabled = Standard_True;
+                params.NbMsaaSamples = 4;
+                params.IsShadowEnabled = Standard_False;
+                params.IsReflectionEnabled = Standard_False;
+                params.IsTransparentShadowEnabled = Standard_False;
+
+                // Apply optimal 2D rendering settings
+                TyrexSketchDisplayHelper::setupOptimal2DRendering(view);
+
+                // Update view before creating overlay
+                view->MustBeResized();
+                view->FitAll(0.01, Standard_False);
+                view->Update();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during view setup:" << ex.GetMessageString();
+            }
+            catch (...) {
+                qWarning() << "Unknown error during view setup";
             }
 
-            // Set to exact top view with proper camera setup
-            view->SetProj(V3d_Zpos);
+            // Configure selection and highlight styles with error handling
+            try {
+                Handle(Prs3d_Drawer) selectionStyle = new Prs3d_Drawer();
+                selectionStyle->SetColor(m_sketchConfig.canvas.selectionColor);
+                selectionStyle->SetDisplayMode(1);
+                
+                // Create line aspect properly
+                Handle(Prs3d_LineAspect) selectionLineAspect = new Prs3d_LineAspect(
+                    m_sketchConfig.canvas.selectionColor,
+                    Aspect_TOL_SOLID,
+                    m_sketchConfig.entityDisplay.selectedLineWidth);
+                selectionStyle->SetLineAspect(selectionLineAspect);
+                
+                m_context->SetSelectionStyle(selectionStyle);
 
-            // Set camera to orthographic mode properly
-            Handle(Graphic3d_Camera) camera = view->Camera();
-            if (!camera.IsNull()) {
-                // Save current view bounds
-                Standard_Real xmin, ymin, xmax, ymax;
-                view->WindowFit(xmin, ymin, xmax, ymax);
+                Handle(Prs3d_Drawer) highlightStyle = new Prs3d_Drawer();
+                highlightStyle->SetColor(m_sketchConfig.canvas.highlightColor);
+                highlightStyle->SetDisplayMode(1);
+                
+                // Create line aspect properly for highlight
+                Handle(Prs3d_LineAspect) highlightLineAspect = new Prs3d_LineAspect(
+                    m_sketchConfig.canvas.highlightColor,
+                    Aspect_TOL_SOLID,
+                    m_sketchConfig.entityDisplay.selectedLineWidth);
+                highlightStyle->SetLineAspect(highlightLineAspect);
+                
+                m_context->SetHighlightStyle(Prs3d_TypeOfHighlight_Dynamic, highlightStyle);
 
-                // Set orthographic with proper aspect ratio
-                camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
-                camera->SetZFocus(Graphic3d_Camera::FocusType_Absolute, 0.0);
-
-                // Reset camera orientation for true 2D
-                camera->SetUp(gp_Dir(0, 1, 0));
-                camera->SetDirection(gp_Dir(0, 0, -1));
-
-                // Apply the camera changes
-                view->SetCamera(camera);
+                qDebug() << "Sketch mode: Applied AutoCAD-like configuration";
             }
-
-            // Configure rendering for 2D
-            Graphic3d_RenderingParams& params = view->ChangeRenderingParams();
-            params.Method = Graphic3d_RM_RASTERIZATION;
-            params.IsAntialiasingEnabled = Standard_True;
-            params.NbMsaaSamples = 4;
-            params.IsShadowEnabled = Standard_False;
-            params.IsReflectionEnabled = Standard_False;
-            params.IsTransparentShadowEnabled = Standard_False;
-
-            // Apply optimal 2D rendering settings
-            TyrexSketchDisplayHelper::setupOptimal2DRendering(view);
-
-            // Update view before creating overlay
-            view->MustBeResized();
-            view->FitAll(0.01, Standard_False);
-            view->Update();
-
-            // Configure selection and highlight styles
-            Handle(Prs3d_Drawer) selectionStyle = new Prs3d_Drawer();
-            selectionStyle->SetColor(m_sketchConfig.canvas.selectionColor);
-            selectionStyle->SetDisplayMode(1);
-            selectionStyle->LineAspect()->SetWidth(m_sketchConfig.entityDisplay.selectedLineWidth);
-            m_context->SetSelectionStyle(selectionStyle);
-
-            Handle(Prs3d_Drawer) highlightStyle = new Prs3d_Drawer();
-            highlightStyle->SetColor(m_sketchConfig.canvas.highlightColor);
-            highlightStyle->SetDisplayMode(1);
-            highlightStyle->LineAspect()->SetWidth(m_sketchConfig.entityDisplay.selectedLineWidth);
-            m_context->SetHighlightStyle(Prs3d_TypeOfHighlight_Dynamic, highlightStyle);
-
-            qDebug() << "Sketch mode: Applied AutoCAD-like configuration";
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during style setup:" << ex.GetMessageString();
+            }
+            catch (...) {
+                qWarning() << "Unknown error during style setup";
+            }
         }
 
         // Initialize overlay with proper config
@@ -780,23 +814,41 @@ namespace TyrexCAD {
             return Handle(AIS_InteractiveObject)();
         }
 
-        // Convert 2D point to 3D
-        gp_Pnt worldPoint = sketchToWorld(point.position);
+        try {
+            // Convert 2D point to 3D
+            gp_Pnt worldPoint = sketchToWorld(point.position);
 
-        // Create a geometric point
-        Handle(Geom_CartesianPoint) geomPoint = new Geom_CartesianPoint(worldPoint);
-        Handle(AIS_Point) aisPoint = new AIS_Point(geomPoint);
+            // Create a geometric point
+            Handle(Geom_CartesianPoint) geomPoint = new Geom_CartesianPoint(worldPoint);
+            Handle(AIS_Point) aisPoint = new AIS_Point(geomPoint);
 
-        // Set appearance based on control point type
-        Quantity_Color pointColor = (point.type == ControlPointType::Endpoint) ?
-            Quantity_NOC_YELLOW : Quantity_NOC_CYAN;
+            // Set appearance based on control point type
+            Quantity_Color pointColor = (point.type == ControlPointType::Endpoint) ?
+                Quantity_NOC_YELLOW : Quantity_NOC_CYAN;
 
-        Handle(Prs3d_PointAspect) pointAspect = new Prs3d_PointAspect(
-            Aspect_TOM_STAR, pointColor, 10.0);
+            // إنشاء PointAspect بالطريقة الصحيحة
+            Handle(Prs3d_PointAspect) pointAspect = new Prs3d_PointAspect(
+                Aspect_TOM_STAR, pointColor, 10.0);
 
-        aisPoint->Attributes()->SetPointAspect(pointAspect);
+            // تطبيق الخصائص
+            if (!aisPoint->Attributes().IsNull()) {
+                aisPoint->Attributes()->SetPointAspect(pointAspect);
+            } else {
+                Handle(Prs3d_Drawer) drawer = new Prs3d_Drawer();
+                drawer->SetPointAspect(pointAspect);
+                aisPoint->SetAttributes(drawer);
+            }
 
-        return aisPoint;
+            return aisPoint;
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error creating control point visual:" << ex.GetMessageString();
+            return Handle(AIS_InteractiveObject)();
+        }
+        catch (...) {
+            qWarning() << "Unknown error creating control point visual";
+            return Handle(AIS_InteractiveObject)();
+        }
     }
 
     void TyrexSketchManager::highlightEntity(std::shared_ptr<TyrexSketchEntity> entity)
@@ -889,34 +941,53 @@ namespace TyrexCAD {
     {
         if (!entity || m_context.IsNull()) return;
 
-        // Apply entity styling based on configuration
-        if (!entity->getAISShape().IsNull()) {
-            Handle(AIS_Shape) shape = entity->getAISShape();
+        try {
+            // Apply entity styling based on configuration
+            if (!entity->getAISShape().IsNull()) {
+                Handle(AIS_Shape) shape = entity->getAISShape();
 
-            // Set color based on entity state
-            if (entity->isSelected()) {
-                shape->SetColor(m_sketchConfig.canvas.selectionColor);
-                shape->SetWidth(m_sketchConfig.entityDisplay.selectedLineWidth);
-            }
-            else if (entity->isHighlighted()) {
-                shape->SetColor(m_sketchConfig.canvas.highlightColor);
-                shape->SetWidth(m_sketchConfig.entityDisplay.selectedLineWidth);
-            }
-            else {
-                shape->SetColor(m_sketchConfig.entityDisplay.defaultLineColor);
-                shape->SetWidth(m_sketchConfig.entityDisplay.defaultLineWidth);
+                // تحديد اللون والعرض بناءً على حالة الكائن
+                Quantity_Color entityColor;
+                Standard_Real lineWidth;
+
+                if (entity->isSelected()) {
+                    entityColor = m_sketchConfig.canvas.selectionColor;
+                    lineWidth = m_sketchConfig.entityDisplay.selectedLineWidth;
+                }
+                else if (entity->isHighlighted()) {
+                    entityColor = m_sketchConfig.canvas.highlightColor;
+                    lineWidth = m_sketchConfig.entityDisplay.selectedLineWidth;
+                }
+                else {
+                    entityColor = m_sketchConfig.entityDisplay.defaultLineColor;
+                    lineWidth = m_sketchConfig.entityDisplay.defaultLineWidth;
+                }
+
+                // تطبيق اللون على الشكل
+                shape->SetColor(entityColor);
+
+                // إنشاء LineAspect بالطريقة الصحيحة
+                Handle(Prs3d_LineAspect) lineAspect = new Prs3d_LineAspect(
+                    entityColor, Aspect_TOL_SOLID, lineWidth);
+
+                // تطبيق الخصائص على الشكل
+                if (!shape->Attributes().IsNull()) {
+                    shape->Attributes()->SetLineAspect(lineAspect);
+                } else {
+                    Handle(Prs3d_Drawer) drawer = new Prs3d_Drawer();
+                    drawer->SetLineAspect(lineAspect);
+                    shape->SetAttributes(drawer);
+                }
             }
 
-            // Apply line style
-            Handle(Prs3d_LineAspect) lineAspect = new Prs3d_LineAspect(
-                shape->Color(),
-                Aspect_TOL_SOLID,
-                shape->Width()
-            );
-            shape->Attributes()->SetLineAspect(lineAspect);
+            entity->draw(m_context, entity->isSelected());
         }
-
-        entity->draw(m_context, entity->isSelected());
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error drawing sketch entity:" << ex.GetMessageString();
+        }
+        catch (...) {
+            qWarning() << "Unknown error drawing sketch entity";
+        }
     }
 
 } // namespace TyrexCAD

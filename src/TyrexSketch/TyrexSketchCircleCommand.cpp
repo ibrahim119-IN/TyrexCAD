@@ -19,7 +19,8 @@
 #include <Prs3d_LineAspect.hxx>
 #include <Aspect_TypeOfLine.hxx>
 #include <AIS_InteractiveContext.hxx>
-
+#include <Graphic3d_AspectLine3d.hxx>
+#include <Prs3d_Drawer.hxx>
 // Qt includes
 #include <QDebug>
 #include <sstream>
@@ -300,10 +301,11 @@ namespace TyrexCAD {
                 m_previewShape->SetWidth(2.0);
                 m_previewShape->SetTransparency(0.2);
 
-                // Set dashed line style
-                Handle(Prs3d_LineAspect) lineAspect = new Prs3d_LineAspect(
-                    previewColor, Aspect_TOL_DASH, 2.0);
-                m_previewShape->Attributes()->SetLineAspect(lineAspect);
+                // Set dashed line style - OpenCascade 7.x compatible way
+                Handle(Prs3d_Drawer) drawer = m_previewShape->Attributes();
+                Handle(Graphic3d_AspectLine3d) lineAspect =
+                    new Graphic3d_AspectLine3d(previewColor, Aspect_TOL_DASH, 2.0);
+                drawer->SetLineAspect(new Prs3d_LineAspect(lineAspect));
 
                 // Display preview
                 context->Display(m_previewShape, Standard_False);

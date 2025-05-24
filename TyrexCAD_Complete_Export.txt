@@ -28,10 +28,21 @@ set(OCCT_LIB_DIR "${OCCT_INSTALL_DIR}/win64/vc14/lib")
 set(OCCT_DLL_DIR "${OCCT_INSTALL_DIR}/win64/vc14/bin")
 
 # ================== Sources ==================
-file(GLOB_RECURSE TYREXCAD_SOURCES src/*.cpp)
-file(GLOB_RECURSE TYREXCAD_HEADERS include/*.h)
+file(GLOB_RECURSE TYREXCAD_SOURCES 
+    src/*.cpp
+    src/TyrexCanvas/TyrexCanvasOverlay.cpp
+    src/TyrexSketch/TyrexSketch.cpp
+)
+file(GLOB_RECURSE TYREXCAD_HEADERS 
+    include/*.h
+    include/TyrexCanvas/TyrexCanvasOverlay.h
+    include/TyrexSketch/TyrexSketch.h
+)
 
-add_executable(TyrexCAD ${TYREXCAD_SOURCES} ${TYREXCAD_HEADERS} "include/TyrexSketch/TyrexSketchManager.h" "include/TyrexSketch/TyrexSketchEntity.h" "include/TyrexSketch/TyrexSketchLineEntity.h" "include/TyrexSketch/TyrexSketchCircleEntity.h" "include/TyrexSketch/TyrexSketchInteractionHandler.h"  "src/TyrexSketch/TyrexSketchManager.cpp" "src/TyrexSketch/TyrexSketchLineEntity.cpp" "src/TyrexSketch/TyrexSketchCircleEntity.cpp" "src/TyrexSketch/TyrexSketchInteractionHandler.cpp" "src/TyrexSketch/TyrexSketchEntity.cpp" "include/TyrexSketch/TyrexSketchLineCommand.h" "include/TyrexSketch/TyrexSketchCircleCommand.h" "src/TyrexSketch/TyrexSketchLineCommand.cpp" "src/TyrexSketch/TyrexSketchCircleCommand.cpp" "include/TyrexSketch/TyrexSketch.h")
+add_executable(TyrexCAD 
+    ${TYREXCAD_SOURCES} 
+    ${TYREXCAD_HEADERS}
+ "include/TyrexSketch/TyrexSketchDisplayHelper.h" "include/TyrexSketch/TyrexSketchConfig.h" "src/TyrexSketch/TyrexSketchConfig.cpp" "include/TyrexRendering/TyrexGridOverlayRenderer.h" "src/TyrexRendering/TyrexGridOverlayRenderer.cpp")
 
 # ================== Qt Integration (via vcpkg) ==================
 find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
@@ -59,8 +70,6 @@ target_link_libraries(TyrexCAD PRIVATE
     TKGeomBase TKMath TKG3d TKG2d TKBRep TKTopAlgo TKPrim TKBO
     TKOpenGl TKService TKV3d TKernel
 )
-
-
 
 # ================== DLL Copy ==================
 add_custom_command(TARGET TyrexCAD POST_BUILD
@@ -103,6 +112,7 @@ message(STATUS "? OpenCascade DLLs    : ${OCCT_DLL_DIR}")
 class QAction;
 class QMenu;
 class QToolBar;
+class QActionGroup;
 
 namespace TyrexCAD {
     class TyrexViewerManager;
@@ -202,6 +212,11 @@ namespace TyrexCAD {
         void createSketchActions();
 
         /**
+         * @brief Create advanced sketch actions (grid, snap, ortho)
+         */
+        void createAdvancedSketchActions();
+
+        /**
          * @brief Create sketch-related menus
          */
         void createSketchMenus();
@@ -215,6 +230,44 @@ namespace TyrexCAD {
          * @brief Update UI for sketch mode changes
          */
         void updateSketchModeUI();
+
+        /**
+         * @brief Update sketch status bar with detailed information
+         */
+        void updateSketchStatusBar();
+
+        /**
+         * @brief Setup sketch mode specific toolbars
+         */
+        void setupSketchModeToolbars();
+
+        /**
+         * @brief Restore normal toolbars when exiting sketch mode
+         */
+        void restoreNormalToolbars();
+
+        /**
+         * @brief Update property panel with entity information
+         * @param entityId ID of the entity to display
+         */
+        void updatePropertyPanel(const std::string& entityId);
+
+        /**
+         * @brief Clear the property panel
+         */
+        void clearPropertyPanel();
+
+        /**
+         * @brief Set document modified state
+         * @param modified True if document is modified
+         */
+        void setDocumentModified(bool modified);
+
+        /**
+         * @brief Update status bar with custom message
+         * @param message Message to display
+         */
+        void updateStatusBar(const QString& message);
 
     private:
         // === CORE COMPONENTS ===
@@ -249,6 +302,17 @@ namespace TyrexCAD {
         QAction* m_exitSketchAction;
         QAction* m_sketchLineAction;
         QAction* m_sketchCircleAction;
+
+        // === ADVANCED SKETCH ACTIONS ===
+        QAction* m_toggleGridAction;
+        QAction* m_toggleSnapAction;
+        QAction* m_toggleOrthoAction;
+
+        // Grid style actions
+        QActionGroup* m_gridStyleGroup;
+        QAction* m_gridLinesAction;
+        QAction* m_gridDotsAction;
+        QAction* m_gridCrossesAction;
 
         // === MENUS ===
         QMenu* m_fileMenu;
@@ -417,88 +481,159 @@ namespace TyrexCAD {
 
 ==== FILE: /Projects/TyrexCAD/include/TyrexCanvas/TyrexViewWidget.h ====
 --------------------------------------------------------------------------------
+/***************************************************************************
+ * TyrexViewWidget Integration with Grid Overlay System
+ *
+ * This shows how to integrate TyrexGridOverlayRenderer with the existing
+ * TyrexViewWidget to achieve AutoCAD-style grid rendering.
+ ***************************************************************************/
+
+ // === HEADER MODIFICATIONS (TyrexViewWidget.h) ===
+
 #ifndef TYREX_VIEW_WIDGET_H
 #define TYREX_VIEW_WIDGET_H
 
-#include <QWidget>
+#include <QOpenGLWidget>
+#include <QOpenGLFunctions>
 #include <memory>
+#include "TyrexGridOverlayRenderer.h" // Add this include
 
-// OpenCascade forward declarations
+// Forward declarations
 class V3d_View;
 
 namespace TyrexCAD {
-    // Forward declarations
     class TyrexViewerManager;
     class TyrexInteractionManager;
 
-    /**
-     * @class TyrexViewWidget
-     * @brief A specialized Qt widget that hosts the OpenCascade 3D viewer.
-     *
-     * This widget serves as the primary rendering window for the CAD application.
-     * It integrates the viewer manager for rendering and the interaction manager
-     * for handling user input.
-     */
-    class TyrexViewWidget : public QWidget
+    class TyrexViewWidget : public QOpenGLWidget, protected QOpenGLFunctions
     {
         Q_OBJECT
 
     public:
-        /**
-         * @brief Constructor
-         * @param parent Parent widget
-         */
         explicit TyrexViewWidget(QWidget* parent = nullptr);
-
-        /**
-         * @brief Destructor
-         */
         ~TyrexViewWidget();
 
-        /**
-         * @brief Get the viewer manager instance
-         * @return Shared pointer to the viewer manager
-         */
         std::shared_ptr<TyrexViewerManager> viewerManager() const;
-
-        /**
-         * @brief Get the interaction manager instance
-         * @return Raw pointer to the interaction manager
-         */
         TyrexInteractionManager* interactionManager() const;
 
-    signals:
+        // === NEW: Grid control methods ===
         /**
-         * @brief Signal emitted when the viewer is initialized and ready
+         * @brief Enable/disable grid rendering
+         * @param enabled True to show grid
          */
+        void setGridEnabled(bool enabled);
+
+        /**
+         * @brief Check if grid is enabled
+         * @return True if grid is visible
+         */
+        bool isGridEnabled() const;
+
+        /**
+         * @brief Set grid configuration
+         * @param config Grid settings
+         */
+        void setGridConfig(const GridConfig& config);
+
+        /**
+         * @brief Get current grid configuration
+         * @return Grid settings
+         */
+        const GridConfig& getGridConfig() const;
+
+        /**
+         * @brief Snap point to grid
+         * @param worldX Input world X coordinate
+         * @param worldY Input world Y coordinate
+         * @param snappedX Output snapped X
+         * @param snappedY Output snapped Y
+         * @return True if snapping was applied
+         */
+        bool snapToGrid(double worldX, double worldY,
+            double& snappedX, double& snappedY) const;
+
+    signals:
         void viewerInitialized();
+        void gridConfigChanged(); // New signal
 
     protected:
-        // Override Qt events to delegate to interaction manager
+        // OpenGL rendering
+        void initializeGL() override;
+        void paintGL() override;
+        void resizeGL(int w, int h) override;
+
+        // Event handling
         void mousePressEvent(QMouseEvent* e) override;
         void mouseMoveEvent(QMouseEvent* e) override;
         void mouseReleaseEvent(QMouseEvent* e) override;
         void wheelEvent(QWheelEvent* e) override;
-        void resizeEvent(QResizeEvent* e) override;
-        void showEvent(QShowEvent* e) override;
 
     private:
-        /**
-         * @brief Initialize viewer and interaction managers
-         */
         void initializeManagers();
+        void setupGridRenderer(); // New method
 
     private:
-        // The viewer manager - shared because it might be accessed by other components
         std::shared_ptr<TyrexViewerManager> m_viewerManager;
-
-        // The interaction manager - unique because it's owned exclusively by this widget
         std::unique_ptr<TyrexInteractionManager> m_interactionManager;
+
+        // === NEW: Grid overlay renderer ===
+        std::unique_ptr<TyrexGridOverlayRenderer> m_gridRenderer;
+        bool m_gridInitialized;
     };
 
 } // namespace TyrexCAD
 
 #endif // TYREX_VIEW_WIDGET_H
+
+
+
+
+// === USAGE EXAMPLE IN MAIN WINDOW ===
+
+// In TyrexMainWindow.cpp, add grid controls:
+
+void TyrexMainWindow::createAdvancedSketchActions()
+{
+    // Grid toggle action  
+    m_toggleGridAction = new QAction(tr("Toggle &Grid"), this);
+    m_toggleGridAction->setShortcut(QKeySequence(tr("F7")));
+    m_toggleGridAction->setCheckable(true);
+    m_toggleGridAction->setChecked(true);
+    m_toggleGridAction->setStatusTip(tr("Toggle grid visibility"));
+
+    connect(m_toggleGridAction, &QAction::triggered, this, [this](bool checked) {
+        auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+        if (viewWidget) {
+            viewWidget->setGridEnabled(checked);
+            statusBar()->showMessage(checked ? "Grid ON" : "Grid OFF", 2000);
+        }
+        });
+
+    // Grid spacing controls
+    m_gridSpacingAction = new QAction(tr("Grid &Spacing..."), this);
+    connect(m_gridSpacingAction, &QAction::triggered, this, [this]() {
+        auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+        if (viewWidget) {
+            GridConfig config = viewWidget->getGridConfig();
+
+            // Show grid configuration dialog
+            bool ok;
+            double newSpacing = QInputDialog::getDouble(this,
+                tr("Grid Spacing"),
+                tr("Enter grid spacing:"),
+                config.baseSpacing, 0.1, 1000.0, 2, &ok);
+
+            if (ok) {
+                config.baseSpacing = newSpacing;
+                viewWidget->setGridConfig(config);
+                statusBar()->showMessage(
+                    QString("Grid spacing set to %1").arg(newSpacing), 2000);
+            }
+        }
+        });
+}
+
+/
 
 
 ==== FILE: /Projects/TyrexCAD/include/TyrexCommands/LineCommand.h ====
@@ -2295,6 +2430,210 @@ namespace Tyrex {
 #pragma once
 
 
+==== FILE: /Projects/TyrexCAD/include/TyrexRendering/TyrexGridOverlayRenderer.h ====
+--------------------------------------------------------------------------------
+/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#ifndef TYREX_GRID_OVERLAY_RENDERER_H
+#define TYREX_GRID_OVERLAY_RENDERER_H
+
+#include <QOpenGLFunctions>
+#include <QOpenGLShaderProgram>
+#include <QOpenGLBuffer>
+#include <QOpenGLVertexArrayObject>
+#include <QColor>
+#include <vector>
+
+ // OpenCascade includes
+#include <V3d_View.hxx>
+#include <Standard_Handle.hxx>
+
+namespace TyrexCAD {
+
+    /**
+     * @brief AutoCAD-style grid configuration
+     */
+    struct GridConfig {
+        // Spacing settings
+        double baseSpacing = 1.0;           ///< Base grid spacing in world units
+        int majorFactor = 10;               ///< Major line every N minor lines
+
+        // Adaptive scaling
+        double minPixelSpacing = 20.0;      ///< Minimum spacing in pixels
+        double maxPixelSpacing = 100.0;     ///< Maximum spacing in pixels
+        bool adaptiveSpacing = true;        ///< Enable adaptive zoom scaling
+
+        // Visual appearance
+        QColor minorColor = QColor(80, 80, 80, 120);     ///< Minor grid lines
+        QColor majorColor = QColor(120, 120, 120, 200);  ///< Major grid lines
+        QColor axisColorX = QColor(255, 100, 100, 255);  ///< X-axis (red)
+        QColor axisColorY = QColor(100, 255, 100, 255);  ///< Y-axis (green)
+
+        // Line properties
+        float minorLineWidth = 1.0f;        ///< Minor line thickness
+        float majorLineWidth = 1.5f;        ///< Major line thickness
+        float axisLineWidth = 2.0f;         ///< Axis line thickness
+
+        // Display options
+        bool showAxes = true;               ///< Show X/Y axes at origin
+        bool showOriginMarker = true;       ///< Show special marker at (0,0)
+        float originMarkerSize = 8.0f;      ///< Origin marker size in pixels
+
+        // Performance limits
+        int maxGridLinesH = 500;            ///< Max horizontal lines
+        int maxGridLinesV = 500;            ///< Max vertical lines
+    };
+
+    /**
+     * @brief High-performance OpenGL grid overlay renderer
+     *
+     * Renders AutoCAD-style grid using direct OpenGL calls, pixel-aligned
+     * and independent from the AIS scene geometry.
+     */
+    class TyrexGridOverlayRenderer : protected QOpenGLFunctions
+    {
+    public:
+        /**
+         * @brief Constructor
+         */
+        TyrexGridOverlayRenderer();
+
+        /**
+         * @brief Destructor
+         */
+        ~TyrexGridOverlayRenderer();
+
+        /**
+         * @brief Initialize OpenGL resources
+         * @param context Current OpenGL context (must be active)
+         * @return True if initialization successful
+         */
+        bool initialize();
+
+        /**
+         * @brief Cleanup OpenGL resources
+         */
+        void cleanup();
+
+        /**
+         * @brief Set the V3d_View for coordinate conversion
+         * @param view OpenCascade view handle
+         */
+        void setView(const Handle(V3d_View)& view);
+
+        /**
+         * @brief Enable/disable grid rendering
+         * @param enabled True to show grid
+         */
+        void setGridEnabled(bool enabled);
+
+        /**
+         * @brief Check if grid is enabled
+         * @return True if grid is visible
+         */
+        bool isGridEnabled() const;
+
+        /**
+         * @brief Set grid configuration
+         * @param config New grid settings
+         */
+        void setGridConfig(const GridConfig& config);
+
+        /**
+         * @brief Get current grid configuration
+         * @return Current grid settings
+         */
+        const GridConfig& getGridConfig() const;
+
+        /**
+         * @brief Main rendering entry point
+         *
+         * Call this at the end of paintGL() after all scene geometry
+         * @param viewportWidth Viewport width in pixels
+         * @param viewportHeight Viewport height in pixels
+         */
+        void render(int viewportWidth, int viewportHeight);
+
+        /**
+         * @brief Snap point to grid intersection
+         * @param worldX World X coordinate
+         * @param worldY World Y coordinate
+         * @param snappedX Output snapped X
+         * @param snappedY Output snapped Y
+         * @return True if snapping was applied
+         */
+        bool snapToGrid(double worldX, double worldY,
+            double& snappedX, double& snappedY) const;
+
+        /**
+         * @brief Get current effective grid spacing
+         * @return Current spacing in world units
+         */
+        double getCurrentGridSpacing() const;
+
+    private:
+        // Core state
+        Handle(V3d_View) m_view;
+        GridConfig m_config;
+        bool m_gridEnabled;
+        bool m_initialized;
+
+        // Current rendering state
+        double m_currentSpacing;
+        double m_viewScale;
+        double m_worldMinX, m_worldMaxX;
+        double m_worldMinY, m_worldMaxY;
+        int m_viewportWidth, m_viewportHeight;
+
+        // OpenGL resources
+        QOpenGLShaderProgram* m_shaderProgram;
+        QOpenGLBuffer* m_vertexBuffer;
+        QOpenGLVertexArrayObject* m_vao;
+        std::vector<float> m_vertices;
+
+        // Internal methods
+        void updateViewBounds();
+        void calculateAdaptiveSpacing();
+        void generateGridVertices();
+        void renderGrid();
+        void renderAxes();
+        void renderOriginMarker();
+
+        // OpenGL utilities
+        bool createShaders();
+        void setupVertexArrays();
+        QColor4ub colorToRGBA(const QColor& color) const;
+
+        // Coordinate conversion helpers
+        void worldToScreen(double worldX, double worldY,
+            float& screenX, float& screenY) const;
+        void screenToWorld(float screenX, float screenY,
+            double& worldX, double& worldY) const;
+
+        // Performance optimization
+        bool shouldRenderGrid() const;
+        int clampGridLineCount(int proposedCount, int maxCount) const;
+
+        // Helper struct for color with alpha
+        struct QColor4ub {
+            unsigned char r, g, b, a;
+            QColor4ub(unsigned char r = 0, unsigned char g = 0,
+                unsigned char b = 0, unsigned char a = 255)
+                : r(r), g(g), b(b), a(a) {
+            }
+        };
+    };
+
+} // namespace TyrexCAD
+
+#endif // TYREX_GRID_OVERLAY_RENDERER_H
+
+
 ==== FILE: /Projects/TyrexCAD/include/TyrexRendering/TyrexViewerManager.h ====
 --------------------------------------------------------------------------------
 /***************************************************************************
@@ -2438,6 +2777,29 @@ namespace TyrexCAD {
          */
         void handleV3d_View(const Handle(V3d_View)& view);
 
+        /**
+         * @brief Set view to 2D mode (orthographic with locked rotation)
+         */
+        void set2DMode();
+        
+        /**
+        * @brief Zoom at specific point
+        * @param center Center point for zoom
+        * @param factor Zoom factor
+        */
+        void zoomAtPoint(const QPoint& center, double factor);
+
+        /**
+         * @brief Set view to 3D mode (perspective with free rotation)
+         */
+        void set3DMode();
+
+    signals:
+        /**
+         * @brief Emitted when view changes (pan, zoom, rotate)
+         */
+        void viewChanged();
+
     private:
         // OpenCascade components
         Handle(V3d_Viewer) m_viewer;
@@ -2450,10 +2812,20 @@ namespace TyrexCAD {
         // Interaction manager
         TyrexInteractionManager* m_interactionManager;
 
+        // View state
+        bool m_is2DMode;
+
         /**
          * @brief Initialize the viewer components
          */
         void initialize();
+       
+    /**
+     * @brief Convert screen coordinates to 3D model coordinates
+     * @param screenPos Screen position
+     * @return 3D point in model space
+     */
+        gp_Pnt screenToModel3D(const QPoint& screenPos) const;
     };
 
 } // namespace TyrexCAD
@@ -2700,13 +3072,13 @@ namespace TyrexCAD {
 
 #include "TyrexCore/TyrexCommand.h"
 #include <gp_Pnt2d.hxx>
+#include <AIS_Shape.hxx>
 #include <memory>
 
 namespace TyrexCAD {
 
     // Forward declarations
     class TyrexSketchManager;
-    class TyrexSketchCircleEntity;
 
     /**
      * @brief Interactive command for creating circles in sketch mode
@@ -2740,7 +3112,7 @@ namespace TyrexCAD {
          * @param method Method for defining the circle
          */
         explicit TyrexSketchCircleCommand(TyrexSketchManager* sketchManager,
-                                         CircleDefinitionMethod method = CircleDefinitionMethod::CenterRadius);
+            CircleDefinitionMethod method = CircleDefinitionMethod::CenterRadius);
 
         /**
          * @brief Destructor - cleans up any preview objects
@@ -2818,7 +3190,7 @@ namespace TyrexCAD {
         gp_Pnt2d m_radiusPoint;                      ///< Point defining the radius
         double m_minimumRadius;                      ///< Minimum allowed radius
 
-        std::shared_ptr<TyrexSketchCircleEntity> m_previewCircle;  ///< Preview circle entity
+        Handle(AIS_Shape) m_previewShape;            ///< Real-time preview shape
 
         /**
          * @brief Create the final circle entity and add it to the sketch manager
@@ -2833,9 +3205,9 @@ namespace TyrexCAD {
         void updatePreview(const gp_Pnt2d& currentPoint);
 
         /**
-         * @brief Clean up and remove the preview circle from the display
+         * @brief Remove the current preview shape from display
          */
-        void cleanupPreview();
+        void removePreview();
 
         /**
          * @brief Calculate radius from center and current point
@@ -3147,6 +3519,309 @@ namespace TyrexCAD {
 #endif // TYREX_SKETCH_CIRCLE_ENTITY_H
 
 
+==== FILE: /Projects/TyrexCAD/include/TyrexSketch/TyrexSketchConfig.h ====
+--------------------------------------------------------------------------------
+#pragma once
+/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#ifndef TYREX_SKETCH_CONFIG_H
+#define TYREX_SKETCH_CONFIG_H
+
+#include <Quantity_Color.hxx>
+#include <string>
+
+namespace TyrexCAD {
+
+    // Forward declaration - GridStyle is defined in TyrexCanvasOverlay.h
+    enum class GridStyle;
+
+    /**
+     * @brief Configuration for sketch mode appearance and behavior
+     */
+    struct TyrexSketchConfig {
+        // === Canvas Settings ===
+        struct Canvas {
+            Quantity_Color backgroundColor{ 0.0, 0.0, 0.0, Quantity_TOC_RGB };     // Black like AutoCAD
+            Quantity_Color selectionColor{ 1.0, 1.0, 0.0, Quantity_TOC_RGB };      // Yellow
+            Quantity_Color highlightColor{ 0.0, 1.0, 1.0, Quantity_TOC_RGB };      // Cyan
+            Quantity_Color constraintColor{ 1.0, 0.0, 1.0, Quantity_TOC_RGB };     // Magenta
+            double backgroundGradient = 0.0;  // 0 = solid, 1 = full gradient
+        } canvas;
+
+        // === Grid Settings ===
+        struct Grid {
+            bool visible = true;
+            bool snapEnabled = true;
+            double baseSpacing = 10.0;
+            int majorLineInterval = 5;
+            int style = 0; // Will be cast to GridStyle enum when used
+
+            // Colors
+            Quantity_Color majorColor{ 0.3, 0.3, 0.3, Quantity_TOC_RGB };
+            Quantity_Color minorColor{ 0.2, 0.2, 0.2, Quantity_TOC_RGB };
+
+            // Adaptive settings
+            bool adaptive = true;
+            double minPixelSpacing = 15.0;
+            double maxPixelSpacing = 100.0;
+        } grid;
+
+        // === Axes Settings ===
+        struct Axes {
+            bool visible = true;
+            double lineWidth = 2.0;
+            bool showOrigin = true;
+            double originSize = 5.0;
+
+            // Colors
+            Quantity_Color xAxisColor{ 1.0, 0.0, 0.0, Quantity_TOC_RGB };  // Red
+            Quantity_Color yAxisColor{ 0.0, 1.0, 0.0, Quantity_TOC_RGB };  // Green
+            Quantity_Color originColor{ 1.0, 1.0, 1.0, Quantity_TOC_RGB }; // White
+        } axes;
+
+        // === Entity Display ===
+        struct EntityDisplay {
+            // Line entities
+            double defaultLineWidth = 2.0;
+            double selectedLineWidth = 3.0;
+            double constructionLineWidth = 1.0;
+            Quantity_Color defaultLineColor{ 1.0, 1.0, 1.0, Quantity_TOC_RGB };     // White
+            Quantity_Color constructionLineColor{ 0.5, 0.5, 0.5, Quantity_TOC_RGB }; // Gray
+
+            // Control points
+            double controlPointSize = 8.0;
+            double selectedControlPointSize = 10.0;
+            Quantity_Color controlPointColor{ 1.0, 1.0, 0.0, Quantity_TOC_RGB };     // Yellow
+            Quantity_Color selectedControlPointColor{ 1.0, 0.0, 0.0, Quantity_TOC_RGB }; // Red
+        } entityDisplay;
+
+        // === Interaction Settings ===
+        struct Interaction {
+            double pickTolerance = 10.0;         // Pixels
+            double snapTolerance = 5.0;          // Pixels
+            bool autoConstraints = true;         // Auto-detect constraints
+            bool showDimensions = true;          // Show dynamic dimensions
+            bool orthoMode = false;              // Force horizontal/vertical
+            double orthoAngle = 0.0;             // Ortho angle in degrees
+        } interaction;
+
+        // === Performance Settings ===
+        struct Performance {
+            int maxGridLines = 200;              // Maximum grid lines to display
+            int maxEntities = 10000;             // Maximum entities in sketch
+            bool useDisplayLists = true;         // Use OpenGL display lists
+            bool antialiasing = true;            // Enable antialiasing
+            int msaaSamples = 4;                 // MSAA samples
+        } performance;
+
+        // === Default Configurations ===
+        static TyrexSketchConfig defaultConfig() {
+            return TyrexSketchConfig();
+        }
+
+        static TyrexSketchConfig autocadConfig() {
+            TyrexSketchConfig config;
+            // AutoCAD-like settings
+            config.canvas.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
+            config.grid.style = 1; // Dots style
+            config.grid.majorColor = Quantity_Color(0.4, 0.4, 0.4, Quantity_TOC_RGB);
+            config.grid.minorColor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
+            return config;
+        }
+
+        static TyrexSketchConfig lightThemeConfig() {
+            TyrexSketchConfig config;
+            // Light theme settings
+            config.canvas.backgroundColor = Quantity_Color(0.95, 0.95, 0.95, Quantity_TOC_RGB);
+            config.grid.majorColor = Quantity_Color(0.7, 0.7, 0.7, Quantity_TOC_RGB);
+            config.grid.minorColor = Quantity_Color(0.85, 0.85, 0.85, Quantity_TOC_RGB);
+            config.entityDisplay.defaultLineColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
+            return config;
+        }
+
+        // === Save/Load Configuration ===
+        bool saveToFile(const std::string& filename) const;
+        bool loadFromFile(const std::string& filename);
+    };
+
+} // namespace TyrexCAD
+
+#endif // TYREX_SKETCH_CONFIG_H
+
+
+==== FILE: /Projects/TyrexCAD/include/TyrexSketch/TyrexSketchDisplayHelper.h ====
+--------------------------------------------------------------------------------
+#pragma once
+/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#ifndef TYREX_SKETCH_DISPLAY_HELPER_H
+#define TYREX_SKETCH_DISPLAY_HELPER_H
+
+#include <V3d_View.hxx>
+#include <AIS_InteractiveContext.hxx>
+#include <Graphic3d_GraphicDriver.hxx>
+#include <Graphic3d_RenderingParams.hxx>
+#include <Graphic3d_Camera.hxx>
+#include <Standard_Integer.hxx>
+#include <gp_Pnt2d.hxx>
+
+namespace TyrexCAD {
+
+    /**
+     * @brief Helper class for optimizing sketch display
+     */
+    class TyrexSketchDisplayHelper {
+    public:
+        /**
+         * @brief Setup optimal 2D rendering parameters
+         */
+        static void setupOptimal2DRendering(const Handle(V3d_View)& view) {
+            if (view.IsNull()) return;
+
+            // Get rendering parameters
+            Graphic3d_RenderingParams& params = view->ChangeRenderingParams();
+
+            // Disable unnecessary 3D features for better 2D performance
+            params.IsShadowEnabled = Standard_False;
+            params.IsReflectionEnabled = Standard_False;
+            params.IsAntialiasingEnabled = Standard_True;
+            params.NbMsaaSamples = 4;
+            params.IsTransparentShadowEnabled = Standard_False;
+            params.Method = Graphic3d_RM_RASTERIZATION;
+
+            // Note: ToEnableDepthTest and ToEnableDepthWrite may not exist in all versions
+            // These are handled internally by OpenCascade based on projection type
+
+            // Set resolution for better line quality
+            params.Resolution = static_cast<unsigned int>(96); // Standard screen DPI
+
+            // Disable stereo for 2D
+            params.StereoMode = Graphic3d_StereoMode_QuadBuffer;
+            params.ToReverseStereo = Standard_False;
+
+            // Enable fast hidden line removal
+            view->SetComputedMode(Standard_False);
+
+            // Optimize redraw
+            view->SetImmediateUpdate(Standard_False);
+        }
+
+        /**
+         * @brief Create optimized grid display list
+         */
+        static void createGridDisplayList(const Handle(V3d_View)& view,
+            double spacing,
+            const gp_Pnt2d& min,
+            const gp_Pnt2d& max) {
+            // This would create an OpenGL display list for the grid
+            // For better performance on repeated redraws
+            // Implementation depends on specific OpenGL context
+        }
+
+        /**
+         * @brief Setup view for pixel-perfect 2D display
+         */
+        static void setupPixelPerfectView(const Handle(V3d_View)& view) {
+            if (view.IsNull()) return;
+
+            // Get window dimensions
+            Standard_Integer width, height;
+            view->Window()->Size(width, height);
+
+            // Calculate orthographic projection to match pixels
+            Standard_Real halfWidth = width / 2.0;
+            Standard_Real halfHeight = height / 2.0;
+
+            // Get camera and set orthographic projection
+            Handle(Graphic3d_Camera) camera = view->Camera();
+            if (!camera.IsNull()) {
+                // Set projection type to orthographic
+                camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+
+                // Set orthographic projection window
+                // Note: SetOrthographicProjection method signature varies by OpenCascade version
+                // Using SetScale and SetCenter instead for compatibility
+                Standard_Real scale = 1.0;
+                camera->SetScale(scale);
+                camera->SetCenter(gp_Pnt(0, 0, 0));
+
+                // Set view volume
+                camera->SetZRange(-1000.0, 1000.0);
+
+                // Look down Z axis
+                camera->SetDirection(gp_Dir(0, 0, -1));
+                camera->SetUp(gp_Dir(0, 1, 0));
+            }
+        }
+
+        /**
+         * @brief Calculate optimal grid spacing for current zoom
+         */
+        static double calculateOptimalGridSpacing(const Handle(V3d_View)& view,
+            double baseSpacing,
+            double minPixels,
+            double maxPixels) {
+            if (view.IsNull()) return baseSpacing;
+
+            double scale = view->Scale();
+            double pixelSpacing = baseSpacing * scale;
+            double resultSpacing = baseSpacing;
+
+            // AutoCAD-style grid scaling
+            static const double scalingFactors[] = { 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0 };
+
+            // Find best scaling factor
+            for (double factor : scalingFactors) {
+                double testSpacing = baseSpacing * factor;
+                double testPixels = testSpacing * scale;
+
+                if (testPixels >= minPixels && testPixels <= maxPixels) {
+                    resultSpacing = testSpacing;
+                    break;
+                }
+            }
+
+            return resultSpacing;
+        }
+
+        /**
+         * @brief Draw smooth anti-aliased line
+         */
+        static void drawSmoothLine(const Handle(AIS_InteractiveContext)& context,
+            const gp_Pnt& start,
+            const gp_Pnt& end,
+            const Quantity_Color& color,
+            double width) {
+            // Implementation would use OpenGL smooth lines
+            // This is a placeholder for actual implementation
+        }
+
+        /**
+         * @brief Batch draw grid for performance
+         */
+        static void batchDrawGrid(const Handle(AIS_InteractiveContext)& context,
+            const std::vector<gp_Pnt>& points,
+            const Quantity_Color& color) {
+            // Batch drawing implementation for better performance
+            // This is a placeholder for actual implementation
+        }
+    };
+
+} // namespace TyrexCAD
+
+#endif // TYREX_SKETCH_DISPLAY_HELPER_H
+
+
 ==== FILE: /Projects/TyrexCAD/include/TyrexSketch/TyrexSketchEntity.h ====
 --------------------------------------------------------------------------------
 /***************************************************************************
@@ -3438,13 +4113,13 @@ namespace TyrexCAD {
 
 #include "TyrexCore/TyrexCommand.h"
 #include <gp_Pnt2d.hxx>
+#include <AIS_Shape.hxx>
 #include <memory>
 
 namespace TyrexCAD {
 
     // Forward declarations
     class TyrexSketchManager;
-    class TyrexSketchLineEntity;
 
     /**
      * @brief Interactive command for creating lines in sketch mode
@@ -3526,6 +4201,18 @@ namespace TyrexCAD {
          */
         bool isContinuousMode() const;
 
+        /**
+         * @brief Set minimum line length
+         * @param minLength Minimum length in sketch units
+         */
+        void setMinimumLength(double minLength);
+
+        /**
+         * @brief Get minimum line length
+         * @return Minimum line length
+         */
+        double getMinimumLength() const;
+
     private:
         TyrexSketchManager* m_sketchManager;         ///< Sketch manager reference (not owned)
 
@@ -3534,7 +4221,8 @@ namespace TyrexCAD {
         gp_Pnt2d m_secondPoint;                      ///< Second point of the line (end)
 
         bool m_continuousMode;                       ///< Continuous line drawing mode
-        std::shared_ptr<TyrexSketchLineEntity> m_previewLine;  ///< Legacy preview line entity
+        double m_minimumLength;                      ///< Minimum allowed line length
+
         Handle(AIS_Shape) m_previewShape;            ///< Real-time preview shape
 
         /**
@@ -3555,15 +4243,18 @@ namespace TyrexCAD {
         void removePreview();
 
         /**
-         * @brief Clean up and remove all preview objects
-         */
-        void cleanupPreview();
-
-        /**
          * @brief Generate unique ID for the new line
          * @return Unique line ID
          */
         std::string generateLineId() const;
+
+        /**
+         * @brief Validate line parameters
+         * @param start Start point
+         * @param end End point
+         * @return True if line is valid
+         */
+        bool validateLine(const gp_Pnt2d& start, const gp_Pnt2d& end) const;
     };
 
 } // namespace TyrexCAD
@@ -3822,11 +4513,15 @@ namespace TyrexCAD {
 #include <V3d_View.hxx>
 #include <AIS_InteractiveContext.hxx>
 
+// Include sketch config for TyrexSketchConfig type
+#include "TyrexSketch/TyrexSketchConfig.h"
+
 namespace TyrexCAD {
 
     // Forward declarations
     class TyrexSketchEntity;
     class TyrexViewerManager;
+    class TyrexCanvasOverlay;
 
     /**
      * @brief Manages the interactive parametric sketching environment
@@ -4031,6 +4726,31 @@ namespace TyrexCAD {
          */
         Handle(AIS_InteractiveContext) context() const;
 
+        /**
+         * @brief Get the canvas overlay system
+         * @return Pointer to canvas overlay
+         */
+        TyrexCanvasOverlay* canvasOverlay() const;
+
+        /**
+         * @brief Set grid visibility
+         * @param visible True to show grid
+         */
+        void setGridVisible(bool visible);
+
+        /**
+         * @brief Set axes visibility
+         * @param visible True to show axes
+         */
+        void setAxesVisible(bool visible);
+
+        /**
+         * @brief Snap point to grid
+         * @param point Input point
+         * @return Snapped point if grid is active
+         */
+        gp_Pnt2d snapToGrid(const gp_Pnt2d& point) const;
+
     signals:
         /**
          * @brief Emitted when a sketch entity is selected
@@ -4072,6 +4792,9 @@ namespace TyrexCAD {
         std::vector<std::shared_ptr<TyrexSketchEntity>> m_sketchEntities;
         std::unordered_map<std::string, std::shared_ptr<TyrexSketchEntity>> m_entityMap;
 
+        // Canvas overlay system
+        std::unique_ptr<TyrexCanvasOverlay> m_canvasOverlay;
+
         // Selection and interaction
         std::vector<std::shared_ptr<TyrexSketchEntity>> m_selectedEntities;
         InteractionMode m_currentMode;
@@ -4086,6 +4809,13 @@ namespace TyrexCAD {
         // Visual feedback
         std::vector<Handle(AIS_InteractiveObject)> m_controlPointObjects;
         std::vector<Handle(AIS_InteractiveObject)> m_highlightObjects;
+
+        // Sketch configuration
+        TyrexSketchConfig m_sketchConfig;
+
+        // Ortho mode support
+        bool m_firstPointSet;
+        gp_Pnt2d m_firstPoint;
 
         /**
          * @brief Update visual feedback for current selection
@@ -4143,6 +4873,19 @@ namespace TyrexCAD {
          * @brief End current drag operation
          */
         void endDrag();
+
+        /**
+         * @brief Apply ortho mode constraints to a point
+         * @param point Input point
+         * @return Constrained point
+         */
+        gp_Pnt2d applyOrthoMode(const gp_Pnt2d& point) const;
+
+        /**
+         * @brief Draw a sketch entity with proper styling
+         * @param entity Entity to draw
+         */
+        void drawSketchEntity(std::shared_ptr<TyrexSketchEntity> entity);
     };
 
 } // namespace TyrexCAD
@@ -4249,15 +4992,13 @@ int main(int argc, char* argv[])
 #include "TyrexCore/TyrexLineCommand.h"
 #include "TyrexInteraction/TyrexInteractionManager.h"
 #include "TyrexCore/TyrexSelectionMode.h"
+#include "TyrexCanvas/TyrexCanvasOverlay.h" // ?????? ??? GridStyle
 
  // Include sketch system
 #include "TyrexSketch/TyrexSketch.h"
-
-
-// IMPORTANT: Add this include for TyrexSketchManager 
 #include "TyrexSketch/TyrexSketchManager.h"
-
-// ???? ????? ???? ??? ??...
+#include "TyrexSketch/TyrexSketchConfig.h"
+#include "TyrexSketch/TyrexSketchDisplayHelper.h"
 
 // OpenCascade
 #include <Standard_Handle.hxx>
@@ -4280,6 +5021,8 @@ int main(int argc, char* argv[])
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QDebug>
+#include <QActionGroup>
+#include <QToolButton>
 
 namespace TyrexCAD {
 
@@ -4296,7 +5039,14 @@ namespace TyrexCAD {
         m_sketchModeAction(nullptr),
         m_exitSketchAction(nullptr),
         m_sketchLineAction(nullptr),
-        m_sketchCircleAction(nullptr)
+        m_sketchCircleAction(nullptr),
+        m_toggleGridAction(nullptr),
+        m_toggleSnapAction(nullptr),
+        m_toggleOrthoAction(nullptr),
+        m_gridStyleGroup(nullptr),
+        m_gridLinesAction(nullptr),
+        m_gridDotsAction(nullptr),
+        m_gridCrossesAction(nullptr)
     {
         setupUI();
         initializeViewers();
@@ -4461,24 +5211,39 @@ namespace TyrexCAD {
         }
 
         try {
-            // Create sketch manager using convenience function
+            // Create sketch manager with enhanced configuration
             m_sketchManager = Sketch::createSketchManager(context, m_viewerManager.get(), this);
 
-            // Connect sketch manager signals
+            // Connect sketch manager signals with enhanced handlers
             connect(m_sketchManager.get(), &TyrexSketchManager::sketchModeEntered,
-                this, &TyrexMainWindow::updateSketchModeUI);
+                this, [this]() {
+                    updateSketchModeUI();
+                    setupSketchModeToolbars();
+                    updateStatusBar("Sketch Mode Active - Grid Snap: ON | Ortho: OFF | Dynamic Input: ON");
+                });
 
             connect(m_sketchManager.get(), &TyrexSketchManager::sketchModeExited,
-                this, &TyrexMainWindow::updateSketchModeUI);
+                this, [this]() {
+                    updateSketchModeUI();
+                    restoreNormalToolbars();
+                    updateStatusBar("3D Modeling Mode");
+                });
 
             connect(m_sketchManager.get(), &TyrexSketchManager::entitySelected,
-                this, &TyrexMainWindow::onSketchEntitySelected);
+                this, [this](const std::string& entityId) {
+                    onSketchEntitySelected(entityId);
+                    updatePropertyPanel(entityId);
+                });
 
             connect(m_sketchManager.get(), &TyrexSketchManager::entityModified,
-                this, &TyrexMainWindow::onSketchEntityModified);
+                this, [this](const std::string& entityId) {
+                    onSketchEntityModified(entityId);
+                    setDocumentModified(true);
+                });
 
             connect(m_sketchManager.get(), &TyrexSketchManager::selectionCleared,
                 this, [this]() {
+                    clearPropertyPanel();
                     statusBar()->showMessage("Selection cleared", 2000);
                 });
 
@@ -4489,13 +5254,13 @@ namespace TyrexCAD {
                 qDebug() << "Sketch manager connected to interaction manager";
             }
 
-            qDebug() << "Sketch system initialized successfully";
+            // Create sketch mode actions
+            createAdvancedSketchActions();
+
+            qDebug() << "Sketch system initialized successfully with enhanced features";
         }
         catch (const std::exception& ex) {
             qCritical() << "Error initializing sketch system:" << ex.what();
-        }
-        catch (...) {
-            qCritical() << "Unknown error initializing sketch system";
         }
     }
 
@@ -4809,6 +5574,78 @@ namespace TyrexCAD {
         qDebug() << "Sketch actions created successfully";
     }
 
+    void TyrexMainWindow::createAdvancedSketchActions()
+    {
+        // Grid toggle action
+        m_toggleGridAction = new QAction(tr("Toggle &Grid"), this);
+        m_toggleGridAction->setShortcut(QKeySequence(tr("F7")));
+        m_toggleGridAction->setCheckable(true);
+        m_toggleGridAction->setChecked(true);
+        m_toggleGridAction->setStatusTip(tr("Toggle grid visibility"));
+        connect(m_toggleGridAction, &QAction::triggered, this, [this](bool checked) {
+            if (m_sketchManager) {
+                m_sketchManager->setGridVisible(checked);
+                statusBar()->showMessage(checked ? "Grid ON" : "Grid OFF", 2000);
+            }
+            });
+
+        // Snap toggle action
+        m_toggleSnapAction = new QAction(tr("Toggle &Snap"), this);
+        m_toggleSnapAction->setShortcut(QKeySequence(tr("F9")));
+        m_toggleSnapAction->setCheckable(true);
+        m_toggleSnapAction->setChecked(true);
+        m_toggleSnapAction->setStatusTip(tr("Toggle grid snap"));
+        connect(m_toggleSnapAction, &QAction::triggered, this, [this](bool checked) {
+            if (m_sketchManager && m_sketchManager->canvasOverlay()) {
+                auto config = m_sketchManager->canvasOverlay()->getGridConfig();
+                // TODO: Add snap enable/disable to grid config
+                statusBar()->showMessage(checked ? "Snap ON" : "Snap OFF", 2000);
+            }
+            });
+
+        // Ortho mode action
+        m_toggleOrthoAction = new QAction(tr("Toggle &Ortho"), this);
+        m_toggleOrthoAction->setShortcut(QKeySequence(tr("F8")));
+        m_toggleOrthoAction->setCheckable(true);
+        m_toggleOrthoAction->setChecked(false);
+        m_toggleOrthoAction->setStatusTip(tr("Toggle orthogonal mode"));
+        connect(m_toggleOrthoAction, &QAction::triggered, this, [this](bool checked) {
+            // TODO: Implement ortho mode in sketch manager
+            statusBar()->showMessage(checked ? "Ortho ON" : "Ortho OFF", 2000);
+            });
+
+        // Grid style actions
+        m_gridStyleGroup = new QActionGroup(this);
+
+        m_gridLinesAction = new QAction(tr("Grid &Lines"), this);
+        m_gridLinesAction->setCheckable(true);
+        m_gridLinesAction->setChecked(true);
+        m_gridStyleGroup->addAction(m_gridLinesAction);
+        connect(m_gridLinesAction, &QAction::triggered, this, [this]() {
+            if (m_sketchManager && m_sketchManager->canvasOverlay()) {
+                m_sketchManager->canvasOverlay()->setGridStyle(GridStyle::Lines);
+            }
+            });
+
+        m_gridDotsAction = new QAction(tr("Grid &Dots"), this);
+        m_gridDotsAction->setCheckable(true);
+        m_gridStyleGroup->addAction(m_gridDotsAction);
+        connect(m_gridDotsAction, &QAction::triggered, this, [this]() {
+            if (m_sketchManager && m_sketchManager->canvasOverlay()) {
+                m_sketchManager->canvasOverlay()->setGridStyle(GridStyle::Dots);
+            }
+            });
+
+        m_gridCrossesAction = new QAction(tr("Grid &Crosses"), this);
+        m_gridCrossesAction->setCheckable(true);
+        m_gridStyleGroup->addAction(m_gridCrossesAction);
+        connect(m_gridCrossesAction, &QAction::triggered, this, [this]() {
+            if (m_sketchManager && m_sketchManager->canvasOverlay()) {
+                m_sketchManager->canvasOverlay()->setGridStyle(GridStyle::Crosses);
+            }
+            });
+    }
+
     void TyrexMainWindow::createMenus()
     {
         // === FILE MENU ===
@@ -4993,6 +5830,11 @@ namespace TyrexCAD {
             m_commandManager->cancelCommand();
         }
 
+        // Apply optimal 2D rendering settings
+        if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+            TyrexSketchDisplayHelper::setupOptimal2DRendering(m_viewerManager->view());
+        }
+
         // Set interaction manager to sketch mode
         auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
         if (viewWidget && viewWidget->interactionManager()) {
@@ -5000,10 +5842,13 @@ namespace TyrexCAD {
                 TyrexInteractionManager::InteractionMode::Sketch2D);
         }
 
-        // Enter sketch mode
+        // Enter sketch mode with enhanced features
         m_sketchManager->enterSketchMode();
 
-        qDebug() << "Entered sketch mode successfully";
+        // Show sketch status in status bar
+        updateSketchStatusBar();
+
+        qDebug() << "Entered sketch mode successfully with enhanced UI";
     }
 
     void TyrexMainWindow::exitSketchMode()
@@ -5096,6 +5941,114 @@ namespace TyrexCAD {
         // Here you could mark document as modified, update property panels, etc.
     }
 
+    void TyrexMainWindow::updateSketchStatusBar()
+    {
+        if (!m_sketchManager || !m_sketchManager->isInSketchMode()) {
+            return;
+        }
+
+        QString status = "Sketch Mode | ";
+
+        // Grid status
+        if (m_sketchManager->canvasOverlay()) {
+            bool gridVisible = m_sketchManager->canvasOverlay()->isGridVisible();
+            double spacing = m_sketchManager->canvasOverlay()->getCurrentGridSpacing();
+            status += QString("Grid: %1 (Spacing: %2) | ")
+                .arg(gridVisible ? "ON" : "OFF")
+                .arg(spacing, 0, 'f', 2);
+        }
+
+        // Snap status
+        status += QString("Snap: %1 | ").arg(m_toggleSnapAction->isChecked() ? "ON" : "OFF");
+
+        // Ortho status
+        status += QString("Ortho: %1 | ").arg(m_toggleOrthoAction->isChecked() ? "ON" : "OFF");
+
+        // Selection count
+        auto selected = m_sketchManager->getSelectedEntities();
+        if (!selected.empty()) {
+            status += QString("Selected: %1 objects").arg(selected.size());
+        }
+        else {
+            status += "Ready";
+        }
+
+        statusBar()->showMessage(status);
+    }
+
+    void TyrexMainWindow::setupSketchModeToolbars()
+    {
+        // Add sketch-specific toolbar items
+        if (m_sketchToolBar) {
+            m_sketchToolBar->addSeparator();
+            m_sketchToolBar->addAction(m_toggleGridAction);
+            m_sketchToolBar->addAction(m_toggleSnapAction);
+            m_sketchToolBar->addAction(m_toggleOrthoAction);
+            m_sketchToolBar->addSeparator();
+
+            // Grid style submenu
+            QToolButton* gridStyleButton = new QToolButton();
+            gridStyleButton->setText("Grid Style");
+            gridStyleButton->setPopupMode(QToolButton::InstantPopup);
+
+            QMenu* gridStyleMenu = new QMenu(gridStyleButton);
+            gridStyleMenu->addAction(m_gridLinesAction);
+            gridStyleMenu->addAction(m_gridDotsAction);
+            gridStyleMenu->addAction(m_gridCrossesAction);
+            gridStyleButton->setMenu(gridStyleMenu);
+
+            m_sketchToolBar->addWidget(gridStyleButton);
+        }
+    }
+
+    void TyrexMainWindow::restoreNormalToolbars()
+    {
+        // Remove sketch-specific toolbar items
+        if (m_sketchToolBar) {
+            // Clear extra actions added for sketch mode
+            auto actions = m_sketchToolBar->actions();
+            for (auto it = actions.rbegin(); it != actions.rend(); ++it) {
+                if (*it == m_toggleGridAction ||
+                    *it == m_toggleSnapAction ||
+                    *it == m_toggleOrthoAction ||
+                    (*it)->isSeparator()) {
+                    m_sketchToolBar->removeAction(*it);
+                }
+            }
+        }
+    }
+
+    // Add property panel update methods
+    void TyrexMainWindow::updatePropertyPanel(const std::string& entityId)
+    {
+        // This would update a property panel with entity properties
+        // For now, just show in status bar
+        auto entity = m_sketchManager->findSketchEntity(entityId);
+        if (entity) {
+            QString info = QString("Selected: %1 (Type: %2)")
+                .arg(QString::fromStdString(entityId))
+                .arg(static_cast<int>(entity->getType()));
+            statusBar()->showMessage(info, 5000);
+        }
+    }
+
+    void TyrexMainWindow::clearPropertyPanel()
+    {
+        // Clear property panel
+        statusBar()->showMessage("No selection", 2000);
+    }
+
+    void TyrexMainWindow::setDocumentModified(bool modified)
+    {
+        // Mark document as modified
+        setWindowModified(modified);
+    }
+
+    void TyrexMainWindow::updateStatusBar(const QString& message)
+    {
+        statusBar()->showMessage(message);
+    }
+
     // === FILE OPERATIONS ===
     void TyrexMainWindow::newFile()
     {
@@ -5141,7 +6094,46 @@ namespace TyrexCAD {
                 "Version: 1.0.0\n"
                 "Build: Development"));
     }
+    void TyrexMainWindow::createAdvancedSketchActions()
+    {
+        // Grid toggle action  
+        m_toggleGridAction = new QAction(tr("Toggle &Grid"), this);
+        m_toggleGridAction->setShortcut(QKeySequence(tr("F7")));
+        m_toggleGridAction->setCheckable(true);
+        m_toggleGridAction->setChecked(true);
+        m_toggleGridAction->setStatusTip(tr("Toggle grid visibility"));
 
+        connect(m_toggleGridAction, &QAction::triggered, this, [this](bool checked) {
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                viewWidget->setGridEnabled(checked);
+                statusBar()->showMessage(checked ? "Grid ON" : "Grid OFF", 2000);
+            }
+            });
+
+        // Grid spacing controls
+        m_gridSpacingAction = new QAction(tr("Grid &Spacing..."), this);
+        connect(m_gridSpacingAction, &QAction::triggered, this, [this]() {
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                GridConfig config = viewWidget->getGridConfig();
+
+                // Show grid configuration dialog
+                bool ok;
+                double newSpacing = QInputDialog::getDouble(this,
+                    tr("Grid Spacing"),
+                    tr("Enter grid spacing:"),
+                    config.baseSpacing, 0.1, 1000.0, 2, &ok);
+
+                if (ok) {
+                    config.baseSpacing = newSpacing;
+                    viewWidget->setGridConfig(config);
+                    statusBar()->showMessage(
+                        QString("Grid spacing set to %1").arg(newSpacing), 2000);
+                }
+            }
+            });
+    }
 } // namespace TyrexCAD
 
 
@@ -5414,6 +6406,7 @@ namespace TyrexCAD {
 
 #include "TyrexCanvas/TyrexViewWidget.h"
 #include "TyrexRendering/TyrexViewerManager.h"
+#include "TyrexRendering/TyrexGridOverlayRenderer.h"
 #include "TyrexInteraction/TyrexInteractionManager.h"
 
  // OpenCascade includes
@@ -5430,94 +6423,153 @@ namespace TyrexCAD {
 #include <QVBoxLayout>
 #include <QDebug>
 #include <QTimer>
-
+#include <QOpenGLContext>
+#include <QSurfaceFormat>
 namespace TyrexCAD {
 
     TyrexViewWidget::TyrexViewWidget(QWidget* parent)
-        : QWidget(parent)
+        : QOpenGLWidget(parent)
         , m_viewerManager(nullptr)
         , m_interactionManager(nullptr)
+        , m_gridRenderer(nullptr)
+        , m_gridInitialized(false)
     {
         // Set widget properties for optimal OpenGL rendering
         setAttribute(Qt::WA_OpaquePaintEvent);
         setAttribute(Qt::WA_NoSystemBackground);
-        setMouseTracking(true);  // Enable mouse tracking for hover events
+        setMouseTracking(true);
         setFocusPolicy(Qt::StrongFocus);
-
-        // Set minimum size
         setMinimumSize(400, 300);
 
-        qDebug() << "TyrexViewWidget constructed";
+        qDebug() << "TyrexViewWidget constructed with grid support";
 
-        // Initialize immediately - don't wait for show event
+        // Initialize after construction
         QTimer::singleShot(50, this, &TyrexViewWidget::initializeManagers);
     }
 
     TyrexViewWidget::~TyrexViewWidget()
     {
-        qDebug() << "TyrexViewWidget destructor";
+        // Cleanup grid renderer in OpenGL context
+        makeCurrent(); // Ensure OpenGL context is active
+        m_gridRenderer.reset();
+        doneCurrent();
+
+        qDebug() << "TyrexViewWidget destructor completed";
     }
 
-    std::shared_ptr<TyrexViewerManager> TyrexViewWidget::viewerManager() const
+    void TyrexViewWidget::initializeGL()
     {
-        return m_viewerManager;
-    }
-
-    TyrexInteractionManager* TyrexViewWidget::interactionManager() const
-    {
-        return m_interactionManager.get();
-    }
-
-    void TyrexViewWidget::mousePressEvent(QMouseEvent* e)
-    {
-        if (m_interactionManager) {
-            m_interactionManager->onMousePress(e->button(), e->pos());
+        // Initialize OpenGL functions
+        if (!initializeOpenGLFunctions()) {
+            qCritical() << "Failed to initialize OpenGL functions in TyrexViewWidget";
+            return;
         }
-        e->accept(); // Prevent event propagation
+
+        // Set OpenGL state for CAD rendering
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_MULTISAMPLE);
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+
+        qDebug() << "TyrexViewWidget OpenGL initialized";
+
+        // Setup grid renderer after OpenGL is ready
+        setupGridRenderer();
     }
 
-    void TyrexViewWidget::mouseMoveEvent(QMouseEvent* e)
+    void TyrexViewWidget::paintGL()
     {
-        if (m_interactionManager) {
-            m_interactionManager->onMouseMove(e->pos(), e->modifiers());
+        // Clear buffers
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // === 1. Render OpenCascade scene first ===
+        if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+            try {
+                // Let OpenCascade render the 3D scene
+                Handle(V3d_View) view = m_viewerManager->view();
+                view->Redraw();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "OpenCascade rendering error:" << ex.GetMessageString();
+            }
+            catch (...) {
+                qWarning() << "Unknown OpenCascade rendering error";
+            }
         }
-        e->accept(); // Prevent event propagation
-    }
 
-    void TyrexViewWidget::mouseReleaseEvent(QMouseEvent* e)
-    {
-        if (m_interactionManager) {
-            m_interactionManager->onMouseRelease(e->button(), e->pos());
+        // === 2. Render grid overlay on top ===
+        if (m_gridRenderer && m_gridInitialized) {
+            try {
+                // Render grid as screen overlay
+                m_gridRenderer->render(width(), height());
+            }
+            catch (const std::exception& ex) {
+                qWarning() << "Grid rendering error:" << ex.what();
+            }
+            catch (...) {
+                qWarning() << "Unknown grid rendering error";
+            }
         }
-        e->accept(); // Prevent event propagation
+
+        // Force OpenGL flush for immediate display
+        glFlush();
     }
 
-    void TyrexViewWidget::wheelEvent(QWheelEvent* e)
+    void TyrexViewWidget::resizeGL(int w, int h)
     {
-        if (m_interactionManager) {
-            m_interactionManager->onMouseWheel(e->angleDelta().y(), e->position().toPoint());
-        }
-        e->accept(); // Prevent event propagation
-    }
-
-    void TyrexViewWidget::resizeEvent(QResizeEvent* e)
-    {
-        QWidget::resizeEvent(e);
-
-        // Notify view manager of size change
+        // Update OpenCascade viewport
         if (m_viewerManager) {
             m_viewerManager->handleResize();
         }
+
+        // Grid will automatically adapt to new viewport size in next render
+        qDebug() << "TyrexViewWidget resized to:" << w << "x" << h;
     }
 
-    void TyrexViewWidget::showEvent(QShowEvent* e)
+    void TyrexViewWidget::setupGridRenderer()
     {
-        QWidget::showEvent(e);
-        qDebug() << "TyrexViewWidget::showEvent called";
+        if (m_gridRenderer) {
+            return; // Already initialized
+        }
 
-        // Ensure initialization happens
-        if (!m_viewerManager) {
-            QTimer::singleShot(100, this, &TyrexViewWidget::initializeManagers);
+        try {
+            // Create grid renderer
+            m_gridRenderer = std::make_unique<TyrexGridOverlayRenderer>();
+
+            // Initialize with current OpenGL context
+            if (!m_gridRenderer->initialize()) {
+                qCritical() << "Failed to initialize grid renderer";
+                m_gridRenderer.reset();
+                return;
+            }
+
+            // Set default AutoCAD-style configuration
+            GridConfig config;
+            config.baseSpacing = 10.0;
+            config.majorFactor = 5;
+            config.minorColor = QColor(60, 60, 60, 150);    // Dark gray
+            config.majorColor = QColor(100, 100, 100, 200); // Medium gray
+            config.axisColorX = QColor(255, 80, 80, 255);   // Red X-axis
+            config.axisColorY = QColor(80, 255, 80, 255);   // Green Y-axis
+            config.showAxes = true;
+            config.showOriginMarker = true;
+            config.adaptiveSpacing = true;
+            config.minPixelSpacing = 20.0;
+            config.maxPixelSpacing = 80.0;
+
+            m_gridRenderer->setGridConfig(config);
+            m_gridRenderer->setGridEnabled(true); // Enable by default
+            m_gridInitialized = true;
+
+            qDebug() << "Grid renderer initialized successfully";
+
+        }
+        catch (const std::exception& ex) {
+            qCritical() << "Exception setting up grid renderer:" << ex.what();
+            m_gridRenderer.reset();
+        }
+        catch (...) {
+            qCritical() << "Unknown exception setting up grid renderer";
+            m_gridRenderer.reset();
         }
     }
 
@@ -5531,15 +6583,15 @@ namespace TyrexCAD {
         qDebug() << "Starting manager initialization...";
 
         try {
-            // 1. Create the viewer manager first
+            // Create viewer manager
             m_viewerManager = std::make_shared<TyrexViewerManager>(this);
 
-            // 2. Verify viewer manager creation
             if (!m_viewerManager) {
                 qCritical() << "Failed to create viewer manager!";
                 return;
             }
 
+            // Verify OpenCascade components
             Handle(AIS_InteractiveContext) context = m_viewerManager->context();
             Handle(V3d_View) view = m_viewerManager->view();
 
@@ -5548,31 +6600,40 @@ namespace TyrexCAD {
                 return;
             }
 
-            // 3. Create the interaction manager
+            // === Connect grid renderer to view ===
+            if (m_gridRenderer) {
+                m_gridRenderer->setView(view);
+                qDebug() << "Grid renderer connected to OpenCascade view";
+            }
+
+            // Create interaction manager
             m_interactionManager = std::make_unique<TyrexInteractionManager>();
 
-            // 4. Verify interaction manager creation
             if (!m_interactionManager) {
                 qCritical() << "Failed to create interaction manager!";
                 return;
             }
 
-            // 5. Connect the managers
+            // Connect managers
             m_interactionManager->setViewerManager(m_viewerManager.get());
             m_viewerManager->setInteractionManager(m_interactionManager.get());
 
-            qDebug() << "Viewer and interaction managers initialized successfully";
-
-            // 6. Setup initial view
-            view->SetProj(V3d_Zpos);  // Top view
+            // Setup initial view
+            view->SetProj(V3d_Zpos);  // Top view for sketch mode
             view->SetImmediateUpdate(Standard_True);
             view->FitAll();
             view->Redraw();
 
-            // 7. Emit initialization completed signal
-            emit viewerInitialized();
+            // === Connect view change signals to grid updates ===
+            connect(m_viewerManager.get(), &TyrexViewerManager::viewChanged,
+                this, [this]() {
+                    // Grid will automatically update on next paintGL() call
+                    update(); // Trigger repaint
+                });
 
-            qDebug() << "Manager initialization completed - signal emitted";
+            emit viewerInitialized();
+            qDebug() << "Manager initialization completed with grid integration";
+
         }
         catch (const Standard_Failure& ex) {
             qCritical() << "OpenCascade error during initialization:" << ex.GetMessageString();
@@ -5583,6 +6644,83 @@ namespace TyrexCAD {
         catch (...) {
             qCritical() << "Unknown error during initialization";
         }
+    }
+
+    // === NEW: Grid control methods implementation ===
+
+    void TyrexViewWidget::setGridEnabled(bool enabled)
+    {
+        if (m_gridRenderer) {
+            m_gridRenderer->setGridEnabled(enabled);
+            update(); // Trigger repaint
+            qDebug() << "Grid" << (enabled ? "enabled" : "disabled");
+        }
+    }
+
+    bool TyrexViewWidget::isGridEnabled() const
+    {
+        return m_gridRenderer ? m_gridRenderer->isGridEnabled() : false;
+    }
+
+    void TyrexViewWidget::setGridConfig(const GridConfig& config)
+    {
+        if (m_gridRenderer) {
+            m_gridRenderer->setGridConfig(config);
+            update(); // Trigger repaint
+            emit gridConfigChanged();
+            qDebug() << "Grid configuration updated";
+        }
+    }
+
+    const GridConfig& TyrexViewWidget::getGridConfig() const
+    {
+        static GridConfig defaultConfig;
+        return m_gridRenderer ? m_gridRenderer->getGridConfig() : defaultConfig;
+    }
+
+    bool TyrexViewWidget::snapToGrid(double worldX, double worldY,
+        double& snappedX, double& snappedY) const
+    {
+        if (m_gridRenderer) {
+            return m_gridRenderer->snapToGrid(worldX, worldY, snappedX, snappedY);
+        }
+
+        snappedX = worldX;
+        snappedY = worldY;
+        return false;
+    }
+
+    // === Event handling remains the same ===
+    void TyrexViewWidget::mousePressEvent(QMouseEvent* e)
+    {
+        if (m_interactionManager) {
+            m_interactionManager->onMousePress(e->button(), e->pos());
+        }
+        e->accept();
+    }
+
+    void TyrexViewWidget::mouseMoveEvent(QMouseEvent* e)
+    {
+        if (m_interactionManager) {
+            m_interactionManager->onMouseMove(e->pos(), e->modifiers());
+        }
+        e->accept();
+    }
+
+    void TyrexViewWidget::mouseReleaseEvent(QMouseEvent* e)
+    {
+        if (m_interactionManager) {
+            m_interactionManager->onMouseRelease(e->button(), e->pos());
+        }
+        e->accept();
+    }
+
+    void TyrexViewWidget::wheelEvent(QWheelEvent* e)
+    {
+        if (m_interactionManager) {
+            m_interactionManager->onMouseWheel(e->angleDelta().y(), e->position().toPoint());
+        }
+        e->accept();
     }
 
 } // namespace TyrexCAD
@@ -7816,6 +8954,598 @@ namespace Tyrex {
 --------------------------------------------------------------------------------
 
 
+==== FILE: /Projects/TyrexCAD/src/TyrexRendering/TyrexGridOverlayRenderer.cpp ====
+--------------------------------------------------------------------------------
+/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#include "TyrexRendering/TyrexGridOverlayRenderer.h"
+#include <QDebug>
+#include <QOpenGLContext>
+#include <cmath>
+#include <algorithm>
+
+namespace TyrexCAD {
+
+    TyrexGridOverlayRenderer::TyrexGridOverlayRenderer()
+        : m_gridEnabled(true)
+        , m_initialized(false)
+        , m_currentSpacing(1.0)
+        , m_viewScale(1.0)
+        , m_worldMinX(0), m_worldMaxX(0)
+        , m_worldMinY(0), m_worldMaxY(0)
+        , m_viewportWidth(800), m_viewportHeight(600)
+        , m_shaderProgram(nullptr)
+        , m_vertexBuffer(nullptr)
+        , m_vao(nullptr)
+    {
+        // Reserve space for vertices (optimization)
+        m_vertices.reserve(4000); // Enough for ~500 lines
+    }
+
+    TyrexGridOverlayRenderer::~TyrexGridOverlayRenderer()
+    {
+        cleanup();
+    }
+
+    bool TyrexGridOverlayRenderer::initialize()
+    {
+        if (m_initialized) {
+            return true;
+        }
+
+        // Initialize OpenGL functions
+        if (!initializeOpenGLFunctions()) {
+            qCritical() << "Failed to initialize OpenGL functions";
+            return false;
+        }
+
+        // Create shader program
+        if (!createShaders()) {
+            qCritical() << "Failed to create grid shaders";
+            return false;
+        }
+
+        // Create vertex buffer and VAO
+        setupVertexArrays();
+
+        m_initialized = true;
+        qDebug() << "TyrexGridOverlayRenderer initialized successfully";
+        return true;
+    }
+
+    void TyrexGridOverlayRenderer::cleanup()
+    {
+        if (!m_initialized) {
+            return;
+        }
+
+        delete m_shaderProgram;
+        delete m_vertexBuffer;
+        delete m_vao;
+
+        m_shaderProgram = nullptr;
+        m_vertexBuffer = nullptr;
+        m_vao = nullptr;
+        m_initialized = false;
+    }
+
+    void TyrexGridOverlayRenderer::setView(const Handle(V3d_View)& view)
+    {
+        m_view = view;
+    }
+
+    void TyrexGridOverlayRenderer::setGridEnabled(bool enabled)
+    {
+        m_gridEnabled = enabled;
+    }
+
+    bool TyrexGridOverlayRenderer::isGridEnabled() const
+    {
+        return m_gridEnabled;
+    }
+
+    void TyrexGridOverlayRenderer::setGridConfig(const GridConfig& config)
+    {
+        m_config = config;
+    }
+
+    const GridConfig& TyrexGridOverlayRenderer::getGridConfig() const
+    {
+        return m_config;
+    }
+
+    void TyrexGridOverlayRenderer::render(int viewportWidth, int viewportHeight)
+    {
+        if (!m_initialized || !m_gridEnabled || m_view.IsNull()) {
+            return;
+        }
+
+        if (!shouldRenderGrid()) {
+            return;
+        }
+
+        // Store viewport dimensions
+        m_viewportWidth = viewportWidth;
+        m_viewportHeight = viewportHeight;
+
+        // Update view-dependent calculations
+        updateViewBounds();
+        calculateAdaptiveSpacing();
+
+        // Generate grid geometry
+        generateGridVertices();
+
+        // Render grid components
+        renderGrid();
+
+        if (m_config.showAxes) {
+            renderAxes();
+        }
+
+        if (m_config.showOriginMarker) {
+            renderOriginMarker();
+        }
+    }
+
+    bool TyrexGridOverlayRenderer::snapToGrid(double worldX, double worldY,
+        double& snappedX, double& snappedY) const
+    {
+        if (!m_gridEnabled || m_currentSpacing <= 0.0) {
+            snappedX = worldX;
+            snappedY = worldY;
+            return false;
+        }
+
+        // Snap to nearest grid intersection
+        snappedX = std::round(worldX / m_currentSpacing) * m_currentSpacing;
+        snappedY = std::round(worldY / m_currentSpacing) * m_currentSpacing;
+
+        return true;
+    }
+
+    double TyrexGridOverlayRenderer::getCurrentGridSpacing() const
+    {
+        return m_currentSpacing;
+    }
+
+    void TyrexGridOverlayRenderer::updateViewBounds()
+    {
+        if (m_view.IsNull()) {
+            return;
+        }
+
+        try {
+            // Get current view scale
+            m_viewScale = m_view->Scale();
+
+            // Convert viewport corners to world coordinates
+            Standard_Real x1, y1, z1, x2, y2, z2;
+            m_view->Convert(0, 0, x1, y1, z1);
+            m_view->Convert(m_viewportWidth, m_viewportHeight, x2, y2, z2);
+
+            m_worldMinX = std::min(x1, x2);
+            m_worldMaxX = std::max(x1, x2);
+            m_worldMinY = std::min(y1, y2);
+            m_worldMaxY = std::max(y1, y2);
+
+            // Add small margin for smooth panning
+            double marginX = (m_worldMaxX - m_worldMinX) * 0.1;
+            double marginY = (m_worldMaxY - m_worldMinY) * 0.1;
+
+            m_worldMinX -= marginX;
+            m_worldMaxX += marginX;
+            m_worldMinY -= marginY;
+            m_worldMaxY += marginY;
+
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error updating view bounds:" << ex.GetMessageString();
+        }
+    }
+
+    void TyrexGridOverlayRenderer::calculateAdaptiveSpacing()
+    {
+        if (!m_config.adaptiveSpacing) {
+            m_currentSpacing = m_config.baseSpacing;
+            return;
+        }
+
+        // Calculate current pixel spacing for base grid
+        double pixelSpacing = m_config.baseSpacing * m_viewScale;
+
+        // AutoCAD-style adaptive scaling using powers of 10
+        double targetSpacing = m_config.baseSpacing;
+
+        // Scale down if too dense
+        while (pixelSpacing < m_config.minPixelSpacing && targetSpacing > 0.001) {
+            targetSpacing *= 10.0;
+            pixelSpacing = targetSpacing * m_viewScale;
+        }
+
+        // Scale up if too sparse  
+        while (pixelSpacing > m_config.maxPixelSpacing && targetSpacing < 10000.0) {
+            targetSpacing *= 0.1;
+            pixelSpacing = targetSpacing * m_viewScale;
+        }
+
+        m_currentSpacing = targetSpacing;
+
+        qDebug() << "Grid spacing adapted to:" << m_currentSpacing
+            << "pixels:" << pixelSpacing << "scale:" << m_viewScale;
+    }
+
+    void TyrexGridOverlayRenderer::generateGridVertices()
+    {
+        m_vertices.clear();
+
+        if (m_currentSpacing <= 0.0) {
+            return;
+        }
+
+        // Calculate grid line positions
+        double startX = std::floor(m_worldMinX / m_currentSpacing) * m_currentSpacing;
+        double endX = std::ceil(m_worldMaxX / m_currentSpacing) * m_currentSpacing;
+        double startY = std::floor(m_worldMinY / m_currentSpacing) * m_currentSpacing;
+        double endY = std::ceil(m_worldMaxY / m_currentSpacing) * m_currentSpacing;
+
+        // Count proposed lines and clamp if necessary
+        int proposedVLines = static_cast<int>((endX - startX) / m_currentSpacing) + 1;
+        int proposedHLines = static_cast<int>((endY - startY) / m_currentSpacing) + 1;
+
+        proposedVLines = clampGridLineCount(proposedVLines, m_config.maxGridLinesV);
+        proposedHLines = clampGridLineCount(proposedHLines, m_config.maxGridLinesH);
+
+        // Generate vertical lines
+        double stepX = (endX - startX) / std::max(1, proposedVLines - 1);
+        for (int i = 0; i < proposedVLines; ++i) {
+            double x = startX + i * stepX;
+
+            // Determine if this is a major line
+            bool isMajor = (std::abs(std::fmod(x / m_currentSpacing, m_config.majorFactor)) < 0.01);
+
+            // Skip origin lines (will be drawn separately as axes)
+            if (m_config.showAxes && std::abs(x) < m_currentSpacing * 0.01) {
+                continue;
+            }
+
+            // Convert to screen coordinates
+            float screenX1, screenY1, screenX2, screenY2;
+            worldToScreen(x, m_worldMinY, screenX1, screenY1);
+            worldToScreen(x, m_worldMaxY, screenX2, screenY2);
+
+            // Add line color (R,G,B,A as separate floats for shader)
+            QColor4ub color = isMajor ? colorToRGBA(m_config.majorColor) :
+                colorToRGBA(m_config.minorColor);
+
+            // Line vertices: x1,y1,r,g,b,a,  x2,y2,r,g,b,a
+            m_vertices.insert(m_vertices.end(), {
+                screenX1, screenY1, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
+                screenX2, screenY2, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f
+                });
+        }
+
+        // Generate horizontal lines
+        double stepY = (endY - startY) / std::max(1, proposedHLines - 1);
+        for (int i = 0; i < proposedHLines; ++i) {
+            double y = startY + i * stepY;
+
+            // Determine if this is a major line
+            bool isMajor = (std::abs(std::fmod(y / m_currentSpacing, m_config.majorFactor)) < 0.01);
+
+            // Skip origin lines (will be drawn separately as axes)
+            if (m_config.showAxes && std::abs(y) < m_currentSpacing * 0.01) {
+                continue;
+            }
+
+            // Convert to screen coordinates
+            float screenX1, screenY1, screenX2, screenY2;
+            worldToScreen(m_worldMinX, y, screenX1, screenY1);
+            worldToScreen(m_worldMaxX, y, screenX2, screenY2);
+
+            // Add line color
+            QColor4ub color = isMajor ? colorToRGBA(m_config.majorColor) :
+                colorToRGBA(m_config.minorColor);
+
+            // Line vertices
+            m_vertices.insert(m_vertices.end(), {
+                screenX1, screenY1, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
+                screenX2, screenY2, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f
+                });
+        }
+    }
+
+    void TyrexGridOverlayRenderer::renderGrid()
+    {
+        if (m_vertices.empty() || !m_shaderProgram || !m_vertexBuffer || !m_vao) {
+            return;
+        }
+
+        // Save OpenGL state
+        GLboolean depthTestEnabled = glIsEnabled(GL_DEPTH_TEST);
+        GLboolean blendEnabled = glIsEnabled(GL_BLEND);
+        GLint blendSrc, blendDst;
+        glGetIntegerv(GL_BLEND_SRC_ALPHA, &blendSrc);
+        glGetIntegerv(GL_BLEND_DST_ALPHA, &blendDst);
+
+        // Setup for overlay rendering
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_LINE_SMOOTH);
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+
+        // Setup projection matrix for screen coordinates
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        glOrtho(0, m_viewportWidth, m_viewportHeight, 0, -1, 1);
+
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+
+        // Bind shader and upload vertex data
+        m_shaderProgram->bind();
+        m_vao->bind();
+
+        m_vertexBuffer->bind();
+        m_vertexBuffer->allocate(m_vertices.data(),
+            static_cast<int>(m_vertices.size() * sizeof(float)));
+
+        // Set vertex attributes (position + color)
+        m_shaderProgram->enableAttributeArray(0); // position
+        m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 2, 6 * sizeof(float));
+
+        m_shaderProgram->enableAttributeArray(1); // color
+        m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, 2 * sizeof(float), 4, 6 * sizeof(float));
+
+        // Set uniforms
+        m_shaderProgram->setUniformValue("u_projection",
+            QMatrix4x4(2.0f / m_viewportWidth, 0, 0, -1,
+                0, -2.0f / m_viewportHeight, 0, 1,
+                0, 0, -1, 0,
+                0, 0, 0, 1));
+
+        // Render lines
+        glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(m_vertices.size() / 6));
+
+        // Cleanup
+        m_vao->release();
+        m_shaderProgram->release();
+
+        // Restore matrices
+        glPopMatrix(); // modelview
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+
+        // Restore OpenGL state
+        if (depthTestEnabled) glEnable(GL_DEPTH_TEST);
+        if (!blendEnabled) glDisable(GL_BLEND);
+        glBlendFunc(blendSrc, blendDst);
+        glDisable(GL_LINE_SMOOTH);
+    }
+
+    void TyrexGridOverlayRenderer::renderAxes()
+    {
+        // Render X and Y axes at origin if visible
+        if (m_worldMinX > 0 || m_worldMaxX < 0 || m_worldMinY > 0 || m_worldMaxY < 0) {
+            return; // Origin not visible
+        }
+
+        std::vector<float> axisVertices;
+
+        // X-axis (horizontal red line)
+        float screenX1, screenY1, screenX2, screenY2;
+        worldToScreen(m_worldMinX, 0, screenX1, screenY1);
+        worldToScreen(m_worldMaxX, 0, screenX2, screenY2);
+
+        QColor4ub xColor = colorToRGBA(m_config.axisColorX);
+        axisVertices.insert(axisVertices.end(), {
+            screenX1, screenY1, xColor.r / 255.0f, xColor.g / 255.0f, xColor.b / 255.0f, xColor.a / 255.0f,
+            screenX2, screenY2, xColor.r / 255.0f, xColor.g / 255.0f, xColor.b / 255.0f, xColor.a / 255.0f
+            });
+
+        // Y-axis (vertical green line)
+        worldToScreen(0, m_worldMinY, screenX1, screenY1);
+        worldToScreen(0, m_worldMaxY, screenX2, screenY2);
+
+        QColor4ub yColor = colorToRGBA(m_config.axisColorY);
+        axisVertices.insert(axisVertices.end(), {
+            screenX1, screenY1, yColor.r / 255.0f, yColor.g / 255.0f, yColor.b / 255.0f, yColor.a / 255.0f,
+            screenX2, screenY2, yColor.r / 255.0f, yColor.g / 255.0f, yColor.b / 255.0f, yColor.a / 255.0f
+            });
+
+        // Render axes with thicker lines
+        glLineWidth(m_config.axisLineWidth);
+
+        // Use same rendering setup as grid
+        m_vertexBuffer->bind();
+        m_vertexBuffer->allocate(axisVertices.data(),
+            static_cast<int>(axisVertices.size() * sizeof(float)));
+
+        glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(axisVertices.size() / 6));
+
+        glLineWidth(1.0f); // Reset line width
+    }
+
+    void TyrexGridOverlayRenderer::renderOriginMarker()
+    {
+        // Draw a small cross or circle at (0,0) if visible
+        float originScreenX, originScreenY;
+        worldToScreen(0, 0, originScreenX, originScreenY);
+
+        // Check if origin is within viewport
+        if (originScreenX < 0 || originScreenX > m_viewportWidth ||
+            originScreenY < 0 || originScreenY > m_viewportHeight) {
+            return;
+        }
+
+        // Draw a small cross marker
+        float size = m_config.originMarkerSize;
+        QColor4ub color = colorToRGBA(QColor(255, 255, 255, 255)); // White
+
+        std::vector<float> markerVertices = {
+            // Horizontal line
+            originScreenX - size, originScreenY, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
+            originScreenX + size, originScreenY, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
+            // Vertical line
+            originScreenX, originScreenY - size, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
+            originScreenX, originScreenY + size, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f
+        };
+
+        glLineWidth(2.0f);
+
+        m_vertexBuffer->bind();
+        m_vertexBuffer->allocate(markerVertices.data(),
+            static_cast<int>(markerVertices.size() * sizeof(float)));
+
+        glDrawArrays(GL_LINES, 0, 4);
+
+        glLineWidth(1.0f);
+    }
+
+    bool TyrexGridOverlayRenderer::createShaders()
+    {
+        m_shaderProgram = new QOpenGLShaderProgram();
+
+        // Simple vertex shader for 2D lines with color
+        const char* vertexShader = R"(
+            #version 330 core
+            layout(location = 0) in vec2 position;
+            layout(location = 1) in vec4 color;
+            
+            uniform mat4 u_projection;
+            out vec4 v_color;
+            
+            void main() {
+                gl_Position = u_projection * vec4(position, 0.0, 1.0);
+                v_color = color;
+            }
+        )";
+
+        // Simple fragment shader
+        const char* fragmentShader = R"(
+            #version 330 core
+            in vec4 v_color;
+            out vec4 fragColor;
+            
+            void main() {
+                fragColor = v_color;
+            }
+        )";
+
+        if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vertexShader)) {
+            qCritical() << "Failed to compile vertex shader:" << m_shaderProgram->log();
+            return false;
+        }
+
+        if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentShader)) {
+            qCritical() << "Failed to compile fragment shader:" << m_shaderProgram->log();
+            return false;
+        }
+
+        if (!m_shaderProgram->link()) {
+            qCritical() << "Failed to link shader program:" << m_shaderProgram->log();
+            return false;
+        }
+
+        return true;
+    }
+
+    void TyrexGridOverlayRenderer::setupVertexArrays()
+    {
+        m_vao = new QOpenGLVertexArrayObject();
+        m_vao->create();
+        m_vao->bind();
+
+        m_vertexBuffer = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+        m_vertexBuffer->create();
+
+        m_vao->release();
+    }
+
+    TyrexGridOverlayRenderer::QColor4ub TyrexGridOverlayRenderer::colorToRGBA(const QColor& color) const
+    {
+        return QColor4ub(
+            static_cast<unsigned char>(color.red()),
+            static_cast<unsigned char>(color.green()),
+            static_cast<unsigned char>(color.blue()),
+            static_cast<unsigned char>(color.alpha())
+        );
+    }
+
+    void TyrexGridOverlayRenderer::worldToScreen(double worldX, double worldY,
+        float& screenX, float& screenY) const
+    {
+        if (m_view.IsNull()) {
+            screenX = static_cast<float>(worldX);
+            screenY = static_cast<float>(worldY);
+            return;
+        }
+
+        try {
+            Standard_Integer x, y;
+            m_view->Convert(worldX, worldY, 0.0, x, y);
+            screenX = static_cast<float>(x);
+            screenY = static_cast<float>(y);
+        }
+        catch (...) {
+            screenX = static_cast<float>(worldX);
+            screenY = static_cast<float>(worldY);
+        }
+    }
+
+    void TyrexGridOverlayRenderer::screenToWorld(float screenX, float screenY,
+        double& worldX, double& worldY) const
+    {
+        if (m_view.IsNull()) {
+            worldX = static_cast<double>(screenX);
+            worldY = static_cast<double>(screenY);
+            return;
+        }
+
+        try {
+            Standard_Real x, y, z;
+            m_view->Convert(static_cast<Standard_Integer>(screenX),
+                static_cast<Standard_Integer>(screenY), x, y, z);
+            worldX = x;
+            worldY = y;
+        }
+        catch (...) {
+            worldX = static_cast<double>(screenX);
+            worldY = static_cast<double>(screenY);
+        }
+    }
+
+    bool TyrexGridOverlayRenderer::shouldRenderGrid() const
+    {
+        // Don't render if viewport is too small
+        if (m_viewportWidth < 50 || m_viewportHeight < 50) {
+            return false;
+        }
+
+        // Don't render if zoom is extreme
+        if (m_viewScale < 0.001 || m_viewScale > 10000.0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    int TyrexGridOverlayRenderer::clampGridLineCount(int proposedCount, int maxCount) const
+    {
+        return std::min(std::max(proposedCount, 2), maxCount);
+    }
+
+} // namespace TyrexCAD
+
+
 ==== FILE: /Projects/TyrexCAD/src/TyrexRendering/TyrexViewerManager.cpp ====
 --------------------------------------------------------------------------------
 /***************************************************************************
@@ -7851,10 +9581,19 @@ namespace Tyrex {
 #include <GeomAPI_IntCS.hxx>
 #include <Geom_Plane.hxx>
 #include <ElSLib.hxx>
+#include <Graphic3d_Camera.hxx>
+#include <Prs3d_LineAspect.hxx>
+#include <Prs3d_Drawer.hxx>
+#include <Aspect_TypeOfLine.hxx>
+#include <V3d_TypeOfOrientation.hxx>
+#include <Graphic3d_RenderingParams.hxx>
 
 // Include Qt headers
 #include <QDebug>
 #include <QPoint>
+#include <QTimer>
+
+#include <cmath>
 
 namespace TyrexCAD {
 
@@ -7862,6 +9601,7 @@ namespace TyrexCAD {
         : QObject(parent)
         , m_parentWidget(parent)
         , m_interactionManager(nullptr)
+        , m_is2DMode(false)
     {
         initialize();
     }
@@ -7899,44 +9639,117 @@ namespace TyrexCAD {
     void TyrexViewerManager::handleResize()
     {
         if (!m_view.IsNull() && m_parentWidget) {
-            m_view->MustBeResized();
-            m_view->Redraw();
+            try {
+                m_view->MustBeResized();
+                m_view->Invalidate();
+                m_view->Redraw();
+
+                // Notify about view change
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during resize:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::fitAll()
     {
         if (!m_view.IsNull()) {
-            m_view->FitAll();
-            m_view->ZFitAll();
+            try {
+                m_view->FitAll();
+                m_view->ZFitAll();
+                m_view->Redraw();
+
+                // Notify about view change
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during fitAll:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::redraw()
     {
         if (!m_view.IsNull()) {
-            m_view->Redraw();
+            try {
+                m_view->Redraw();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during redraw:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::pan(int dx, int dy)
     {
         if (!m_view.IsNull()) {
-            m_view->Pan(dx, dy);
+            try {
+                // Scale pan speed based on current zoom level
+                double scale = m_view->Scale();
+                double panSpeed = 1.0 / scale;
+
+                // Apply scaled pan
+                m_view->Pan(static_cast<Standard_Integer>(dx * panSpeed),
+                    static_cast<Standard_Integer>(dy * panSpeed),
+                    1.0,
+                    Standard_True);
+
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during pan:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::rotate(int dx, int dy)
     {
-        if (!m_view.IsNull()) {
-            m_view->Rotate(dx, dy);
+        if (!m_view.IsNull() && !m_is2DMode) {
+            try {
+                // Only allow rotation in 3D mode
+                m_view->Rotate(dx, dy);
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during rotate:" << ex.GetMessageString();
+            }
         }
     }
 
     void TyrexViewerManager::zoom(double factor)
     {
         if (!m_view.IsNull()) {
-            m_view->SetScale(m_view->Scale() * factor);
+            try {
+                m_view->SetScale(m_view->Scale() * factor);
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during zoom:" << ex.GetMessageString();
+            }
+        }
+    }
+
+    void TyrexViewerManager::zoomAtPoint(const QPoint& center, double factor)
+    {
+        if (!m_view.IsNull()) {
+            try {
+                // Start zoom at specific point
+                m_view->StartZoomAtPoint(center.x(), center.y());
+
+                // Apply zoom - note the correct method name
+                m_view->Zoom(0, 0, static_cast<Standard_Integer>(center.x()),
+                    static_cast<Standard_Integer>(center.y()));
+
+                // Update scale
+                m_view->SetScale(m_view->Scale() * factor);
+
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during zoom at point:" << ex.GetMessageString();
+            }
         }
     }
 
@@ -7946,8 +9759,13 @@ namespace TyrexCAD {
             return;
         }
 
-        // Convert screen position to view space and update dynamic highlight
-        m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);
+        try {
+            // Convert screen position to view space and update dynamic highlight
+            m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error during highlight:" << ex.GetMessageString();
+        }
     }
 
     void TyrexViewerManager::selectEntityAt(const QPoint& position)
@@ -7956,12 +9774,43 @@ namespace TyrexCAD {
             return;
         }
 
-        // Perform selection using the correct overload of Select  
-        m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);
-        m_context->Select(Standard_True);
+        try {
+            // Perform selection using the correct overload of Select  
+            m_context->MoveTo(position.x(), position.y(), m_view, Standard_True);
+            m_context->Select(Standard_True);
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error during selection:" << ex.GetMessageString();
+        }
     }
 
     gp_Pnt TyrexViewerManager::screenToModel(const QPoint& screenPos) const
+    {
+        if (m_view.IsNull()) {
+            return gp_Pnt(0, 0, 0);
+        }
+
+        try {
+            if (m_is2DMode) {
+                // Simplified conversion for 2D mode
+                Standard_Real xv, yv, zv;
+                m_view->Convert(screenPos.x(), screenPos.y(), xv, yv, zv);
+
+                // In 2D mode, Z is always 0
+                return gp_Pnt(xv, yv, 0.0);
+            }
+            else {
+                // Use 3D conversion - implement inline
+                return screenToModel3D(screenPos);
+            }
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error in screenToModel conversion:" << ex.GetMessageString();
+            return gp_Pnt(0, 0, 0);
+        }
+    }
+
+    gp_Pnt TyrexViewerManager::screenToModel3D(const QPoint& screenPos) const
     {
         if (m_view.IsNull()) {
             return gp_Pnt(0, 0, 0);
@@ -7998,13 +9847,11 @@ namespace TyrexCAD {
             gp_Pnt planeOrigin = workingPlane.Location();
 
             // Ray-plane intersection using parametric equation
-            // Ray: P = P0 + t * D
-            // Plane: N · (P - Q) = 0, where Q is point on plane
             gp_Vec eyeToPlane(eyePoint, planeOrigin);
             Standard_Real numerator = planeNormal.Dot(eyeToPlane);
             Standard_Real denominator = planeNormal.Dot(rayDir);
 
-            if (Abs(denominator) < 1e-10) {
+            if (std::abs(denominator) < 1e-10) {
                 // Ray is parallel to plane - project eye point onto plane
                 gp_Pnt projectedPoint = eyePoint.Translated(-numerator * planeNormal);
                 return projectedPoint;
@@ -8016,7 +9863,7 @@ namespace TyrexCAD {
             return intersection;
         }
         catch (const Standard_Failure& ex) {
-            qWarning() << "Error in screenToModel conversion:" << ex.GetMessageString();
+            qWarning() << "Error in screenToModel3D conversion:" << ex.GetMessageString();
 
             // Simple fallback - assume orthographic projection
             Standard_Real x = static_cast<Standard_Real>(screenPos.x());
@@ -8024,8 +9871,108 @@ namespace TyrexCAD {
             return gp_Pnt(x, y, 0.0);
         }
         catch (...) {
-            qWarning() << "Unknown error in screenToModel conversion";
+            qWarning() << "Unknown error in screenToModel3D conversion";
             return gp_Pnt(0, 0, 0);
+        }
+    }
+
+    void TyrexViewerManager::set2DMode()
+    {
+        if (!m_view.IsNull()) {
+            try {
+                m_is2DMode = true;
+
+                // Set orthographic projection using camera
+                Handle(Graphic3d_Camera) camera = m_view->Camera();
+                if (!camera.IsNull()) {
+                    camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+
+                    // Set proper camera parameters for 2D view
+                    camera->SetUp(gp_Dir(0, 1, 0));      // Y-up
+                    camera->SetDirection(gp_Dir(0, 0, -1)); // Looking down Z-axis
+
+                    // Disable perspective
+                    camera->SetZFocus(Graphic3d_Camera::FocusType_Absolute, 1.0);
+                }
+
+                // Set exact top view
+                m_view->SetProj(V3d_Zpos);
+
+                // Reset view orientation to ensure proper 2D alignment
+                m_view->SetAt(0, 0, 0);    // Look at origin
+                m_view->SetUp(0, 1, 0);    // Y is up
+
+                // Disable rotation for true 2D mode
+                m_view->SetViewOrientationDefault();
+
+                // Set view parameters for 2D
+                m_view->SetTwist(0);  // No twist
+
+                // Configure depth rendering
+                m_view->ChangeRenderingParams().IsAntialiasingEnabled = Standard_True;
+                m_view->ChangeRenderingParams().NbMsaaSamples = 4;
+                m_view->ChangeRenderingParams().Method = Graphic3d_RM_RASTERIZATION;
+
+                // Set Z range for 2D mode
+                m_view->SetZSize(1000.0); // Large Z range to avoid clipping
+
+                // Fit all content
+                m_view->FitAll(0.01, Standard_True);
+                m_view->ZFitAll();
+
+                // Force update
+                m_view->Invalidate();
+                m_view->Redraw();
+
+                qDebug() << "View set to 2D mode (orthographic projection)";
+
+                // Notify about view change
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error setting 2D mode:" << ex.GetMessageString();
+            }
+        }
+    }
+
+    void TyrexViewerManager::set3DMode()
+    {
+        if (!m_view.IsNull()) {
+            try {
+                m_is2DMode = false;
+
+                // Set perspective projection using camera
+                Handle(Graphic3d_Camera) camera = m_view->Camera();
+                if (!camera.IsNull()) {
+                    camera->SetProjectionType(Graphic3d_Camera::Projection_Perspective);
+
+                    // Restore perspective parameters
+                    camera->SetZFocus(Graphic3d_Camera::FocusType_Relative, 1.0);
+                    camera->SetFOVy(45.0); // Standard FOV
+                }
+
+                // Set isometric view
+                m_view->SetProj(V3d_XposYnegZpos);
+
+                // Restore rotation capability
+                m_view->SetViewOrientationDefault();
+
+                // Fit all
+                m_view->FitAll(0.01, Standard_True);
+                m_view->ZFitAll();
+
+                // Force update
+                m_view->Invalidate();
+                m_view->Redraw();
+
+                qDebug() << "View set to 3D mode (perspective projection)";
+
+                // Notify about view change
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error setting 3D mode:" << ex.GetMessageString();
+            }
         }
     }
 
@@ -8075,10 +10022,31 @@ namespace TyrexCAD {
 
                 // Set default view parameters
                 m_view->SetProj(V3d_XposYnegZpos);  // Isometric view
-                m_view->TriedronDisplay(Aspect_TOTP_LEFT_LOWER, Quantity_NOC_WHITE, 0.1);
+                m_view->TriedronDisplay(Aspect_TOTP_LEFT_LOWER, Quantity_NOC_WHITE, 0.08);
+
+                // Important: Enable depth buffer and shading
+                m_view->ChangeRenderingParams().Method = Graphic3d_RM_RASTERIZATION;
+                m_view->ChangeRenderingParams().IsAntialiasingEnabled = Standard_True;
+                m_view->ChangeRenderingParams().NbMsaaSamples = 4;
 
                 // Set up automatic updates
-                m_view->SetImmediateUpdate(Standard_False);
+                m_view->SetImmediateUpdate(Standard_True);
+
+                // Force initial redraw after a short delay
+                QTimer::singleShot(100, this, [this]() {
+                    if (!m_view.IsNull()) {
+                        try {
+                            m_view->MustBeResized();
+                            m_view->FitAll();
+                            m_view->ZFitAll();
+                            m_view->Redraw();
+                            m_view->Update();
+                        }
+                        catch (...) {
+                            // Ignore errors during initial setup
+                        }
+                    }
+                    });
             }
 
             qDebug() << "TyrexViewerManager initialized successfully";
@@ -8098,6 +10066,43 @@ namespace TyrexCAD {
 } // namespace TyrexCAD
 
 
+==== FILE: /Projects/TyrexCAD/src/TyrexSketch/TyrexSketch.cpp ====
+--------------------------------------------------------------------------------
+/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#include "TyrexSketch/TyrexSketch.h"
+#include <sstream>
+#include <iomanip>
+#include <random>
+
+namespace TyrexCAD {
+    namespace Sketch {
+        namespace Utils {
+
+            std::string generateUniqueId(const std::string& prefix)
+            {
+                static std::random_device rd;
+                static std::mt19937 gen(rd());
+                static std::uniform_int_distribution<> dis(1000, 9999);
+                static int counter = 0;
+
+                std::stringstream ss;
+                ss << prefix << "_"
+                    << std::setfill('0') << std::setw(6) << ++counter
+                    << "_" << dis(gen);
+                return ss.str();
+            }
+
+        } // namespace Utils
+    } // namespace Sketch
+} // namespace TyrexCAD
+
+
 ==== FILE: /Projects/TyrexCAD/src/TyrexSketch/TyrexSketchCircleCommand.cpp ====
 --------------------------------------------------------------------------------
 /***************************************************************************
@@ -8111,7 +10116,19 @@ namespace TyrexCAD {
 #include "TyrexSketch/TyrexSketchManager.h"
 #include "TyrexSketch/TyrexSketchCircleEntity.h"
 
- // Qt includes
+ // OpenCascade includes
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Ax2.hxx>
+#include <TopoDS_Edge.hxx>
+#include <AIS_Shape.hxx>
+#include <Quantity_Color.hxx>
+#include <Prs3d_LineAspect.hxx>
+#include <Aspect_TypeOfLine.hxx>
+#include <AIS_InteractiveContext.hxx>
+#include <Graphic3d_AspectLine3d.hxx>
+#include <Prs3d_Drawer.hxx>
+// Qt includes
 #include <QDebug>
 #include <sstream>
 #include <iomanip>
@@ -8127,15 +10144,15 @@ namespace TyrexCAD {
         , m_centerPointSet(false)
         , m_centerPoint(0, 0)
         , m_radiusPoint(0, 0)
-        , m_minimumRadius(2.0)  // Increased minimum radius for better visibility
-        , m_previewCircle(nullptr)
+        , m_minimumRadius(2.0)
+        , m_previewShape(nullptr)
     {
         qDebug() << "TyrexSketchCircleCommand created";
     }
 
     TyrexSketchCircleCommand::~TyrexSketchCircleCommand()
     {
-        cleanupPreview();
+        removePreview();
         qDebug() << "TyrexSketchCircleCommand destroyed";
     }
 
@@ -8149,7 +10166,7 @@ namespace TyrexCAD {
         m_radiusPoint = gp_Pnt2d(0, 0);
 
         // Clean up any existing preview
-        cleanupPreview();
+        removePreview();
 
         qDebug() << "Sketch circle command started - click to place center point";
     }
@@ -8157,7 +10174,7 @@ namespace TyrexCAD {
     void TyrexSketchCircleCommand::cancel()
     {
         // Clean up preview
-        cleanupPreview();
+        removePreview();
 
         // Call base class cancel
         TyrexCommand::cancel();
@@ -8190,24 +10207,14 @@ namespace TyrexCAD {
                 .arg(m_centerPoint.X(), 0, 'f', 3)
                 .arg(m_centerPoint.Y(), 0, 'f', 3);
 
-            if (m_definitionMethod == CircleDefinitionMethod::CenterRadius) {
-                qDebug() << QString("Move mouse and click to set radius (minimum: %1)")
-                    .arg(m_minimumRadius);
-            }
-            else if (m_definitionMethod == CircleDefinitionMethod::CenterDiameter) {
-                qDebug() << QString("Move mouse and click to set diameter (minimum: %1)")
-                    .arg(m_minimumRadius * 2.0);
-            }
+            qDebug() << QString("Move mouse and click to set radius (minimum: %1)")
+                .arg(m_minimumRadius);
         }
         else {
             // Set the radius/diameter point and create the circle
             m_radiusPoint = sketchPoint;
 
-            qDebug() << QString("Radius point set at (%1, %2)")
-                .arg(m_radiusPoint.X(), 0, 'f', 3)
-                .arg(m_radiusPoint.Y(), 0, 'f', 3);
-
-            // Calculate radius based on definition method
+            // Calculate radius
             double radius = 0.0;
             if (m_definitionMethod == CircleDefinitionMethod::CenterRadius) {
                 radius = calculateRadius(m_centerPoint, m_radiusPoint);
@@ -8216,20 +10223,23 @@ namespace TyrexCAD {
                 radius = calculateRadiusFromDiameter(m_centerPoint, m_radiusPoint);
             }
 
-            qDebug() << QString("Calculated radius: %1 (minimum: %2)")
-                .arg(radius, 0, 'f', 3)
-                .arg(m_minimumRadius);
+            qDebug() << QString("Calculated radius: %1").arg(radius, 0, 'f', 3);
 
-            // Validate circle with enhanced feedback
+            // Validate circle
             if (!validateCircle(m_centerPoint, radius)) {
                 qWarning() << QString("Circle too small! Radius %1 is below minimum of %2")
                     .arg(radius, 0, 'f', 3)
                     .arg(m_minimumRadius);
 
+                // Clean up preview
+                removePreview();
+
                 // Don't finish command - let user try again
-                qWarning() << "Try again with a larger radius";
                 return;
             }
+
+            // Remove preview before creating final shape
+            removePreview();
 
             // Create the actual circle entity
             if (createCircle()) {
@@ -8253,23 +10263,8 @@ namespace TyrexCAD {
         // Convert current mouse position to 2D coordinates
         gp_Pnt2d currentPoint = m_sketchManager->screenToSketch(point);
 
-        // Calculate current radius
-        double radius = 0.0;
-        if (m_definitionMethod == CircleDefinitionMethod::CenterRadius) {
-            radius = calculateRadius(m_centerPoint, currentPoint);
-        }
-        else if (m_definitionMethod == CircleDefinitionMethod::CenterDiameter) {
-            radius = calculateRadiusFromDiameter(m_centerPoint, currentPoint);
-        }
-
-        // Only show preview if circle would be large enough
-        if (radius >= m_minimumRadius) {
-            updatePreview(currentPoint);
-        }
-        else {
-            // Hide preview for too small circles
-            cleanupPreview();
-        }
+        // Update preview
+        updatePreview(currentPoint);
     }
 
     void TyrexSketchCircleCommand::onMouseRelease(const QPoint& /*point*/)
@@ -8307,9 +10302,6 @@ namespace TyrexCAD {
             return false;
         }
 
-        // Clean up preview before creating final circle
-        cleanupPreview();
-
         try {
             // Calculate final radius
             double radius = 0.0;
@@ -8320,14 +10312,10 @@ namespace TyrexCAD {
                 radius = calculateRadiusFromDiameter(m_centerPoint, m_radiusPoint);
             }
 
-            // Generate unique ID for the circle
+            // Generate unique ID
             std::string circleId = generateCircleId();
 
-            qDebug() << QString("Creating sketch circle with ID: %1, radius: %2")
-                .arg(QString::fromStdString(circleId))
-                .arg(radius, 0, 'f', 3);
-
-            // Create the circle entity with explicit sketch plane
+            // Create the circle entity
             auto circleEntity = std::make_shared<TyrexSketchCircleEntity>(
                 circleId,
                 m_sketchManager->sketchPlane(),
@@ -8335,20 +10323,22 @@ namespace TyrexCAD {
                 radius
             );
 
-            // Set sketch-specific color (orange for circles in sketch mode)
+            // Set sketch-specific color
             Quantity_Color sketchColor(1.0, 0.5, 0.0, Quantity_TOC_RGB); // Orange
             circleEntity->setColor(sketchColor);
 
-            // Force shape update before adding to manager
+            // Force shape update
             circleEntity->updateShape();
 
-            // Add the entity to sketch manager - this will display it
+            // Add to sketch manager
             m_sketchManager->addSketchEntity(circleEntity);
 
-            // Force immediate redraw to ensure visibility
+            // Force redraw
             m_sketchManager->redrawSketch();
 
-            qDebug() << QString("Sketch circle entity created and displayed successfully");
+            qDebug() << QString("Sketch circle entity created with ID: %1, radius: %2")
+                .arg(QString::fromStdString(circleId))
+                .arg(radius, 0, 'f', 3);
 
             return true;
         }
@@ -8372,6 +10362,11 @@ namespace TyrexCAD {
             return;
         }
 
+        Handle(AIS_InteractiveContext) context = m_sketchManager->context();
+        if (context.IsNull()) {
+            return;
+        }
+
         // Calculate radius for preview
         double radius = 0.0;
         if (m_definitionMethod == CircleDefinitionMethod::CenterRadius) {
@@ -8381,67 +10376,74 @@ namespace TyrexCAD {
             radius = calculateRadiusFromDiameter(m_centerPoint, currentPoint);
         }
 
-        try {
-            if (!m_previewCircle) {
-                // Create new preview circle with unique ID
-                std::string previewId = generateCircleId() + "_preview";
-                m_previewCircle = std::make_shared<TyrexSketchCircleEntity>(
-                    previewId,
-                    m_sketchManager->sketchPlane(),
-                    m_centerPoint,
-                    radius
-                );
-
-                // Set preview appearance (gray dashed style)
-                Quantity_Color previewColor(0.7, 0.7, 0.7, Quantity_TOC_RGB);
-                m_previewCircle->setColor(previewColor);
-
-                // Force shape creation
-                m_previewCircle->updateShape();
-
-                // Add to sketch manager temporarily
-                m_sketchManager->addSketchEntity(m_previewCircle);
-            }
-            else {
-                // Update existing preview circle radius
-                m_previewCircle->setRadius(radius);
-                m_previewCircle->updateShape();
-
-                // Ensure it's displayed
-                if (!m_sketchManager->context().IsNull()) {
-                    m_previewCircle->draw(m_sketchManager->context(), false);
-                }
-            }
-
-            // Force redraw to show preview
-            m_sketchManager->redrawSketch();
+        // Check if radius is too small for preview
+        if (radius < m_minimumRadius * 0.5) {
+            removePreview();
+            return;
         }
-        catch (const std::exception& ex) {
-            qWarning() << "Error updating circle preview:" << ex.what();
+
+        try {
+            // Remove existing preview
+            removePreview();
+
+            // Convert center to 3D
+            gp_Pnt center3D = m_sketchManager->sketchToWorld(m_centerPoint);
+
+            // Create coordinate system for the circle
+            gp_Dir zDir = m_sketchManager->sketchPlane().Axis().Direction();
+            gp_Ax2 axis(center3D, zDir);
+
+            // Create circle geometry
+            gp_Circ circle(axis, radius);
+
+            // Create preview edge
+            BRepBuilderAPI_MakeEdge edgeMaker(circle);
+            if (edgeMaker.IsDone()) {
+                TopoDS_Edge previewEdge = edgeMaker.Edge();
+                m_previewShape = new AIS_Shape(previewEdge);
+
+                // Set preview appearance
+                Quantity_Color previewColor(1.0, 0.65, 0.0, Quantity_TOC_RGB); // Orange
+                m_previewShape->SetColor(previewColor);
+                m_previewShape->SetWidth(2.0);
+                m_previewShape->SetTransparency(0.2);
+
+                // Set dashed line style - OpenCascade 7.x compatible way
+                Handle(Prs3d_Drawer) drawer = m_previewShape->Attributes();
+                Handle(Graphic3d_AspectLine3d) lineAspect =
+                    new Graphic3d_AspectLine3d(previewColor, Aspect_TOL_DASH, 2.0);
+                drawer->SetLineAspect(new Prs3d_LineAspect(lineAspect));
+
+                // Display preview
+                context->Display(m_previewShape, Standard_False);
+                context->UpdateCurrentViewer();
+            }
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error updating circle preview:" << ex.GetMessageString();
+            removePreview();
         }
         catch (...) {
             qWarning() << "Unknown error updating circle preview";
+            removePreview();
         }
     }
 
-    void TyrexSketchCircleCommand::cleanupPreview()
+    void TyrexSketchCircleCommand::removePreview()
     {
-        if (m_previewCircle && m_sketchManager) {
-            try {
-                // Remove preview circle from sketch manager
-                m_sketchManager->removeSketchEntity(m_previewCircle->getId());
-                m_previewCircle = nullptr;
-
-                // Force redraw to remove preview
-                m_sketchManager->redrawSketch();
-
-                qDebug() << "Preview circle cleaned up";
-            }
-            catch (const std::exception& ex) {
-                qWarning() << "Error cleaning up preview:" << ex.what();
-            }
-            catch (...) {
-                qWarning() << "Unknown error cleaning up preview";
+        if (!m_previewShape.IsNull() && m_sketchManager) {
+            Handle(AIS_InteractiveContext) context = m_sketchManager->context();
+            if (!context.IsNull()) {
+                try {
+                    context->Remove(m_previewShape, Standard_True);
+                    m_previewShape.Nullify();
+                }
+                catch (const Standard_Failure& ex) {
+                    qWarning() << "Error removing preview:" << ex.GetMessageString();
+                }
+                catch (...) {
+                    qWarning() << "Unknown error removing preview";
+                }
             }
         }
     }
@@ -8453,14 +10455,11 @@ namespace TyrexCAD {
 
     double TyrexSketchCircleCommand::calculateRadiusFromDiameter(const gp_Pnt2d& centerPt, const gp_Pnt2d& diameterPt) const
     {
-        // In diameter mode, the diameter point defines the end of a diameter
-        // So radius is half the distance from center to diameter point
         return centerPt.Distance(diameterPt) * 0.5;
     }
 
     std::string TyrexSketchCircleCommand::generateCircleId() const
     {
-        // Generate unique ID using timestamp and counter
         static int counter = 0;
         std::stringstream ss;
         ss << "sketch_circle_" << std::setfill('0') << std::setw(6) << ++counter;
@@ -8474,7 +10473,7 @@ namespace TyrexCAD {
             return false;
         }
 
-        // Check for reasonable maximum (optional safety check)
+        // Check for reasonable maximum
         const double MAX_RADIUS = 10000.0;
         if (radius > MAX_RADIUS) {
             qWarning() << QString("Circle too large! Maximum radius is %1").arg(MAX_RADIUS);
@@ -8878,6 +10877,40 @@ namespace TyrexCAD {
 } // namespace TyrexCAD
 
 
+==== FILE: /Projects/TyrexCAD/src/TyrexSketch/TyrexSketchConfig.cpp ====
+--------------------------------------------------------------------------------
+/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#include "TyrexSketch/TyrexSketchConfig.h"
+#include <fstream>
+#include <QDebug>
+
+namespace TyrexCAD {
+
+    bool TyrexSketchConfig::saveToFile(const std::string& filename) const
+    {
+        // TODO: Implement configuration save
+        // This would typically serialize the configuration to JSON or XML
+        qDebug() << "TyrexSketchConfig::saveToFile not implemented yet";
+        return false;
+    }
+
+    bool TyrexSketchConfig::loadFromFile(const std::string& filename)
+    {
+        // TODO: Implement configuration load
+        // This would typically deserialize the configuration from JSON or XML
+        qDebug() << "TyrexSketchConfig::loadFromFile not implemented yet";
+        return false;
+    }
+
+} // namespace TyrexCAD
+
+
 ==== FILE: /Projects/TyrexCAD/src/TyrexSketch/TyrexSketchEntity.cpp ====
 --------------------------------------------------------------------------------
 /***************************************************************************
@@ -9138,6 +11171,9 @@ namespace TyrexCAD {
 #include <Quantity_Color.hxx>
 #include <Prs3d_LineAspect.hxx>
 #include <Aspect_TypeOfLine.hxx>
+#include <AIS_InteractiveContext.hxx>
+#include <Graphic3d_AspectLine3d.hxx>
+#include <Prs3d_Drawer.hxx>
 
 // Qt includes
 #include <QDebug>
@@ -9153,7 +11189,7 @@ namespace TyrexCAD {
         , m_firstPoint(0, 0)
         , m_secondPoint(0, 0)
         , m_continuousMode(false)
-        , m_previewLine(nullptr)
+        , m_minimumLength(1.0)
         , m_previewShape(nullptr)
     {
         qDebug() << "TyrexSketchLineCommand created";
@@ -9161,7 +11197,7 @@ namespace TyrexCAD {
 
     TyrexSketchLineCommand::~TyrexSketchLineCommand()
     {
-        cleanupPreview();
+        removePreview();
         qDebug() << "TyrexSketchLineCommand destroyed";
     }
 
@@ -9175,7 +11211,7 @@ namespace TyrexCAD {
         m_secondPoint = gp_Pnt2d(0, 0);
 
         // Clean up any existing preview
-        cleanupPreview();
+        removePreview();
 
         qDebug() << "Sketch line command started - click to place first point";
     }
@@ -9183,7 +11219,7 @@ namespace TyrexCAD {
     void TyrexSketchLineCommand::cancel()
     {
         // Clean up preview
-        cleanupPreview();
+        removePreview();
 
         // Call base class cancel
         TyrexCommand::cancel();
@@ -9226,29 +11262,24 @@ namespace TyrexCAD {
                 .arg(m_secondPoint.X(), 0, 'f', 3)
                 .arg(m_secondPoint.Y(), 0, 'f', 3);
 
-            // Enhanced validation with meaningful threshold
-            const double MIN_LINE_LENGTH = 1.0; // 1 unit minimum length
-            double lineLength = m_firstPoint.Distance(m_secondPoint);
+            // Validate line
+            if (!validateLine(m_firstPoint, m_secondPoint)) {
+                qWarning() << QString("Line too short! Minimum length is %1 units")
+                    .arg(m_minimumLength);
 
-            if (lineLength < MIN_LINE_LENGTH) {
-                qWarning() << QString("Line too short (length: %1). Minimum length is %2 units")
-                    .arg(lineLength, 0, 'f', 3)
-                    .arg(MIN_LINE_LENGTH);
+                // Clean up preview
+                removePreview();
 
-                // Clean up preview and don't finish if too short
-                cleanupPreview();
-
-                if (!m_continuousMode) {
-                    m_isFinished = true;
-                }
+                // Don't finish command - let user try again
                 return;
             }
 
             // Remove preview before creating final shape
-            cleanupPreview();
+            removePreview();
 
             // Create the actual line entity
             if (createLine()) {
+                double lineLength = m_firstPoint.Distance(m_secondPoint);
                 qDebug() << QString("Line created successfully with length: %1")
                     .arg(lineLength, 0, 'f', 3);
 
@@ -9282,17 +11313,8 @@ namespace TyrexCAD {
         // Convert current mouse position to 2D coordinates
         gp_Pnt2d currentPoint = m_sketchManager->screenToSketch(point);
 
-        // Validate line length before showing preview
-        const double MIN_PREVIEW_LENGTH = 1.0;
-        double currentLength = m_firstPoint.Distance(currentPoint);
-
-        if (currentLength >= MIN_PREVIEW_LENGTH) {
-            updatePreview(currentPoint);
-        }
-        else {
-            // Remove preview for too short lines
-            removePreview();
-        }
+        // Update preview
+        updatePreview(currentPoint);
     }
 
     void TyrexSketchLineCommand::onMouseRelease(const QPoint& /*point*/)
@@ -9312,6 +11334,17 @@ namespace TyrexCAD {
         return m_continuousMode;
     }
 
+    void TyrexSketchLineCommand::setMinimumLength(double minLength)
+    {
+        m_minimumLength = std::max(0.1, minLength);
+        qDebug() << "Minimum line length set to:" << m_minimumLength;
+    }
+
+    double TyrexSketchLineCommand::getMinimumLength() const
+    {
+        return m_minimumLength;
+    }
+
     bool TyrexSketchLineCommand::createLine()
     {
         if (!m_sketchManager) {
@@ -9323,13 +11356,7 @@ namespace TyrexCAD {
             // Generate unique ID for the line
             std::string lineId = generateLineId();
 
-            // Calculate line length for debugging
-            double lineLength = m_firstPoint.Distance(m_secondPoint);
-            qDebug() << QString("Creating sketch line with ID: %1, length: %2")
-                .arg(QString::fromStdString(lineId))
-                .arg(lineLength, 0, 'f', 3);
-
-            // Create the line entity with explicit sketch plane
+            // Create the line entity
             auto lineEntity = std::make_shared<TyrexSketchLineEntity>(
                 lineId,
                 m_sketchManager->sketchPlane(),
@@ -9337,20 +11364,21 @@ namespace TyrexCAD {
                 m_secondPoint
             );
 
-            // Set sketch-specific color (blue for lines in sketch mode)
+            // Set sketch-specific color
             Quantity_Color sketchColor(0.2, 0.5, 1.0, Quantity_TOC_RGB); // Light blue
             lineEntity->setColor(sketchColor);
 
-            // Force shape update before adding to manager
+            // Force shape update
             lineEntity->updateShape();
 
-            // Add the entity to sketch manager - this will display it
+            // Add to sketch manager
             m_sketchManager->addSketchEntity(lineEntity);
 
-            // Force immediate redraw to ensure visibility
+            // Force redraw
             m_sketchManager->redrawSketch();
 
-            qDebug() << QString("Sketch line entity created and displayed successfully");
+            qDebug() << QString("Sketch line entity created with ID: %1")
+                .arg(QString::fromStdString(lineId));
 
             return true;
         }
@@ -9379,11 +11407,19 @@ namespace TyrexCAD {
             return;
         }
 
+        // Validate preview line
+        double distance = m_firstPoint.Distance(currentPoint);
+        if (distance < m_minimumLength * 0.5) {
+            // Too short for preview - remove any existing preview
+            removePreview();
+            return;
+        }
+
         try {
             // Remove existing preview if any
             removePreview();
 
-            // Convert 2D points to 3D using the sketch plane
+            // Convert 2D points to 3D
             gp_Pnt startPoint3D = m_sketchManager->sketchToWorld(m_firstPoint);
             gp_Pnt endPoint3D = m_sketchManager->sketchToWorld(currentPoint);
 
@@ -9393,33 +11429,30 @@ namespace TyrexCAD {
                 TopoDS_Edge previewEdge = edgeMaker.Edge();
                 m_previewShape = new AIS_Shape(previewEdge);
 
-                // Set preview appearance (light gray dashed line)
-                Quantity_Color previewColor(0.6, 0.6, 0.6, Quantity_TOC_RGB);
+                // Set preview appearance
+                Quantity_Color previewColor(0.0, 0.8, 0.8, Quantity_TOC_RGB); // Cyan
                 m_previewShape->SetColor(previewColor);
-                m_previewShape->SetWidth(1.5);
-                m_previewShape->SetTransparency(0.3);
+                m_previewShape->SetWidth(2.0);
+                m_previewShape->SetTransparency(0.2);
 
-                // Set dashed line style
-                Handle(Prs3d_LineAspect) lineAspect = new Prs3d_LineAspect(
-                    previewColor, Aspect_TOL_DASH, 1.5);
-                m_previewShape->Attributes()->SetLineAspect(lineAspect);
+                // Set dashed line style - OpenCascade 7.x compatible way
+                Handle(Prs3d_Drawer) drawer = m_previewShape->Attributes();
+                Handle(Graphic3d_AspectLine3d) lineAspect =
+                    new Graphic3d_AspectLine3d(previewColor, Aspect_TOL_DASH, 2.0);
+                drawer->SetLineAspect(new Prs3d_LineAspect(lineAspect));
 
-                // Display preview
+                // Display preview without updating viewer immediately
                 context->Display(m_previewShape, Standard_False);
                 context->UpdateCurrentViewer();
-
-                qDebug() << QString("Preview updated for line from (%1,%2) to (%3,%4)")
-                    .arg(m_firstPoint.X(), 0, 'f', 2)
-                    .arg(m_firstPoint.Y(), 0, 'f', 2)
-                    .arg(currentPoint.X(), 0, 'f', 2)
-                    .arg(currentPoint.Y(), 0, 'f', 2);
             }
         }
         catch (const Standard_Failure& ex) {
-            qWarning() << "OpenCascade error updating line preview:" << ex.GetMessageString();
+            qWarning() << "Error updating line preview:" << ex.GetMessageString();
+            removePreview();
         }
         catch (...) {
             qWarning() << "Unknown error updating line preview";
+            removePreview();
         }
     }
 
@@ -9430,43 +11463,30 @@ namespace TyrexCAD {
             if (!context.IsNull()) {
                 try {
                     context->Remove(m_previewShape, Standard_True);
-                    context->UpdateCurrentViewer();
-                    qDebug() << "Preview line removed";
+                    m_previewShape.Nullify();
                 }
                 catch (const Standard_Failure& ex) {
                     qWarning() << "Error removing preview:" << ex.GetMessageString();
                 }
-            }
-            m_previewShape.Nullify();
-        }
-    }
-
-    void TyrexSketchLineCommand::cleanupPreview()
-    {
-        // Remove AIS preview shape
-        removePreview();
-
-        // Clean up entity-based preview (legacy)
-        if (m_previewLine && m_sketchManager) {
-            try {
-                m_sketchManager->removeSketchEntity(m_previewLine->getId());
-                m_previewLine = nullptr;
-                m_sketchManager->redrawSketch();
-                qDebug() << "Preview line entity cleaned up";
-            }
-            catch (const std::exception& ex) {
-                qWarning() << "Error cleaning up preview entity:" << ex.what();
+                catch (...) {
+                    qWarning() << "Unknown error removing preview";
+                }
             }
         }
     }
 
     std::string TyrexSketchLineCommand::generateLineId() const
     {
-        // Generate unique ID using timestamp and counter
         static int counter = 0;
         std::stringstream ss;
         ss << "sketch_line_" << std::setfill('0') << std::setw(6) << ++counter;
         return ss.str();
+    }
+
+    bool TyrexSketchLineCommand::validateLine(const gp_Pnt2d& start, const gp_Pnt2d& end) const
+    {
+        double length = start.Distance(end);
+        return length >= m_minimumLength;
     }
 
 } // namespace TyrexCAD
@@ -9770,7 +11790,10 @@ namespace TyrexCAD {
 #include "TyrexSketch/TyrexSketchEntity.h"
 #include "TyrexSketch/TyrexSketchLineEntity.h"
 #include "TyrexSketch/TyrexSketchCircleEntity.h"
+#include "TyrexSketch/TyrexSketchConfig.h"
+#include "TyrexSketch/TyrexSketchDisplayHelper.h"
 #include "TyrexRendering/TyrexViewerManager.h"
+#include "TyrexCanvas/TyrexCanvasOverlay.h"
 
  // OpenCascade includes
 #include <Standard_Handle.hxx>
@@ -9787,12 +11810,23 @@ namespace TyrexCAD {
 #include <Quantity_Color.hxx>
 #include <Quantity_NameOfColor.hxx>
 #include <Prs3d_PointAspect.hxx>
+#include <Prs3d_LineAspect.hxx>
+#include <Prs3d_Drawer.hxx>
 #include <ElSLib.hxx>
 #include <Graphic3d_Camera.hxx>
+#include <AIS_Shape.hxx>
+#include <Graphic3d_AspectLine3d.hxx>
+#include <Aspect_TypeOfLine.hxx>
+#include <Aspect_TypeOfMarker.hxx>
 
 // Qt includes
 #include <QDebug>
+#include <QTimer>
 #include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace TyrexCAD {
 
@@ -9810,12 +11844,37 @@ namespace TyrexCAD {
         , m_lastMousePos(0, 0)
         , m_draggedEntity(nullptr)
         , m_dragStartPosition(0, 0)
+        , m_firstPointSet(false)
+        , m_firstPoint(0, 0)
     {
         // Initialize empty control point for dragging
         m_draggedControlPoint.entity = nullptr;
         m_draggedControlPoint.type = ControlPointType::Endpoint;
         m_draggedControlPoint.index = -1;
         m_draggedControlPoint.position = gp_Pnt2d(0, 0);
+
+        // Initialize canvas overlay
+        m_canvasOverlay = std::make_unique<TyrexCanvasOverlay>(m_context,
+            m_viewerManager ? m_viewerManager->view() : nullptr, this);
+
+        // Connect overlay signals
+        connect(m_canvasOverlay.get(), &TyrexCanvasOverlay::gridSpacingChanged,
+            this, [this](double spacing) {
+                qDebug() << "Grid spacing changed to:" << spacing;
+            });
+
+        // Connect to viewer manager signals if available
+        if (m_viewerManager) {
+            connect(m_viewerManager, &TyrexViewerManager::viewChanged,
+                this, [this]() {
+                    if (m_canvasOverlay && m_isInSketchMode) {
+                        m_canvasOverlay->update();
+                    }
+                });
+        }
+
+        // Initialize sketch configuration
+        m_sketchConfig = TyrexSketchConfig::autocadConfig();
 
         qDebug() << "TyrexSketchManager created";
     }
@@ -9854,49 +11913,161 @@ namespace TyrexCAD {
     void TyrexSketchManager::enterSketchMode()
     {
         if (m_isInSketchMode) {
-            return; // Already in sketch mode
+            return;
         }
 
         m_isInSketchMode = true;
         m_currentMode = InteractionMode::ObjectSelect;
 
-        // Set up view for sketch mode with visual changes
+        // Set view BEFORE configuring overlay
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
             Handle(V3d_View) view = m_viewerManager->view();
 
-            // Change background color to indicate sketch mode
-            view->SetBackgroundColor(Quantity_Color(0.95, 0.95, 0.98, Quantity_TOC_RGB)); // Light blue-gray
+            try {
+                // Set black background first
+                view->SetBackgroundColor(Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB));
 
-            // Set view to look down on the sketch plane (orthographic top view)
-            view->SetProj(V3d_Zpos);  // Top view for XY plane
-            view->Camera()->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+                // Ensure window is mapped before operations
+                if (!view->Window().IsNull()) {
+                    view->Window()->Map();
+                }
 
-            // Fit all and update
-            view->FitAll();
-            view->ZFitAll();
-            view->Redraw();
+                // Set to exact top view with proper camera setup
+                view->SetProj(V3d_Zpos);
 
-            qDebug() << "Sketch mode: Set orthographic projection and light background";
+                // Set camera to orthographic mode properly
+                Handle(Graphic3d_Camera) camera = view->Camera();
+                if (!camera.IsNull()) {
+                    // Initialize view bounds - not needed for orthographic setup
+                    // Standard_Real xmin = 0.0, ymin = 0.0, xmax = 100.0, ymax = 100.0;
+
+                    // Set orthographic with proper aspect ratio
+                    camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+                    camera->SetZFocus(Graphic3d_Camera::FocusType_Absolute, 0.0);
+
+                    // Reset camera orientation for true 2D
+                    camera->SetUp(gp_Dir(0, 1, 0));
+                    camera->SetDirection(gp_Dir(0, 0, -1));
+
+                    // Apply the camera changes
+                    view->SetCamera(camera);
+                }
+
+                // Configure rendering for 2D
+                Graphic3d_RenderingParams& params = view->ChangeRenderingParams();
+                params.Method = Graphic3d_RM_RASTERIZATION;
+                params.IsAntialiasingEnabled = Standard_True;
+                params.NbMsaaSamples = 4;
+                params.IsShadowEnabled = Standard_False;
+                params.IsReflectionEnabled = Standard_False;
+                params.IsTransparentShadowEnabled = Standard_False;
+
+                // Apply optimal 2D rendering settings
+                TyrexSketchDisplayHelper::setupOptimal2DRendering(view);
+
+                // Update view before creating overlay
+                view->MustBeResized();
+                view->FitAll(0.01, Standard_False);
+                view->Update();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during view setup:" << ex.GetMessageString();
+            }
+            catch (...) {
+                qWarning() << "Unknown error during view setup";
+            }
+
+            // Configure selection and highlight styles with error handling
+            try {
+                Handle(Prs3d_Drawer) selectionStyle = new Prs3d_Drawer();
+                selectionStyle->SetColor(m_sketchConfig.canvas.selectionColor);
+                selectionStyle->SetDisplayMode(1);
+                
+                // Create line aspect properly
+                Handle(Prs3d_LineAspect) selectionLineAspect = new Prs3d_LineAspect(
+                    m_sketchConfig.canvas.selectionColor,
+                    Aspect_TOL_SOLID,
+                    m_sketchConfig.entityDisplay.selectedLineWidth);
+                selectionStyle->SetLineAspect(selectionLineAspect);
+                
+                m_context->SetSelectionStyle(selectionStyle);
+
+                Handle(Prs3d_Drawer) highlightStyle = new Prs3d_Drawer();
+                highlightStyle->SetColor(m_sketchConfig.canvas.highlightColor);
+                highlightStyle->SetDisplayMode(1);
+                
+                // Create line aspect properly for highlight
+                Handle(Prs3d_LineAspect) highlightLineAspect = new Prs3d_LineAspect(
+                    m_sketchConfig.canvas.highlightColor,
+                    Aspect_TOL_SOLID,
+                    m_sketchConfig.entityDisplay.selectedLineWidth);
+                highlightStyle->SetLineAspect(highlightLineAspect);
+                
+                m_context->SetHighlightStyle(Prs3d_TypeOfHighlight_Dynamic, highlightStyle);
+
+                qDebug() << "Sketch mode: Applied AutoCAD-like configuration";
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during style setup:" << ex.GetMessageString();
+            }
+            catch (...) {
+                qWarning() << "Unknown error during style setup";
+            }
         }
 
-        // Clear any existing selections
+        // Initialize overlay with proper config
+        if (m_canvasOverlay) {
+            GridConfig gridConfig;
+
+            // AutoCAD-like dark theme
+            gridConfig.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
+            gridConfig.gridColorMajor = Quantity_Color(0.5, 0.5, 0.5, Quantity_TOC_RGB);
+            gridConfig.gridColorMinor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
+            gridConfig.axisColorX = Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB);
+            gridConfig.axisColorY = Quantity_Color(0.0, 1.0, 0.0, Quantity_TOC_RGB);
+
+            // Grid settings
+            gridConfig.style = GridStyle::Lines;  // Start with lines
+            gridConfig.baseSpacing = 10.0;
+            gridConfig.majorLineInterval = 5;
+            gridConfig.lineWidthMajor = 0.5;
+            gridConfig.lineWidthMinor = 0.25;
+            gridConfig.adaptiveSpacing = true;
+            gridConfig.minSpacingPixels = 20.0;
+            gridConfig.maxSpacingPixels = 80.0;
+            gridConfig.showOriginMarker = true;
+            gridConfig.gridExtensionFactor = 1.2;
+
+            // Apply configuration
+            m_canvasOverlay->setGridConfig(gridConfig);
+            m_canvasOverlay->setGridVisible(true);
+            m_canvasOverlay->setAxisVisible(true);
+
+            // Force overlay update after view is ready
+            QTimer::singleShot(100, this, [this]() {
+                if (m_canvasOverlay) {
+                    m_canvasOverlay->redraw();
+                }
+                });
+        }
+
+        // Clear selections
         clearSelection();
 
-        // Update context display settings for sketch mode
+        // Update context
         if (!m_context.IsNull()) {
-            // Set display mode to wireframe for better sketch visibility
             m_context->SetDisplayMode(AIS_WireFrame, Standard_False);
             m_context->UpdateCurrentViewer();
         }
 
         emit sketchModeEntered();
-        qDebug() << "Entered sketch mode with visual enhancements";
+        qDebug() << "Entered sketch mode with fixed initialization sequence";
     }
 
     void TyrexSketchManager::exitSketchMode()
     {
         if (!m_isInSketchMode) {
-            return; // Not in sketch mode
+            return;
         }
 
         // End any active drag operations
@@ -9908,6 +12079,12 @@ namespace TyrexCAD {
         hideControlPoints();
         clearSelection();
 
+        // Optionally hide grid when exiting sketch mode
+        if (m_canvasOverlay) {
+            m_canvasOverlay->setGridVisible(false);
+            m_canvasOverlay->update();
+        }
+
         // Restore normal view settings
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
             Handle(V3d_View) view = m_viewerManager->view();
@@ -9915,15 +12092,10 @@ namespace TyrexCAD {
             // Restore original background color
             view->SetBackgroundColor(Quantity_NOC_DARKSLATEGRAY);
 
-            // Restore perspective projection
-            view->Camera()->SetProjectionType(Graphic3d_Camera::Projection_Perspective);
+            // Set view back to 3D mode using viewer manager
+            m_viewerManager->set3DMode();
 
-            // Set back to isometric view
-            view->SetProj(V3d_XposYnegZpos);
-            view->FitAll();
-            view->Redraw();
-
-            qDebug() << "Sketch mode: Restored perspective projection and dark background";
+            qDebug() << "Sketch mode: Restored 3D perspective projection";
         }
 
         // Restore normal display mode
@@ -9936,12 +12108,39 @@ namespace TyrexCAD {
         m_currentMode = InteractionMode::None;
 
         emit sketchModeExited();
-        qDebug() << "Exited sketch mode and restored normal view";
+        qDebug() << "Exited sketch mode and restored 3D view";
     }
 
     bool TyrexSketchManager::isInSketchMode() const
     {
         return m_isInSketchMode;
+    }
+
+    TyrexCanvasOverlay* TyrexSketchManager::canvasOverlay() const
+    {
+        return m_canvasOverlay.get();
+    }
+
+    void TyrexSketchManager::setGridVisible(bool visible)
+    {
+        if (m_canvasOverlay) {
+            m_canvasOverlay->setGridVisible(visible);
+        }
+    }
+
+    void TyrexSketchManager::setAxesVisible(bool visible)
+    {
+        if (m_canvasOverlay) {
+            m_canvasOverlay->setAxisVisible(visible);
+        }
+    }
+
+    gp_Pnt2d TyrexSketchManager::snapToGrid(const gp_Pnt2d& point) const
+    {
+        if (m_canvasOverlay && m_canvasOverlay->isGridVisible()) {
+            return m_canvasOverlay->snapToGrid(point);
+        }
+        return point;
     }
 
     void TyrexSketchManager::addSketchEntity(std::shared_ptr<TyrexSketchEntity> entity)
@@ -9964,7 +12163,7 @@ namespace TyrexCAD {
 
         // Draw the entity if context is available and we're in sketch mode
         if (!m_context.IsNull() && m_isInSketchMode) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
             m_context->UpdateCurrentViewer();
         }
 
@@ -10026,54 +12225,33 @@ namespace TyrexCAD {
         }
 
         try {
-            // Get the OpenCascade view
             Handle(V3d_View) view = m_viewerManager->view();
             if (view.IsNull()) {
                 qWarning() << "Cannot convert screen to sketch - no view available";
                 return gp_Pnt2d(0, 0);
             }
 
-            // Convert screen position to view coordinates
+            // Use improved 2D conversion
             Standard_Real xv, yv, zv;
             view->Convert(screenPoint.x(), screenPoint.y(), xv, yv, zv);
 
-            // Create 3D point from view coordinates
-            gp_Pnt viewPoint(xv, yv, zv);
+            // For true 2D mode, we work in the XY plane
+            gp_Pnt2d result(xv, yv);
 
-            // For sketch mode, we can use a simpler approach since we're in orthographic projection
-            // The sketch plane is typically the XY plane (Z=0)
-            gp_Pnt sketchPoint3D(xv, yv, 0.0);
+            // Apply grid snapping if enabled
+            if (m_canvasOverlay && m_canvasOverlay->isGridVisible() && m_sketchConfig.grid.snapEnabled) {
+                result = m_canvasOverlay->snapToGrid(result);
+            }
 
-            // Project the 3D point onto our sketch plane to get 2D coordinates
-            Standard_Real u, v;
-            ElSLib::Parameters(m_sketchPlane, sketchPoint3D, u, v);
-
-            gp_Pnt2d result(u, v);
-
-            // Debug output for coordinate conversion
-            qDebug() << QString("Screen (%1,%2) ? Sketch (%3,%4)")
-                .arg(screenPoint.x())
-                .arg(screenPoint.y())
-                .arg(result.X(), 0, 'f', 3)
-                .arg(result.Y(), 0, 'f', 3);
+            // Apply ortho mode if enabled
+            if (m_sketchConfig.interaction.orthoMode && m_firstPointSet) {
+                result = applyOrthoMode(result);
+            }
 
             return result;
         }
         catch (const Standard_Failure& ex) {
             qWarning() << "OpenCascade error in screenToSketch:" << ex.GetMessageString();
-
-            // Fallback: use simple screen-to-model conversion
-            gp_Pnt worldPoint = m_viewerManager->screenToModel(screenPoint);
-            Standard_Real u, v;
-            ElSLib::Parameters(m_sketchPlane, worldPoint, u, v);
-            return gp_Pnt2d(u, v);
-        }
-        catch (const std::exception& ex) {
-            qWarning() << "Error in screenToSketch:" << ex.what();
-            return gp_Pnt2d(0, 0);
-        }
-        catch (...) {
-            qWarning() << "Unknown error in screenToSketch";
             return gp_Pnt2d(0, 0);
         }
     }
@@ -10243,7 +12421,7 @@ namespace TyrexCAD {
 
             // Determine control point type based on entity type and index
             if (entity->getType() == SketchEntityType::Line) {
-                cp.type = (i == 0) ? ControlPointType::Endpoint : ControlPointType::Endpoint;
+                cp.type = ControlPointType::Endpoint;
             }
             else if (entity->getType() == SketchEntityType::Circle) {
                 cp.type = (i == 0) ? ControlPointType::Endpoint : ControlPointType::RadiusPoint;
@@ -10261,15 +12439,12 @@ namespace TyrexCAD {
         ControlPoint result;
         result.entity = nullptr;
 
+        gp_Pnt2d screenSketch = screenToSketch(screenPos);
+
         for (auto& entity : m_selectedEntities) {
             auto controlPoints = getControlPoints(entity);
 
             for (const auto& cp : controlPoints) {
-                // Convert control point to screen coordinates
-                gp_Pnt worldPoint = sketchToWorld(cp.position);
-                // Would need screen projection here - for now use distance in 2D
-                gp_Pnt2d screenSketch = screenToSketch(screenPos);
-
                 double distance = cp.position.Distance(screenSketch);
                 if (distance <= tolerance) {
                     return cp;
@@ -10300,7 +12475,7 @@ namespace TyrexCAD {
 
         // Redraw entity
         if (!m_context.IsNull()) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
         }
 
         // Update control points
@@ -10322,7 +12497,7 @@ namespace TyrexCAD {
 
         // Redraw entity
         if (!m_context.IsNull()) {
-            controlPoint.entity->draw(m_context, controlPoint.entity->isSelected());
+            drawSketchEntity(controlPoint.entity);
         }
 
         // Update control points
@@ -10337,9 +12512,14 @@ namespace TyrexCAD {
             return;
         }
 
+        // Update canvas overlay if needed
+        if (m_canvasOverlay && m_isInSketchMode) {
+            m_canvasOverlay->update();
+        }
+
         // Redraw all entities
         for (auto& entity : m_sketchEntities) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
         }
 
         // Redraw control points if in sketch mode
@@ -10363,7 +12543,7 @@ namespace TyrexCAD {
 
         // Update entity visuals
         for (auto& entity : m_sketchEntities) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
         }
     }
 
@@ -10415,20 +12595,41 @@ namespace TyrexCAD {
             return Handle(AIS_InteractiveObject)();
         }
 
-        // Convert 2D point to 3D
-        gp_Pnt worldPoint = sketchToWorld(point.position);
+        try {
+            // Convert 2D point to 3D
+            gp_Pnt worldPoint = sketchToWorld(point.position);
 
-        // Create a geometric point
-        Handle(Geom_CartesianPoint) geomPoint = new Geom_CartesianPoint(worldPoint);
-        Handle(AIS_Point) aisPoint = new AIS_Point(geomPoint);
+            // Create a geometric point
+            Handle(Geom_CartesianPoint) geomPoint = new Geom_CartesianPoint(worldPoint);
+            Handle(AIS_Point) aisPoint = new AIS_Point(geomPoint);
 
-        // Set appearance based on control point type
-        Handle(Prs3d_PointAspect) pointAspect = new Prs3d_PointAspect(
-            Aspect_TOM_STAR, Quantity_NOC_YELLOW, 10.0);
+            // Set appearance based on control point type
+            Quantity_Color pointColor = (point.type == ControlPointType::Endpoint) ?
+                Quantity_NOC_YELLOW : Quantity_NOC_CYAN;
 
-        aisPoint->Attributes()->SetPointAspect(pointAspect);
+            // ????? PointAspect ???????? ???????
+            Handle(Prs3d_PointAspect) pointAspect = new Prs3d_PointAspect(
+                Aspect_TOM_STAR, pointColor, 10.0);
 
-        return aisPoint;
+            // ????? ???????
+            if (!aisPoint->Attributes().IsNull()) {
+                aisPoint->Attributes()->SetPointAspect(pointAspect);
+            } else {
+                Handle(Prs3d_Drawer) drawer = new Prs3d_Drawer();
+                drawer->SetPointAspect(pointAspect);
+                aisPoint->SetAttributes(drawer);
+            }
+
+            return aisPoint;
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error creating control point visual:" << ex.GetMessageString();
+            return Handle(AIS_InteractiveObject)();
+        }
+        catch (...) {
+            qWarning() << "Unknown error creating control point visual";
+            return Handle(AIS_InteractiveObject)();
+        }
     }
 
     void TyrexSketchManager::highlightEntity(std::shared_ptr<TyrexSketchEntity> entity)
@@ -10440,7 +12641,7 @@ namespace TyrexCAD {
         entity->setHighlighted(true);
 
         if (!m_context.IsNull()) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
         }
     }
 
@@ -10453,7 +12654,7 @@ namespace TyrexCAD {
         entity->setHighlighted(false);
 
         if (!m_context.IsNull()) {
-            entity->draw(m_context, entity->isSelected());
+            drawSketchEntity(entity);
         }
     }
 
@@ -10494,6 +12695,80 @@ namespace TyrexCAD {
 
         // Update control points after drag
         showControlPoints();
+    }
+
+    gp_Pnt2d TyrexSketchManager::applyOrthoMode(const gp_Pnt2d& point) const
+    {
+        if (!m_firstPointSet) return point;
+
+        // Calculate angle from first point to current point
+        gp_Vec2d vec(m_firstPoint, point);
+        double angle = atan2(vec.Y(), vec.X()) * 180.0 / M_PI;
+
+        // Round to nearest ortho angle (0, 90, 180, 270)
+        double orthoAngle = round(angle / 90.0) * 90.0;
+
+        // Apply ortho constraint
+        double distance = m_firstPoint.Distance(point);
+        double radians = orthoAngle * M_PI / 180.0;
+
+        return gp_Pnt2d(
+            m_firstPoint.X() + distance * cos(radians),
+            m_firstPoint.Y() + distance * sin(radians)
+        );
+    }
+
+    void TyrexSketchManager::drawSketchEntity(std::shared_ptr<TyrexSketchEntity> entity)
+    {
+        if (!entity || m_context.IsNull()) return;
+
+        try {
+            // Apply entity styling based on configuration
+            if (!entity->getAISShape().IsNull()) {
+                Handle(AIS_Shape) shape = entity->getAISShape();
+
+                // ????? ????? ?????? ????? ??? ???? ??????
+                Quantity_Color entityColor;
+                Standard_Real lineWidth;
+
+                if (entity->isSelected()) {
+                    entityColor = m_sketchConfig.canvas.selectionColor;
+                    lineWidth = m_sketchConfig.entityDisplay.selectedLineWidth;
+                }
+                else if (entity->isHighlighted()) {
+                    entityColor = m_sketchConfig.canvas.highlightColor;
+                    lineWidth = m_sketchConfig.entityDisplay.selectedLineWidth;
+                }
+                else {
+                    entityColor = m_sketchConfig.entityDisplay.defaultLineColor;
+                    lineWidth = m_sketchConfig.entityDisplay.defaultLineWidth;
+                }
+
+                // ????? ????? ??? ?????
+                shape->SetColor(entityColor);
+
+                // ????? LineAspect ???????? ???????
+                Handle(Prs3d_LineAspect) lineAspect = new Prs3d_LineAspect(
+                    entityColor, Aspect_TOL_SOLID, lineWidth);
+
+                // ????? ??????? ??? ?????
+                if (!shape->Attributes().IsNull()) {
+                    shape->Attributes()->SetLineAspect(lineAspect);
+                } else {
+                    Handle(Prs3d_Drawer) drawer = new Prs3d_Drawer();
+                    drawer->SetLineAspect(lineAspect);
+                    shape->SetAttributes(drawer);
+                }
+            }
+
+            entity->draw(m_context, entity->isSelected());
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error drawing sketch entity:" << ex.GetMessageString();
+        }
+        catch (...) {
+            qWarning() << "Unknown error drawing sketch entity";
+        }
     }
 
 } // namespace TyrexCAD

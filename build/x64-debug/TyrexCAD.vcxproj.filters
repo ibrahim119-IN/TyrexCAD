@@ -7,9 +7,6 @@
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexApp\TyrexMainWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexCanvasOverlay.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexCanvasWidget.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -79,6 +76,9 @@
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexLayers\TyrexLayerManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexGridOverlayRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexViewerManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -142,9 +142,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexApp\TyrexMainWindow.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasOverlay.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasWidget.h">
@@ -217,6 +214,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexLayers\TyrexLayerManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexGridOverlayRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexViewerManager.h">

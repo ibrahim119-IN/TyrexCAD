@@ -507,7 +507,6 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexApp\TyrexMainWindow.cpp" />
-    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexCanvasOverlay.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexCanvasWidget.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexModelSpace.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexViewWidget.cpp" />
@@ -535,6 +534,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexInteraction\TyrexTypeBasedFilter.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexLayers\TyrexLayer.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexLayers\TyrexLayerManager.cpp" />
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexGridOverlayRenderer.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexViewerManager.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketch.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchCircleCommand.cpp" />
@@ -553,7 +553,6 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexUtils\UUID.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\main.cpp" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexApp\TyrexMainWindow.h" />
-    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasOverlay.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasWidget.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexModelSpace.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexViewWidget.h" />
@@ -578,6 +577,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexInteraction\TyrexTypeBasedFilter.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexLayers\TyrexLayer.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexLayers\TyrexLayerManager.h" />
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexGridOverlayRenderer.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexViewerManager.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketch.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchCircleCommand.h" />

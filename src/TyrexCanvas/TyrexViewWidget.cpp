@@ -7,6 +7,7 @@
 
 #include "TyrexCanvas/TyrexViewWidget.h"
 #include "TyrexRendering/TyrexViewerManager.h"
+#include "TyrexRendering/TyrexGridOverlayRenderer.h"
 #include "TyrexInteraction/TyrexInteractionManager.h"
 
  // OpenCascade includes
@@ -23,94 +24,153 @@
 #include <QVBoxLayout>
 #include <QDebug>
 #include <QTimer>
-
+#include <QOpenGLContext>
+#include <QSurfaceFormat>
 namespace TyrexCAD {
 
     TyrexViewWidget::TyrexViewWidget(QWidget* parent)
-        : QWidget(parent)
+        : QOpenGLWidget(parent)
         , m_viewerManager(nullptr)
         , m_interactionManager(nullptr)
+        , m_gridRenderer(nullptr)
+        , m_gridInitialized(false)
     {
         // Set widget properties for optimal OpenGL rendering
         setAttribute(Qt::WA_OpaquePaintEvent);
         setAttribute(Qt::WA_NoSystemBackground);
-        setMouseTracking(true);  // Enable mouse tracking for hover events
+        setMouseTracking(true);
         setFocusPolicy(Qt::StrongFocus);
-
-        // Set minimum size
         setMinimumSize(400, 300);
 
-        qDebug() << "TyrexViewWidget constructed";
+        qDebug() << "TyrexViewWidget constructed with grid support";
 
-        // Initialize immediately - don't wait for show event
+        // Initialize after construction
         QTimer::singleShot(50, this, &TyrexViewWidget::initializeManagers);
     }
 
     TyrexViewWidget::~TyrexViewWidget()
     {
-        qDebug() << "TyrexViewWidget destructor";
+        // Cleanup grid renderer in OpenGL context
+        makeCurrent(); // Ensure OpenGL context is active
+        m_gridRenderer.reset();
+        doneCurrent();
+
+        qDebug() << "TyrexViewWidget destructor completed";
     }
 
-    std::shared_ptr<TyrexViewerManager> TyrexViewWidget::viewerManager() const
+    void TyrexViewWidget::initializeGL()
     {
-        return m_viewerManager;
-    }
-
-    TyrexInteractionManager* TyrexViewWidget::interactionManager() const
-    {
-        return m_interactionManager.get();
-    }
-
-    void TyrexViewWidget::mousePressEvent(QMouseEvent* e)
-    {
-        if (m_interactionManager) {
-            m_interactionManager->onMousePress(e->button(), e->pos());
+        // Initialize OpenGL functions
+        if (!initializeOpenGLFunctions()) {
+            qCritical() << "Failed to initialize OpenGL functions in TyrexViewWidget";
+            return;
         }
-        e->accept(); // Prevent event propagation
+
+        // Set OpenGL state for CAD rendering
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_MULTISAMPLE);
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+
+        qDebug() << "TyrexViewWidget OpenGL initialized";
+
+        // Setup grid renderer after OpenGL is ready
+        setupGridRenderer();
     }
 
-    void TyrexViewWidget::mouseMoveEvent(QMouseEvent* e)
+    void TyrexViewWidget::paintGL()
     {
-        if (m_interactionManager) {
-            m_interactionManager->onMouseMove(e->pos(), e->modifiers());
+        // Clear buffers
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // === 1. Render OpenCascade scene first ===
+        if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+            try {
+                // Let OpenCascade render the 3D scene
+                Handle(V3d_View) view = m_viewerManager->view();
+                view->Redraw();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "OpenCascade rendering error:" << ex.GetMessageString();
+            }
+            catch (...) {
+                qWarning() << "Unknown OpenCascade rendering error";
+            }
         }
-        e->accept(); // Prevent event propagation
-    }
 
-    void TyrexViewWidget::mouseReleaseEvent(QMouseEvent* e)
-    {
-        if (m_interactionManager) {
-            m_interactionManager->onMouseRelease(e->button(), e->pos());
+        // === 2. Render grid overlay on top ===
+        if (m_gridRenderer && m_gridInitialized) {
+            try {
+                // Render grid as screen overlay
+                m_gridRenderer->render(width(), height());
+            }
+            catch (const std::exception& ex) {
+                qWarning() << "Grid rendering error:" << ex.what();
+            }
+            catch (...) {
+                qWarning() << "Unknown grid rendering error";
+            }
         }
-        e->accept(); // Prevent event propagation
+
+        // Force OpenGL flush for immediate display
+        glFlush();
     }
 
-    void TyrexViewWidget::wheelEvent(QWheelEvent* e)
+    void TyrexViewWidget::resizeGL(int w, int h)
     {
-        if (m_interactionManager) {
-            m_interactionManager->onMouseWheel(e->angleDelta().y(), e->position().toPoint());
-        }
-        e->accept(); // Prevent event propagation
-    }
-
-    void TyrexViewWidget::resizeEvent(QResizeEvent* e)
-    {
-        QWidget::resizeEvent(e);
-
-        // Notify view manager of size change
+        // Update OpenCascade viewport
         if (m_viewerManager) {
             m_viewerManager->handleResize();
         }
+
+        // Grid will automatically adapt to new viewport size in next render
+        qDebug() << "TyrexViewWidget resized to:" << w << "x" << h;
     }
 
-    void TyrexViewWidget::showEvent(QShowEvent* e)
+    void TyrexViewWidget::setupGridRenderer()
     {
-        QWidget::showEvent(e);
-        qDebug() << "TyrexViewWidget::showEvent called";
+        if (m_gridRenderer) {
+            return; // Already initialized
+        }
 
-        // Ensure initialization happens
-        if (!m_viewerManager) {
-            QTimer::singleShot(100, this, &TyrexViewWidget::initializeManagers);
+        try {
+            // Create grid renderer
+            m_gridRenderer = std::make_unique<TyrexGridOverlayRenderer>();
+
+            // Initialize with current OpenGL context
+            if (!m_gridRenderer->initialize()) {
+                qCritical() << "Failed to initialize grid renderer";
+                m_gridRenderer.reset();
+                return;
+            }
+
+            // Set default AutoCAD-style configuration
+            GridConfig config;
+            config.baseSpacing = 10.0;
+            config.majorFactor = 5;
+            config.minorColor = QColor(60, 60, 60, 150);    // Dark gray
+            config.majorColor = QColor(100, 100, 100, 200); // Medium gray
+            config.axisColorX = QColor(255, 80, 80, 255);   // Red X-axis
+            config.axisColorY = QColor(80, 255, 80, 255);   // Green Y-axis
+            config.showAxes = true;
+            config.showOriginMarker = true;
+            config.adaptiveSpacing = true;
+            config.minPixelSpacing = 20.0;
+            config.maxPixelSpacing = 80.0;
+
+            m_gridRenderer->setGridConfig(config);
+            m_gridRenderer->setGridEnabled(true); // Enable by default
+            m_gridInitialized = true;
+
+            qDebug() << "Grid renderer initialized successfully";
+
+        }
+        catch (const std::exception& ex) {
+            qCritical() << "Exception setting up grid renderer:" << ex.what();
+            m_gridRenderer.reset();
+        }
+        catch (...) {
+            qCritical() << "Unknown exception setting up grid renderer";
+            m_gridRenderer.reset();
         }
     }
 
@@ -124,15 +184,15 @@ namespace TyrexCAD {
         qDebug() << "Starting manager initialization...";
 
         try {
-            // 1. Create the viewer manager first
+            // Create viewer manager
             m_viewerManager = std::make_shared<TyrexViewerManager>(this);
 
-            // 2. Verify viewer manager creation
             if (!m_viewerManager) {
                 qCritical() << "Failed to create viewer manager!";
                 return;
             }
 
+            // Verify OpenCascade components
             Handle(AIS_InteractiveContext) context = m_viewerManager->context();
             Handle(V3d_View) view = m_viewerManager->view();
 
@@ -141,31 +201,40 @@ namespace TyrexCAD {
                 return;
             }
 
-            // 3. Create the interaction manager
+            // === Connect grid renderer to view ===
+            if (m_gridRenderer) {
+                m_gridRenderer->setView(view);
+                qDebug() << "Grid renderer connected to OpenCascade view";
+            }
+
+            // Create interaction manager
             m_interactionManager = std::make_unique<TyrexInteractionManager>();
 
-            // 4. Verify interaction manager creation
             if (!m_interactionManager) {
                 qCritical() << "Failed to create interaction manager!";
                 return;
             }
 
-            // 5. Connect the managers
+            // Connect managers
             m_interactionManager->setViewerManager(m_viewerManager.get());
             m_viewerManager->setInteractionManager(m_interactionManager.get());
 
-            qDebug() << "Viewer and interaction managers initialized successfully";
-
-            // 6. Setup initial view
-            view->SetProj(V3d_Zpos);  // Top view
+            // Setup initial view
+            view->SetProj(V3d_Zpos);  // Top view for sketch mode
             view->SetImmediateUpdate(Standard_True);
             view->FitAll();
             view->Redraw();
 
-            // 7. Emit initialization completed signal
-            emit viewerInitialized();
+            // === Connect view change signals to grid updates ===
+            connect(m_viewerManager.get(), &TyrexViewerManager::viewChanged,
+                this, [this]() {
+                    // Grid will automatically update on next paintGL() call
+                    update(); // Trigger repaint
+                });
 
-            qDebug() << "Manager initialization completed - signal emitted";
+            emit viewerInitialized();
+            qDebug() << "Manager initialization completed with grid integration";
+
         }
         catch (const Standard_Failure& ex) {
             qCritical() << "OpenCascade error during initialization:" << ex.GetMessageString();
@@ -176,6 +245,83 @@ namespace TyrexCAD {
         catch (...) {
             qCritical() << "Unknown error during initialization";
         }
+    }
+
+    // === NEW: Grid control methods implementation ===
+
+    void TyrexViewWidget::setGridEnabled(bool enabled)
+    {
+        if (m_gridRenderer) {
+            m_gridRenderer->setGridEnabled(enabled);
+            update(); // Trigger repaint
+            qDebug() << "Grid" << (enabled ? "enabled" : "disabled");
+        }
+    }
+
+    bool TyrexViewWidget::isGridEnabled() const
+    {
+        return m_gridRenderer ? m_gridRenderer->isGridEnabled() : false;
+    }
+
+    void TyrexViewWidget::setGridConfig(const GridConfig& config)
+    {
+        if (m_gridRenderer) {
+            m_gridRenderer->setGridConfig(config);
+            update(); // Trigger repaint
+            emit gridConfigChanged();
+            qDebug() << "Grid configuration updated";
+        }
+    }
+
+    const GridConfig& TyrexViewWidget::getGridConfig() const
+    {
+        static GridConfig defaultConfig;
+        return m_gridRenderer ? m_gridRenderer->getGridConfig() : defaultConfig;
+    }
+
+    bool TyrexViewWidget::snapToGrid(double worldX, double worldY,
+        double& snappedX, double& snappedY) const
+    {
+        if (m_gridRenderer) {
+            return m_gridRenderer->snapToGrid(worldX, worldY, snappedX, snappedY);
+        }
+
+        snappedX = worldX;
+        snappedY = worldY;
+        return false;
+    }
+
+    // === Event handling remains the same ===
+    void TyrexViewWidget::mousePressEvent(QMouseEvent* e)
+    {
+        if (m_interactionManager) {
+            m_interactionManager->onMousePress(e->button(), e->pos());
+        }
+        e->accept();
+    }
+
+    void TyrexViewWidget::mouseMoveEvent(QMouseEvent* e)
+    {
+        if (m_interactionManager) {
+            m_interactionManager->onMouseMove(e->pos(), e->modifiers());
+        }
+        e->accept();
+    }
+
+    void TyrexViewWidget::mouseReleaseEvent(QMouseEvent* e)
+    {
+        if (m_interactionManager) {
+            m_interactionManager->onMouseRelease(e->button(), e->pos());
+        }
+        e->accept();
+    }
+
+    void TyrexViewWidget::wheelEvent(QWheelEvent* e)
+    {
+        if (m_interactionManager) {
+            m_interactionManager->onMouseWheel(e->angleDelta().y(), e->position().toPoint());
+        }
+        e->accept();
     }
 
 } // namespace TyrexCAD

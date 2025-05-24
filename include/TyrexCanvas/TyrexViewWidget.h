@@ -1,82 +1,153 @@
-﻿#ifndef TYREX_VIEW_WIDGET_H
+﻿/***************************************************************************
+ * TyrexViewWidget Integration with Grid Overlay System
+ *
+ * This shows how to integrate TyrexGridOverlayRenderer with the existing
+ * TyrexViewWidget to achieve AutoCAD-style grid rendering.
+ ***************************************************************************/
+
+ // === HEADER MODIFICATIONS (TyrexViewWidget.h) ===
+
+#ifndef TYREX_VIEW_WIDGET_H
 #define TYREX_VIEW_WIDGET_H
 
-#include <QWidget>
+#include <QOpenGLWidget>
+#include <QOpenGLFunctions>
 #include <memory>
+#include "TyrexGridOverlayRenderer.h" // Add this include
 
-// OpenCascade forward declarations
+// Forward declarations
 class V3d_View;
 
 namespace TyrexCAD {
-    // Forward declarations
     class TyrexViewerManager;
     class TyrexInteractionManager;
 
-    /**
-     * @class TyrexViewWidget
-     * @brief A specialized Qt widget that hosts the OpenCascade 3D viewer.
-     *
-     * This widget serves as the primary rendering window for the CAD application.
-     * It integrates the viewer manager for rendering and the interaction manager
-     * for handling user input.
-     */
-    class TyrexViewWidget : public QWidget
+    class TyrexViewWidget : public QOpenGLWidget, protected QOpenGLFunctions
     {
         Q_OBJECT
 
     public:
-        /**
-         * @brief Constructor
-         * @param parent Parent widget
-         */
         explicit TyrexViewWidget(QWidget* parent = nullptr);
-
-        /**
-         * @brief Destructor
-         */
         ~TyrexViewWidget();
 
-        /**
-         * @brief Get the viewer manager instance
-         * @return Shared pointer to the viewer manager
-         */
         std::shared_ptr<TyrexViewerManager> viewerManager() const;
-
-        /**
-         * @brief Get the interaction manager instance
-         * @return Raw pointer to the interaction manager
-         */
         TyrexInteractionManager* interactionManager() const;
 
-    signals:
+        // === NEW: Grid control methods ===
         /**
-         * @brief Signal emitted when the viewer is initialized and ready
+         * @brief Enable/disable grid rendering
+         * @param enabled True to show grid
          */
+        void setGridEnabled(bool enabled);
+
+        /**
+         * @brief Check if grid is enabled
+         * @return True if grid is visible
+         */
+        bool isGridEnabled() const;
+
+        /**
+         * @brief Set grid configuration
+         * @param config Grid settings
+         */
+        void setGridConfig(const GridConfig& config);
+
+        /**
+         * @brief Get current grid configuration
+         * @return Grid settings
+         */
+        const GridConfig& getGridConfig() const;
+
+        /**
+         * @brief Snap point to grid
+         * @param worldX Input world X coordinate
+         * @param worldY Input world Y coordinate
+         * @param snappedX Output snapped X
+         * @param snappedY Output snapped Y
+         * @return True if snapping was applied
+         */
+        bool snapToGrid(double worldX, double worldY,
+            double& snappedX, double& snappedY) const;
+
+    signals:
         void viewerInitialized();
+        void gridConfigChanged(); // New signal
 
     protected:
-        // Override Qt events to delegate to interaction manager
+        // OpenGL rendering
+        void initializeGL() override;
+        void paintGL() override;
+        void resizeGL(int w, int h) override;
+
+        // Event handling
         void mousePressEvent(QMouseEvent* e) override;
         void mouseMoveEvent(QMouseEvent* e) override;
         void mouseReleaseEvent(QMouseEvent* e) override;
         void wheelEvent(QWheelEvent* e) override;
-        void resizeEvent(QResizeEvent* e) override;
-        void showEvent(QShowEvent* e) override;
 
     private:
-        /**
-         * @brief Initialize viewer and interaction managers
-         */
         void initializeManagers();
+        void setupGridRenderer(); // New method
 
     private:
-        // The viewer manager - shared because it might be accessed by other components
         std::shared_ptr<TyrexViewerManager> m_viewerManager;
-
-        // The interaction manager - unique because it's owned exclusively by this widget
         std::unique_ptr<TyrexInteractionManager> m_interactionManager;
+
+        // === NEW: Grid overlay renderer ===
+        std::unique_ptr<TyrexGridOverlayRenderer> m_gridRenderer;
+        bool m_gridInitialized;
     };
 
 } // namespace TyrexCAD
 
 #endif // TYREX_VIEW_WIDGET_H
+
+
+
+
+// === USAGE EXAMPLE IN MAIN WINDOW ===
+
+// In TyrexMainWindow.cpp, add grid controls:
+
+void TyrexMainWindow::createAdvancedSketchActions()
+{
+    // Grid toggle action  
+    m_toggleGridAction = new QAction(tr("Toggle &Grid"), this);
+    m_toggleGridAction->setShortcut(QKeySequence(tr("F7")));
+    m_toggleGridAction->setCheckable(true);
+    m_toggleGridAction->setChecked(true);
+    m_toggleGridAction->setStatusTip(tr("Toggle grid visibility"));
+
+    connect(m_toggleGridAction, &QAction::triggered, this, [this](bool checked) {
+        auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+        if (viewWidget) {
+            viewWidget->setGridEnabled(checked);
+            statusBar()->showMessage(checked ? "Grid ON" : "Grid OFF", 2000);
+        }
+        });
+
+    // Grid spacing controls
+    m_gridSpacingAction = new QAction(tr("Grid &Spacing..."), this);
+    connect(m_gridSpacingAction, &QAction::triggered, this, [this]() {
+        auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+        if (viewWidget) {
+            GridConfig config = viewWidget->getGridConfig();
+
+            // Show grid configuration dialog
+            bool ok;
+            double newSpacing = QInputDialog::getDouble(this,
+                tr("Grid Spacing"),
+                tr("Enter grid spacing:"),
+                config.baseSpacing, 0.1, 1000.0, 2, &ok);
+
+            if (ok) {
+                config.baseSpacing = newSpacing;
+                viewWidget->setGridConfig(config);
+                statusBar()->showMessage(
+                    QString("Grid spacing set to %1").arg(newSpacing), 2000);
+            }
+        }
+        });
+}
+
+/
