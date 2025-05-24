@@ -30,6 +30,13 @@ namespace TyrexCAD {
             double backgroundGradient = 0.0;  // 0 = solid, 1 = full gradient
         } canvas;
 
+        // === Control Points Configuration ===
+        struct ControlPoints {
+            double size = 10.0;                     // Size of control points
+            Quantity_Color color{ 1.0, 1.0, 0.0, Quantity_TOC_RGB };  // Yellow
+            Quantity_Color selectedColor{ 1.0, 0.0, 0.0, Quantity_TOC_RGB }; // Red
+        } controlPoints;
+
         // === Grid Settings ===
         struct Grid {
             bool visible = true;
