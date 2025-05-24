@@ -1,8 +1,8 @@
 ﻿/***************************************************************************
- *   Copyright (c) 2025 TyrexCAD development team                          *
- *                                                                         *
- *   This file is part of the TyrexCAD CAx development system.             *
- *                                                                         *
+ * Copyright (c) 2025 TyrexCAD development team                          *
+ * *
+ * This file is part of the TyrexCAD CAx development system.             *
+ * *
  ***************************************************************************/
 
 #include "TyrexSketch/TyrexSketchManager.h"
@@ -12,7 +12,7 @@
 #include "TyrexSketch/TyrexSketchConfig.h"
 #include "TyrexSketch/TyrexSketchDisplayHelper.h"
 #include "TyrexRendering/TyrexViewerManager.h"
-#include "TyrexCanvas/TyrexCanvasOverlay.h"
+#include "TyrexCanvas/TyrexCanvasOverlay.h" // Defines TyrexCAD::GridConfig
 
  // OpenCascade includes
 #include <Standard_Handle.hxx>
@@ -36,7 +36,7 @@
 #include <AIS_Shape.hxx>
 #include <Graphic3d_AspectLine3d.hxx>
 #include <Aspect_TypeOfLine.hxx>
-#include <Aspect_TypeOfMarker.hxx>
+#include <Aspect_TypeOfMarker.hxx> // Ensure this is included for Aspect_TOM_STAR
 
 // Qt includes
 #include <QDebug>
@@ -65,34 +65,36 @@ namespace TyrexCAD {
         , m_dragStartPosition(0, 0)
         , m_firstPointSet(false)
         , m_firstPoint(0, 0)
+        , m_canvasOverlay(nullptr) // Initialize to nullptr
     {
-        // Initialize empty control point for dragging
         m_draggedControlPoint.entity = nullptr;
         m_draggedControlPoint.type = ControlPointType::Endpoint;
         m_draggedControlPoint.index = -1;
         m_draggedControlPoint.position = gp_Pnt2d(0, 0);
 
-        // Initialize canvas overlay
-        m_canvasOverlay = std::make_unique<TyrexCanvasOverlay>(m_context,
-            m_viewerManager ? m_viewerManager->view() : nullptr, this);
+        if (m_viewerManager && !m_viewerManager->view().IsNull()) { // Check if view is valid
+            m_canvasOverlay = std::make_unique<TyrexCanvasOverlay>(m_context,
+                m_viewerManager->view(), this); // Pass valid view
 
-        // Connect overlay signals
-        connect(m_canvasOverlay.get(), &TyrexCanvasOverlay::gridSpacingChanged,
-            this, [this](double spacing) {
-                qDebug() << "Grid spacing changed to:" << spacing;
-            });
-
-        // Connect to viewer manager signals if available
-        if (m_viewerManager) {
-            connect(m_viewerManager, &TyrexViewerManager::viewChanged,
-                this, [this]() {
-                    if (m_canvasOverlay && m_isInSketchMode) {
-                        m_canvasOverlay->update();
-                    }
+            connect(m_canvasOverlay.get(), &TyrexCanvasOverlay::gridSpacingChanged,
+                this, [this](double spacing) {
+                    qDebug() << "Grid spacing changed to:" << spacing;
                 });
+
+            if (m_viewerManager) { // Double check, though implied by outer if
+                connect(m_viewerManager, &TyrexViewerManager::viewChanged,
+                    this, [this]() {
+                        if (m_canvasOverlay && m_isInSketchMode) {
+                            m_canvasOverlay->update();
+                        }
+                    });
+            }
+        }
+        else {
+            qWarning() << "TyrexSketchManager: ViewerManager or its view is null, CanvasOverlay not created.";
         }
 
-        // Initialize sketch configuration
+
         m_sketchConfig = TyrexSketchConfig::autocadConfig();
 
         qDebug() << "TyrexSketchManager created";
@@ -100,11 +102,9 @@ namespace TyrexCAD {
 
     TyrexSketchManager::~TyrexSketchManager()
     {
-        // Clean up control point visuals
         hideControlPoints();
 
-        // Clear all highlights
-        for (auto highlight : m_highlightObjects) {
+        for (auto& highlight : m_highlightObjects) { // Use reference for Handle
             if (!highlight.IsNull() && !m_context.IsNull()) {
                 m_context->Remove(highlight, Standard_False);
             }
@@ -138,41 +138,27 @@ namespace TyrexCAD {
         m_isInSketchMode = true;
         m_currentMode = InteractionMode::ObjectSelect;
 
-        // Set view BEFORE configuring overlay
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
             Handle(V3d_View) view = m_viewerManager->view();
 
             try {
-                // Set black background first
                 view->SetBackgroundColor(Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB));
 
-                // Ensure window is mapped before operations
                 if (!view->Window().IsNull()) {
                     view->Window()->Map();
                 }
 
-                // Set to exact top view with proper camera setup
                 view->SetProj(V3d_Zpos);
 
-                // Set camera to orthographic mode properly
                 Handle(Graphic3d_Camera) camera = view->Camera();
                 if (!camera.IsNull()) {
-                    // Initialize view bounds - not needed for orthographic setup
-                    // Standard_Real xmin = 0.0, ymin = 0.0, xmax = 100.0, ymax = 100.0;
-
-                    // Set orthographic with proper aspect ratio
                     camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
                     camera->SetZFocus(Graphic3d_Camera::FocusType_Absolute, 0.0);
-
-                    // Reset camera orientation for true 2D
                     camera->SetUp(gp_Dir(0, 1, 0));
                     camera->SetDirection(gp_Dir(0, 0, -1));
-
-                    // Apply the camera changes
                     view->SetCamera(camera);
                 }
 
-                // Configure rendering for 2D
                 Graphic3d_RenderingParams& params = view->ChangeRenderingParams();
                 params.Method = Graphic3d_RM_RASTERIZATION;
                 params.IsAntialiasingEnabled = Standard_True;
@@ -181,10 +167,8 @@ namespace TyrexCAD {
                 params.IsReflectionEnabled = Standard_False;
                 params.IsTransparentShadowEnabled = Standard_False;
 
-                // Apply optimal 2D rendering settings
                 TyrexSketchDisplayHelper::setupOptimal2DRendering(view);
 
-                // Update view before creating overlay
                 view->MustBeResized();
                 view->FitAll(0.01, Standard_False);
                 view->Update();
@@ -196,33 +180,30 @@ namespace TyrexCAD {
                 qWarning() << "Unknown error during view setup";
             }
 
-            // Configure selection and highlight styles with error handling
             try {
                 Handle(Prs3d_Drawer) selectionStyle = new Prs3d_Drawer();
                 selectionStyle->SetColor(m_sketchConfig.canvas.selectionColor);
                 selectionStyle->SetDisplayMode(1);
-                
-                // Create line aspect properly
+
                 Handle(Prs3d_LineAspect) selectionLineAspect = new Prs3d_LineAspect(
                     m_sketchConfig.canvas.selectionColor,
                     Aspect_TOL_SOLID,
                     m_sketchConfig.entityDisplay.selectedLineWidth);
                 selectionStyle->SetLineAspect(selectionLineAspect);
-                
-                m_context->SetSelectionStyle(selectionStyle);
+
+                if (!m_context.IsNull()) m_context->SetSelectionStyle(selectionStyle);
 
                 Handle(Prs3d_Drawer) highlightStyle = new Prs3d_Drawer();
                 highlightStyle->SetColor(m_sketchConfig.canvas.highlightColor);
                 highlightStyle->SetDisplayMode(1);
-                
-                // Create line aspect properly for highlight
+
                 Handle(Prs3d_LineAspect) highlightLineAspect = new Prs3d_LineAspect(
                     m_sketchConfig.canvas.highlightColor,
                     Aspect_TOL_SOLID,
                     m_sketchConfig.entityDisplay.selectedLineWidth);
                 highlightStyle->SetLineAspect(highlightLineAspect);
-                
-                m_context->SetHighlightStyle(Prs3d_TypeOfHighlight_Dynamic, highlightStyle);
+
+                if (!m_context.IsNull()) m_context->SetHighlightStyle(Prs3d_TypeOfHighlight_Dynamic, highlightStyle);
 
                 qDebug() << "Sketch mode: Applied AutoCAD-like configuration";
             }
@@ -234,19 +215,16 @@ namespace TyrexCAD {
             }
         }
 
-        // Initialize overlay with proper config
         if (m_canvasOverlay) {
-            GridConfig gridConfig;
+            TyrexCAD::GridConfig gridConfig; // Use fully qualified name
 
-            // AutoCAD-like dark theme
             gridConfig.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
             gridConfig.gridColorMajor = Quantity_Color(0.5, 0.5, 0.5, Quantity_TOC_RGB);
             gridConfig.gridColorMinor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
             gridConfig.axisColorX = Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB);
             gridConfig.axisColorY = Quantity_Color(0.0, 1.0, 0.0, Quantity_TOC_RGB);
 
-            // Grid settings
-            gridConfig.style = GridStyle::Lines;  // Start with lines
+            gridConfig.style = TyrexCAD::GridStyle::Lines;  // Use fully qualified name
             gridConfig.baseSpacing = 10.0;
             gridConfig.majorLineInterval = 5;
             gridConfig.lineWidthMajor = 0.5;
@@ -257,12 +235,10 @@ namespace TyrexCAD {
             gridConfig.showOriginMarker = true;
             gridConfig.gridExtensionFactor = 1.2;
 
-            // Apply configuration
             m_canvasOverlay->setGridConfig(gridConfig);
             m_canvasOverlay->setGridVisible(true);
             m_canvasOverlay->setAxisVisible(true);
 
-            // Force overlay update after view is ready
             QTimer::singleShot(100, this, [this]() {
                 if (m_canvasOverlay) {
                     m_canvasOverlay->redraw();
@@ -270,10 +246,8 @@ namespace TyrexCAD {
                 });
         }
 
-        // Clear selections
         clearSelection();
 
-        // Update context
         if (!m_context.IsNull()) {
             m_context->SetDisplayMode(AIS_WireFrame, Standard_False);
             m_context->UpdateCurrentViewer();
@@ -289,35 +263,25 @@ namespace TyrexCAD {
             return;
         }
 
-        // End any active drag operations
         if (m_isDragging) {
             endDrag();
         }
 
-        // Hide control points and clear selections
         hideControlPoints();
         clearSelection();
 
-        // Optionally hide grid when exiting sketch mode
         if (m_canvasOverlay) {
             m_canvasOverlay->setGridVisible(false);
             m_canvasOverlay->update();
         }
 
-        // Restore normal view settings
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
             Handle(V3d_View) view = m_viewerManager->view();
-
-            // Restore original background color
             view->SetBackgroundColor(Quantity_NOC_DARKSLATEGRAY);
-
-            // Set view back to 3D mode using viewer manager
             m_viewerManager->set3DMode();
-
             qDebug() << "Sketch mode: Restored 3D perspective projection";
         }
 
-        // Restore normal display mode
         if (!m_context.IsNull()) {
             m_context->SetDisplayMode(AIS_Shaded, Standard_False);
             m_context->UpdateCurrentViewer();
@@ -369,18 +333,15 @@ namespace TyrexCAD {
             return;
         }
 
-        // Check if entity with same ID already exists
         if (m_entityMap.find(entity->getId()) != m_entityMap.end()) {
             qWarning() << "Sketch entity with ID" << QString::fromStdString(entity->getId())
                 << "already exists";
             return;
         }
 
-        // Add to collections
         m_sketchEntities.push_back(entity);
         m_entityMap[entity->getId()] = entity;
 
-        // Draw the entity if context is available and we're in sketch mode
         if (!m_context.IsNull() && m_isInSketchMode) {
             drawSketchEntity(entity);
             m_context->UpdateCurrentViewer();
@@ -400,20 +361,17 @@ namespace TyrexCAD {
 
         auto entity = it->second;
 
-        // Remove from display
-        if (!m_context.IsNull()) {
+        if (!m_context.IsNull() && entity) { // Check if entity is not null
             entity->undraw(m_context);
             m_context->UpdateCurrentViewer();
         }
 
-        // Remove from collections
         m_entityMap.erase(it);
         m_sketchEntities.erase(
             std::remove(m_sketchEntities.begin(), m_sketchEntities.end(), entity),
             m_sketchEntities.end()
         );
 
-        // Remove from selection if selected
         m_selectedEntities.erase(
             std::remove(m_selectedEntities.begin(), m_selectedEntities.end(), entity),
             m_selectedEntities.end()
@@ -450,19 +408,14 @@ namespace TyrexCAD {
                 return gp_Pnt2d(0, 0);
             }
 
-            // Use improved 2D conversion
             Standard_Real xv, yv, zv;
             view->Convert(screenPoint.x(), screenPoint.y(), xv, yv, zv);
-
-            // For true 2D mode, we work in the XY plane
             gp_Pnt2d result(xv, yv);
 
-            // Apply grid snapping if enabled
-            if (m_canvasOverlay && m_canvasOverlay->isGridVisible() && m_sketchConfig.grid.snapEnabled) {
+            if (m_canvasOverlay && m_canvasOverlay->isGridVisible() && m_canvasOverlay->getGridConfig().snapEnabled) { // Check m_canvasOverlay
                 result = m_canvasOverlay->snapToGrid(result);
             }
 
-            // Apply ortho mode if enabled
             if (m_sketchConfig.interaction.orthoMode && m_firstPointSet) {
                 result = applyOrthoMode(result);
             }
@@ -477,7 +430,6 @@ namespace TyrexCAD {
 
     gp_Pnt TyrexSketchManager::sketchToWorld(const gp_Pnt2d& sketchPoint) const
     {
-        // Convert 2D sketch coordinates to 3D world coordinates
         return ElSLib::Value(sketchPoint.X(), sketchPoint.Y(), m_sketchPlane);
     }
 
@@ -490,29 +442,23 @@ namespace TyrexCAD {
         m_lastMousePos = screenPos;
         gp_Pnt2d sketchPos = screenToSketch(screenPos);
 
-        // Check for control point selection first
         ControlPoint controlPoint = findControlPointAt(screenPos);
         if (controlPoint.entity != nullptr) {
-            // Start dragging control point
             beginDrag(nullptr, controlPoint, sketchPos);
             m_currentMode = InteractionMode::DragPoint;
             return true;
         }
 
-        // Check for entity selection
         auto entity = findEntityAt(screenPos);
         if (entity) {
-            // Select entity
             clearSelection();
             m_selectedEntities.push_back(entity);
             entity->setSelected(true);
 
-            // Update visuals
             updateSelectionVisuals();
             showControlPoints();
 
-            // Start dragging entity
-            beginDrag(entity, ControlPoint(), sketchPos);
+            beginDrag(entity, ControlPoint(), sketchPos); // Pass an empty ControlPoint
             m_currentMode = InteractionMode::DragObject;
 
             emit entitySelected(entity->getId());
@@ -524,7 +470,6 @@ namespace TyrexCAD {
             return true;
         }
 
-        // No entity selected, clear selection
         clearSelection();
         return false;
     }
@@ -538,7 +483,6 @@ namespace TyrexCAD {
         gp_Pnt2d sketchPos = screenToSketch(screenPos);
 
         if (m_isDragging) {
-            // Handle drag operation
             if (m_currentMode == InteractionMode::DragObject && m_draggedEntity) {
                 updateEntityDrag(m_draggedEntity, sketchPos);
             }
@@ -554,14 +498,12 @@ namespace TyrexCAD {
             return true;
         }
 
-        // Handle hover highlighting
         auto entity = findEntityAt(screenPos);
         if (entity) {
             highlightEntity(entity);
         }
         else {
-            // Clear highlights
-            for (auto& e : m_sketchEntities) {
+            for (auto& e : m_sketchEntities) { // Use reference for shared_ptr
                 unhighlightEntity(e);
             }
         }
@@ -577,7 +519,6 @@ namespace TyrexCAD {
         }
 
         if (m_isDragging) {
-            // End drag operation
             endDrag();
 
             if (!m_context.IsNull()) {
@@ -607,8 +548,8 @@ namespace TyrexCAD {
 
     void TyrexSketchManager::clearSelection()
     {
-        for (auto& entity : m_selectedEntities) {
-            entity->setSelected(false);
+        for (auto& entity : m_selectedEntities) { // Use reference for shared_ptr
+            if (entity) entity->setSelected(false); // Check for null
         }
         m_selectedEntities.clear();
         hideControlPoints();
@@ -638,7 +579,6 @@ namespace TyrexCAD {
             cp.index = i;
             cp.position = points[i];
 
-            // Determine control point type based on entity type and index
             if (entity->getType() == SketchEntityType::Line) {
                 cp.type = ControlPointType::Endpoint;
             }
@@ -656,11 +596,11 @@ namespace TyrexCAD {
         const QPoint& screenPos, double tolerance) const
     {
         ControlPoint result;
-        result.entity = nullptr;
+        result.entity = nullptr; // Explicitly nullify
 
         gp_Pnt2d screenSketch = screenToSketch(screenPos);
 
-        for (auto& entity : m_selectedEntities) {
+        for (auto& entity : m_selectedEntities) { // Use reference
             auto controlPoints = getControlPoints(entity);
 
             for (const auto& cp : controlPoints) {
@@ -681,23 +621,18 @@ namespace TyrexCAD {
             return;
         }
 
-        // Calculate offset from drag start
         gp_Pnt2d offset(newPosition.X() - m_dragStartPosition.X(),
             newPosition.Y() - m_dragStartPosition.Y());
 
-        // Move entity by offset
         entity->moveBy(offset);
         entity->updateShape();
 
-        // Update drag start position for next frame
         m_dragStartPosition = newPosition;
 
-        // Redraw entity
         if (!m_context.IsNull()) {
             drawSketchEntity(entity);
         }
 
-        // Update control points
         updateSelectionVisuals();
 
         emit entityModified(entity->getId());
@@ -710,16 +645,13 @@ namespace TyrexCAD {
             return;
         }
 
-        // Set the new position for the control point
         controlPoint.entity->setControlPoint(controlPoint.index, newPosition);
         controlPoint.entity->updateShape();
 
-        // Redraw entity
         if (!m_context.IsNull()) {
             drawSketchEntity(controlPoint.entity);
         }
 
-        // Update control points
         updateSelectionVisuals();
 
         emit entityModified(controlPoint.entity->getId());
@@ -731,17 +663,14 @@ namespace TyrexCAD {
             return;
         }
 
-        // Update canvas overlay if needed
         if (m_canvasOverlay && m_isInSketchMode) {
             m_canvasOverlay->update();
         }
 
-        // Redraw all entities
-        for (auto& entity : m_sketchEntities) {
+        for (auto& entity : m_sketchEntities) { // Use reference
             drawSketchEntity(entity);
         }
 
-        // Redraw control points if in sketch mode
         if (m_isInSketchMode) {
             showControlPoints();
         }
@@ -760,8 +689,7 @@ namespace TyrexCAD {
             return;
         }
 
-        // Update entity visuals
-        for (auto& entity : m_sketchEntities) {
+        for (auto& entity : m_sketchEntities) { // Use reference
             drawSketchEntity(entity);
         }
     }
@@ -772,11 +700,9 @@ namespace TyrexCAD {
             return;
         }
 
-        // Hide existing control points
         hideControlPoints();
 
-        // Show control points for selected entities
-        for (auto& entity : m_selectedEntities) {
+        for (auto& entity : m_selectedEntities) { // Use reference
             auto controlPoints = getControlPoints(entity);
 
             for (const auto& cp : controlPoints) {
@@ -797,8 +723,7 @@ namespace TyrexCAD {
             return;
         }
 
-        // Remove all control point visuals
-        for (auto& visual : m_controlPointObjects) {
+        for (auto& visual : m_controlPointObjects) { // Use reference
             if (!visual.IsNull()) {
                 m_context->Remove(visual, Standard_False);
             }
@@ -815,25 +740,22 @@ namespace TyrexCAD {
         }
 
         try {
-            // Convert 2D point to 3D
             gp_Pnt worldPoint = sketchToWorld(point.position);
-
-            // Create a geometric point
             Handle(Geom_CartesianPoint) geomPoint = new Geom_CartesianPoint(worldPoint);
             Handle(AIS_Point) aisPoint = new AIS_Point(geomPoint);
 
-            // Set appearance based on control point type
             Quantity_Color pointColor = (point.type == ControlPointType::Endpoint) ?
                 Quantity_NOC_YELLOW : Quantity_NOC_CYAN;
 
-            // إنشاء PointAspect بالطريقة الصحيحة
-            Handle(Prs3d_PointAspect) pointAspect = new Prs3d_PointAspect(
-                Aspect_TOM_STAR, pointColor, 10.0);
+            // Correctly create Prs3d_PointAspect
+            // The Aspect_TOM_STAR enum value must be used directly.
+            Handle(Prs3d_PointAspect) pointAspect = new Prs3d_PointAspect(Aspect_TOM_STAR, pointColor, 10.0);
 
-            // تطبيق الخصائص
+
             if (!aisPoint->Attributes().IsNull()) {
                 aisPoint->Attributes()->SetPointAspect(pointAspect);
-            } else {
+            }
+            else {
                 Handle(Prs3d_Drawer) drawer = new Prs3d_Drawer();
                 drawer->SetPointAspect(pointAspect);
                 aisPoint->SetAttributes(drawer);
@@ -882,8 +804,8 @@ namespace TyrexCAD {
     {
         gp_Pnt2d sketchPos = screenToSketch(screenPos);
 
-        for (auto& entity : m_sketchEntities) {
-            if (entity->isNearPoint(sketchPos, tolerance)) {
+        for (auto& entity : m_sketchEntities) { // Use reference
+            if (entity && entity->isNearPoint(sketchPos, tolerance)) { // Check for null
                 return entity;
             }
         }
@@ -909,10 +831,9 @@ namespace TyrexCAD {
 
         m_isDragging = false;
         m_draggedEntity = nullptr;
-        m_draggedControlPoint.entity = nullptr;
+        m_draggedControlPoint.entity = nullptr; // Reset dragged control point entity
         m_currentMode = InteractionMode::ObjectSelect;
 
-        // Update control points after drag
         showControlPoints();
     }
 
@@ -920,14 +841,9 @@ namespace TyrexCAD {
     {
         if (!m_firstPointSet) return point;
 
-        // Calculate angle from first point to current point
         gp_Vec2d vec(m_firstPoint, point);
         double angle = atan2(vec.Y(), vec.X()) * 180.0 / M_PI;
-
-        // Round to nearest ortho angle (0, 90, 180, 270)
         double orthoAngle = round(angle / 90.0) * 90.0;
-
-        // Apply ortho constraint
         double distance = m_firstPoint.Distance(point);
         double radians = orthoAngle * M_PI / 180.0;
 
@@ -942,11 +858,8 @@ namespace TyrexCAD {
         if (!entity || m_context.IsNull()) return;
 
         try {
-            // Apply entity styling based on configuration
             if (!entity->getAISShape().IsNull()) {
                 Handle(AIS_Shape) shape = entity->getAISShape();
-
-                // تحديد اللون والعرض بناءً على حالة الكائن
                 Quantity_Color entityColor;
                 Standard_Real lineWidth;
 
@@ -963,17 +876,14 @@ namespace TyrexCAD {
                     lineWidth = m_sketchConfig.entityDisplay.defaultLineWidth;
                 }
 
-                // تطبيق اللون على الشكل
                 shape->SetColor(entityColor);
-
-                // إنشاء LineAspect بالطريقة الصحيحة
                 Handle(Prs3d_LineAspect) lineAspect = new Prs3d_LineAspect(
                     entityColor, Aspect_TOL_SOLID, lineWidth);
 
-                // تطبيق الخصائص على الشكل
                 if (!shape->Attributes().IsNull()) {
                     shape->Attributes()->SetLineAspect(lineAspect);
-                } else {
+                }
+                else {
                     Handle(Prs3d_Drawer) drawer = new Prs3d_Drawer();
                     drawer->SetLineAspect(lineAspect);
                     shape->SetAttributes(drawer);

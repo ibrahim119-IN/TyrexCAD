@@ -1,8 +1,8 @@
 ﻿/***************************************************************************
- *   Copyright (c) 2025 TyrexCAD development team                          *
- *                                                                         *
- *   This file is part of the TyrexCAD CAx development system.             *
- *                                                                         *
+ * Copyright (c) 2025 TyrexCAD development team                          *
+ * *
+ * This file is part of the TyrexCAD CAx development system.             *
+ * *
  ***************************************************************************/
 
 #ifndef TYREX_MAIN_WINDOW_H
@@ -10,10 +10,12 @@
 
 #include <QMainWindow>
 #include <memory>
-#include <QTimer>
+#include <QTimer> // For QTimer
+#include <QLabel> // For QLabel
+#include <QInputDialog> // For QInputDialog
 
  // Include required headers
-#include "TyrexCore/TyrexCommandManager.h"
+#include "TyrexCore/TyrexCommandManager.h" // Assuming this exists and is correct
 
 // OpenCascade includes
 #include <Standard_Handle.hxx>
@@ -29,6 +31,11 @@ namespace TyrexCAD {
     class TyrexViewerManager;
     class TyrexModelSpace;
     class TyrexSketchManager;
+    // Forward declare GridConfig and GridStyle if their full definition (from TyrexCanvasOverlay.h)
+    // isn't available through other includes here.
+    // However, TyrexViewWidget will likely need the full definition.
+    // struct GridConfig; // Forward declaration if needed
+    // enum class GridStyle; // Forward declaration if needed
 
     class TyrexMainWindow : public QMainWindow
     {
@@ -180,14 +187,26 @@ namespace TyrexCAD {
          */
         void updateStatusBar(const QString& message);
 
+        /**
+         * @brief Setup status bar with widgets
+         */
+        void setupStatusBar();
+
+        /**
+         * @brief Create view menu
+         */
+        void createViewMenu();
+
+        /**
+         * @brief Initialize connections between components
+         */
+        void initializeConnections();
+
     private:
         // === CORE COMPONENTS ===
-        // Using smart pointers for RAII
         std::shared_ptr<TyrexViewerManager> m_viewerManager;
         std::unique_ptr<TyrexModelSpace> m_modelSpace;
-
-        // Command manager
-        TyrexCommandManager* m_commandManager = nullptr;
+        TyrexCommandManager* m_commandManager; // Owned by TyrexMainWindow
 
         // === SKETCH SYSTEM ===
         std::shared_ptr<TyrexSketchManager> m_sketchManager;
@@ -225,6 +244,10 @@ namespace TyrexCAD {
         QAction* m_gridDotsAction;
         QAction* m_gridCrossesAction;
 
+        // === ADVANCED GRID ACTIONS ===
+        QAction* m_gridSpacingAction;          // Added
+        QAction* m_toggleCoordinatesAction;  // Added
+
         // === MENUS ===
         QMenu* m_fileMenu;
         QMenu* m_editMenu;
@@ -240,20 +263,10 @@ namespace TyrexCAD {
         QToolBar* m_viewToolBar;
         QToolBar* m_drawToolBar;
         QToolBar* m_sketchToolBar;  // New sketch toolbar
-        
 
-        // === ADVANCED GRID ACTIONS ===
-        QAction* m_gridSpacingAction;
-        QAction* m_toggleCoordinatesAction;
-
-        // Status bar widgets
-        QLabel* m_coordinateLabel;
-        QLabel* m_gridStatusLabel;
-
-        // In the private methods section, add:
-        void setupStatusBar();
-        void createViewMenu();
-        void initializeConnections();
+        // === STATUS BAR WIDGETS ===
+        QLabel* m_coordinateLabel;        // Added
+        QLabel* m_gridStatusLabel;          // Added
     };
 
 } // namespace TyrexCAD
