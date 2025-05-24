@@ -1117,6 +1117,8 @@ namespace TyrexCAD {
                 "Version: 1.0.0\n"
                 "Build: Development"));
     }
+    // Add these methods to TyrexMainWindow.cpp
+
     void TyrexMainWindow::createAdvancedSketchActions()
     {
         // Grid toggle action  
@@ -1134,7 +1136,7 @@ namespace TyrexCAD {
             }
             });
 
-        // Grid spacing controls
+        // Grid spacing action
         m_gridSpacingAction = new QAction(tr("Grid &Spacing..."), this);
         connect(m_gridSpacingAction, &QAction::triggered, this, [this]() {
             auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
@@ -1156,5 +1158,154 @@ namespace TyrexCAD {
                 }
             }
             });
+
+        // Snap toggle action
+        m_toggleSnapAction = new QAction(tr("Toggle &Snap"), this);
+        m_toggleSnapAction->setShortcut(QKeySequence(tr("F9")));
+        m_toggleSnapAction->setCheckable(true);
+        m_toggleSnapAction->setChecked(true);
+        m_toggleSnapAction->setStatusTip(tr("Toggle grid snap"));
+        connect(m_toggleSnapAction, &QAction::triggered, this, [this](bool checked) {
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                GridConfig config = viewWidget->getGridConfig();
+                config.snapEnabled = checked;
+                viewWidget->setGridConfig(config);
+                statusBar()->showMessage(checked ? "Snap ON" : "Snap OFF", 2000);
+            }
+            });
+
+        // Ortho mode action
+        m_toggleOrthoAction = new QAction(tr("Toggle &Ortho"), this);
+        m_toggleOrthoAction->setShortcut(QKeySequence(tr("F8")));
+        m_toggleOrthoAction->setCheckable(true);
+        m_toggleOrthoAction->setChecked(false);
+        m_toggleOrthoAction->setStatusTip(tr("Toggle orthogonal mode"));
+        connect(m_toggleOrthoAction, &QAction::triggered, this, [this](bool checked) {
+            // TODO: Implement ortho mode in sketch manager
+            statusBar()->showMessage(checked ? "Ortho ON" : "Ortho OFF", 2000);
+            });
+
+        // Grid style actions
+        m_gridStyleGroup = new QActionGroup(this);
+
+        m_gridLinesAction = new QAction(tr("Grid &Lines"), this);
+        m_gridLinesAction->setCheckable(true);
+        m_gridLinesAction->setChecked(true);
+        m_gridStyleGroup->addAction(m_gridLinesAction);
+        connect(m_gridLinesAction, &QAction::triggered, this, [this]() {
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                viewWidget->setGridStyle(GridStyle::Lines);
+                statusBar()->showMessage("Grid style: Lines", 2000);
+            }
+            });
+
+        m_gridDotsAction = new QAction(tr("Grid &Dots"), this);
+        m_gridDotsAction->setCheckable(true);
+        m_gridStyleGroup->addAction(m_gridDotsAction);
+        connect(m_gridDotsAction, &QAction::triggered, this, [this]() {
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                viewWidget->setGridStyle(GridStyle::Dots);
+                statusBar()->showMessage("Grid style: Dots", 2000);
+            }
+            });
+
+        m_gridCrossesAction = new QAction(tr("Grid &Crosses"), this);
+        m_gridCrossesAction->setCheckable(true);
+        m_gridStyleGroup->addAction(m_gridCrossesAction);
+        connect(m_gridCrossesAction, &QAction::triggered, this, [this]() {
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                viewWidget->setGridStyle(GridStyle::Crosses);
+                statusBar()->showMessage("Grid style: Crosses", 2000);
+            }
+            });
+
+        // Coordinate display toggle
+        m_toggleCoordinatesAction = new QAction(tr("Show &Coordinates"), this);
+        m_toggleCoordinatesAction->setCheckable(true);
+        m_toggleCoordinatesAction->setChecked(false);
+        m_toggleCoordinatesAction->setStatusTip(tr("Show cursor coordinates"));
+        connect(m_toggleCoordinatesAction, &QAction::triggered, this, [this](bool checked) {
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                viewWidget->setCoordinateDisplayEnabled(checked);
+                statusBar()->showMessage(checked ? "Coordinates ON" : "Coordinates OFF", 2000);
+            }
+            });
     }
+
+    void TyrexMainWindow::setupSketchModeToolbars()
+    {
+        // Add sketch-specific toolbar items
+        if (m_sketchToolBar) {
+            m_sketchToolBar->addSeparator();
+            m_sketchToolBar->addAction(m_toggleGridAction);
+            m_sketchToolBar->addAction(m_toggleSnapAction);
+            m_sketchToolBar->addAction(m_toggleOrthoAction);
+            m_sketchToolBar->addAction(m_toggleCoordinatesAction);
+            m_sketchToolBar->addSeparator();
+
+            // Grid style submenu
+            QToolButton* gridStyleButton = new QToolButton();
+            gridStyleButton->setText("Grid Style");
+            gridStyleButton->setPopupMode(QToolButton::InstantPopup);
+
+            QMenu* gridStyleMenu = new QMenu(gridStyleButton);
+            gridStyleMenu->addAction(m_gridLinesAction);
+            gridStyleMenu->addAction(m_gridDotsAction);
+            gridStyleMenu->addAction(m_gridCrossesAction);
+            gridStyleMenu->addSeparator();
+            gridStyleMenu->addAction(m_gridSpacingAction);
+            gridStyleButton->setMenu(gridStyleMenu);
+
+            m_sketchToolBar->addWidget(gridStyleButton);
+        }
+    }
+
+    void TyrexMainWindow::createViewMenu()
+    {
+        m_viewMenu = menuBar()->addMenu(tr("&View"));
+
+        // Grid submenu
+        QMenu* gridMenu = m_viewMenu->addMenu(tr("&Grid"));
+        gridMenu->addAction(m_toggleGridAction);
+        gridMenu->addAction(m_toggleSnapAction);
+        gridMenu->addSeparator();
+        gridMenu->addAction(m_gridLinesAction);
+        gridMenu->addAction(m_gridDotsAction);
+        gridMenu->addAction(m_gridCrossesAction);
+        gridMenu->addSeparator();
+        gridMenu->addAction(m_gridSpacingAction);
+
+        m_viewMenu->addSeparator();
+        m_viewMenu->addAction(m_toggleCoordinatesAction);
+        m_viewMenu->addSeparator();
+        m_viewMenu->addAction(m_testGeometryAction);
+    }
+
+    void TyrexMainWindow::initializeConnections()
+    {
+        // Connect to view widget signals
+        auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+        if (viewWidget) {
+            // Connect cursor position updates
+            connect(viewWidget, &TyrexViewWidget::cursorWorldPosition,
+                this, [this](double x, double y) {
+                    // Update status bar with current position
+                    QString posText = QString("X: %1, Y: %2")
+                        .arg(x, 0, 'f', 2)
+                        .arg(y, 0, 'f', 2);
+
+                    // Update a permanent widget in status bar
+                    if (m_coordinateLabel) {
+                        m_coordinateLabel->setText(posText);
+                    }
+                });
+        }
+    }
+
+    
 } // namespace TyrexCAD

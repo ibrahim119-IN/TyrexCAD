@@ -1,11 +1,9 @@
 ﻿/***************************************************************************
- * TyrexViewWidget Integration with Grid Overlay System
+ * TyrexViewWidget Integration with Enhanced Grid Overlay System
  *
  * This shows how to integrate TyrexGridOverlayRenderer with the existing
- * TyrexViewWidget to achieve AutoCAD-style grid rendering.
+ * TyrexViewWidget to achieve AutoCAD-style grid rendering with multiple styles.
  ***************************************************************************/
-
- // === HEADER MODIFICATIONS (TyrexViewWidget.h) ===
 
 #ifndef TYREX_VIEW_WIDGET_H
 #define TYREX_VIEW_WIDGET_H
@@ -13,9 +11,9 @@
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 #include <memory>
-#include "TyrexGridOverlayRenderer.h" // Add this include
+#include "TyrexRendering/TyrexGridOverlayRenderer.h" // Updated include
 
-// Forward declarations
+ // Forward declarations
 class V3d_View;
 
 namespace TyrexCAD {
@@ -33,7 +31,7 @@ namespace TyrexCAD {
         std::shared_ptr<TyrexViewerManager> viewerManager() const;
         TyrexInteractionManager* interactionManager() const;
 
-        // === NEW: Grid control methods ===
+        // === Grid control methods ===
         /**
          * @brief Enable/disable grid rendering
          * @param enabled True to show grid
@@ -59,6 +57,18 @@ namespace TyrexCAD {
         const GridConfig& getGridConfig() const;
 
         /**
+         * @brief Set grid style
+         * @param style Grid rendering style
+         */
+        void setGridStyle(GridStyle style);
+
+        /**
+         * @brief Get current grid style
+         * @return Current grid style
+         */
+        GridStyle getGridStyle() const;
+
+        /**
          * @brief Snap point to grid
          * @param worldX Input world X coordinate
          * @param worldY Input world Y coordinate
@@ -69,9 +79,43 @@ namespace TyrexCAD {
         bool snapToGrid(double worldX, double worldY,
             double& snappedX, double& snappedY) const;
 
+        /**
+         * @brief Convert screen point to world coordinates
+         * @param screenPos Screen position
+         * @param worldX Output world X
+         * @param worldY Output world Y
+         */
+        void screenToWorld(const QPoint& screenPos,
+            double& worldX, double& worldY) const;
+
+        /**
+         * @brief Get current grid spacing
+         * @return Current effective grid spacing
+         */
+        double getCurrentGridSpacing() const;
+
+        /**
+         * @brief Enable/disable coordinate display
+         * @param enabled True to show coordinates
+         */
+        void setCoordinateDisplayEnabled(bool enabled);
+
+        /**
+         * @brief Check if coordinate display is enabled
+         * @return True if coordinates are shown
+         */
+        bool isCoordinateDisplayEnabled() const;
+
+        /**
+         * @brief Set sketch mode grid configuration
+         * @param enabled True to use sketch-specific settings
+         */
+        void setSketchModeGrid(bool enabled);
+
     signals:
         void viewerInitialized();
-        void gridConfigChanged(); // New signal
+        void gridConfigChanged();
+        void cursorWorldPosition(double x, double y); // New signal
 
     protected:
         // OpenGL rendering
@@ -87,67 +131,22 @@ namespace TyrexCAD {
 
     private:
         void initializeManagers();
-        void setupGridRenderer(); // New method
+        void setupGridRenderer();
+        void updateCursorPosition(const QPoint& pos);
 
     private:
         std::shared_ptr<TyrexViewerManager> m_viewerManager;
         std::unique_ptr<TyrexInteractionManager> m_interactionManager;
 
-        // === NEW: Grid overlay renderer ===
+        // === Grid overlay renderer ===
         std::unique_ptr<TyrexGridOverlayRenderer> m_gridRenderer;
         bool m_gridInitialized;
+
+        // Current cursor position for coordinate display
+        QPoint m_currentCursorPos;
+        bool m_cursorInWidget;
     };
 
 } // namespace TyrexCAD
 
 #endif // TYREX_VIEW_WIDGET_H
-
-
-
-
-// === USAGE EXAMPLE IN MAIN WINDOW ===
-
-// In TyrexMainWindow.cpp, add grid controls:
-
-void TyrexMainWindow::createAdvancedSketchActions()
-{
-    // Grid toggle action  
-    m_toggleGridAction = new QAction(tr("Toggle &Grid"), this);
-    m_toggleGridAction->setShortcut(QKeySequence(tr("F7")));
-    m_toggleGridAction->setCheckable(true);
-    m_toggleGridAction->setChecked(true);
-    m_toggleGridAction->setStatusTip(tr("Toggle grid visibility"));
-
-    connect(m_toggleGridAction, &QAction::triggered, this, [this](bool checked) {
-        auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-        if (viewWidget) {
-            viewWidget->setGridEnabled(checked);
-            statusBar()->showMessage(checked ? "Grid ON" : "Grid OFF", 2000);
-        }
-        });
-
-    // Grid spacing controls
-    m_gridSpacingAction = new QAction(tr("Grid &Spacing..."), this);
-    connect(m_gridSpacingAction, &QAction::triggered, this, [this]() {
-        auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-        if (viewWidget) {
-            GridConfig config = viewWidget->getGridConfig();
-
-            // Show grid configuration dialog
-            bool ok;
-            double newSpacing = QInputDialog::getDouble(this,
-                tr("Grid Spacing"),
-                tr("Enter grid spacing:"),
-                config.baseSpacing, 0.1, 1000.0, 2, &ok);
-
-            if (ok) {
-                config.baseSpacing = newSpacing;
-                viewWidget->setGridConfig(config);
-                statusBar()->showMessage(
-                    QString("Grid spacing set to %1").arg(newSpacing), 2000);
-            }
-        }
-        });
-}
-
-/

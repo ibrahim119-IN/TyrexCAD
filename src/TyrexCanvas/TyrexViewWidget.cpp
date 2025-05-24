@@ -26,6 +26,7 @@
 #include <QTimer>
 #include <QOpenGLContext>
 #include <QSurfaceFormat>
+
 namespace TyrexCAD {
 
     TyrexViewWidget::TyrexViewWidget(QWidget* parent)
@@ -34,6 +35,8 @@ namespace TyrexCAD {
         , m_interactionManager(nullptr)
         , m_gridRenderer(nullptr)
         , m_gridInitialized(false)
+        , m_currentCursorPos(-1, -1)
+        , m_cursorInWidget(false)
     {
         // Set widget properties for optimal OpenGL rendering
         setAttribute(Qt::WA_OpaquePaintEvent);
@@ -42,7 +45,7 @@ namespace TyrexCAD {
         setFocusPolicy(Qt::StrongFocus);
         setMinimumSize(400, 300);
 
-        qDebug() << "TyrexViewWidget constructed with grid support";
+        qDebug() << "TyrexViewWidget constructed with enhanced grid support";
 
         // Initialize after construction
         QTimer::singleShot(50, this, &TyrexViewWidget::initializeManagers);
@@ -56,6 +59,16 @@ namespace TyrexCAD {
         doneCurrent();
 
         qDebug() << "TyrexViewWidget destructor completed";
+    }
+
+    std::shared_ptr<TyrexViewerManager> TyrexViewWidget::viewerManager() const
+    {
+        return m_viewerManager;
+    }
+
+    TyrexInteractionManager* TyrexViewWidget::interactionManager() const
+    {
+        return m_interactionManager.get();
     }
 
     void TyrexViewWidget::initializeGL()
@@ -100,8 +113,8 @@ namespace TyrexCAD {
         // === 2. Render grid overlay on top ===
         if (m_gridRenderer && m_gridInitialized) {
             try {
-                // Render grid as screen overlay
-                m_gridRenderer->render(width(), height());
+                // Render grid with current cursor position for coordinate display
+                m_gridRenderer->render(width(), height(), m_currentCursorPos);
             }
             catch (const std::exception& ex) {
                 qWarning() << "Grid rendering error:" << ex.what();
@@ -156,12 +169,15 @@ namespace TyrexCAD {
             config.adaptiveSpacing = true;
             config.minPixelSpacing = 20.0;
             config.maxPixelSpacing = 80.0;
+            config.style = GridStyle::Lines;                // Default to lines
+            config.showCoordinates = false;                  // Off by default
+            config.snapEnabled = true;
 
             m_gridRenderer->setGridConfig(config);
             m_gridRenderer->setGridEnabled(true); // Enable by default
             m_gridInitialized = true;
 
-            qDebug() << "Grid renderer initialized successfully";
+            qDebug() << "Grid renderer initialized successfully with enhanced features";
 
         }
         catch (const std::exception& ex) {
@@ -233,7 +249,7 @@ namespace TyrexCAD {
                 });
 
             emit viewerInitialized();
-            qDebug() << "Manager initialization completed with grid integration";
+            qDebug() << "Manager initialization completed with enhanced grid integration";
 
         }
         catch (const Standard_Failure& ex) {
@@ -247,7 +263,7 @@ namespace TyrexCAD {
         }
     }
 
-    // === NEW: Grid control methods implementation ===
+    // === Grid control methods implementation ===
 
     void TyrexViewWidget::setGridEnabled(bool enabled)
     {
@@ -279,6 +295,20 @@ namespace TyrexCAD {
         return m_gridRenderer ? m_gridRenderer->getGridConfig() : defaultConfig;
     }
 
+    void TyrexViewWidget::setGridStyle(GridStyle style)
+    {
+        if (m_gridRenderer) {
+            m_gridRenderer->setGridStyle(style);
+            update(); // Trigger repaint
+            qDebug() << "Grid style changed to:" << static_cast<int>(style);
+        }
+    }
+
+    GridStyle TyrexViewWidget::getGridStyle() const
+    {
+        return m_gridRenderer ? m_gridRenderer->getGridStyle() : GridStyle::Lines;
+    }
+
     bool TyrexViewWidget::snapToGrid(double worldX, double worldY,
         double& snappedX, double& snappedY) const
     {
@@ -291,7 +321,74 @@ namespace TyrexCAD {
         return false;
     }
 
-    // === Event handling remains the same ===
+    void TyrexViewWidget::screenToWorld(const QPoint& screenPos,
+        double& worldX, double& worldY) const
+    {
+        if (m_gridRenderer) {
+            m_gridRenderer->screenToWorld(screenPos.x(), screenPos.y(), worldX, worldY);
+        }
+        else {
+            worldX = screenPos.x();
+            worldY = screenPos.y();
+        }
+    }
+
+    double TyrexViewWidget::getCurrentGridSpacing() const
+    {
+        return m_gridRenderer ? m_gridRenderer->getCurrentGridSpacing() : 1.0;
+    }
+
+    void TyrexViewWidget::setCoordinateDisplayEnabled(bool enabled)
+    {
+        if (m_gridRenderer) {
+            GridConfig config = m_gridRenderer->getGridConfig();
+            config.showCoordinates = enabled;
+            m_gridRenderer->setGridConfig(config);
+            update();
+        }
+    }
+
+    bool TyrexViewWidget::isCoordinateDisplayEnabled() const
+    {
+        return m_gridRenderer ? m_gridRenderer->getGridConfig().showCoordinates : false;
+    }
+
+    void TyrexViewWidget::setSketchModeGrid(bool enabled)
+    {
+        if (!m_gridRenderer) {
+            return;
+        }
+
+        if (enabled) {
+            // Use sketch-specific grid settings
+            GridConfig sketchConfig;
+            sketchConfig.baseSpacing = 10.0;
+            sketchConfig.majorFactor = 5;
+            sketchConfig.minorColor = QColor(60, 60, 60, 150);
+            sketchConfig.majorColor = QColor(100, 100, 100, 200);
+            sketchConfig.axisColorX = QColor(255, 0, 0, 255);
+            sketchConfig.axisColorY = QColor(0, 255, 0, 255);
+            sketchConfig.showAxes = true;
+            sketchConfig.showOriginMarker = true;
+            sketchConfig.style = GridStyle::Lines;
+            sketchConfig.showCoordinates = true;
+            sketchConfig.snapEnabled = true;
+            sketchConfig.adaptiveSpacing = true;
+
+            m_gridRenderer->setGridConfig(sketchConfig);
+            m_gridRenderer->setGridEnabled(true);
+        }
+        else {
+            // Restore default grid settings
+            GridConfig defaultConfig;
+            m_gridRenderer->setGridConfig(defaultConfig);
+        }
+
+        update();
+    }
+
+    // === Event handling with cursor tracking ===
+
     void TyrexViewWidget::mousePressEvent(QMouseEvent* e)
     {
         if (m_interactionManager) {
@@ -302,6 +399,9 @@ namespace TyrexCAD {
 
     void TyrexViewWidget::mouseMoveEvent(QMouseEvent* e)
     {
+        // Update cursor position for coordinate display
+        updateCursorPosition(e->pos());
+
         if (m_interactionManager) {
             m_interactionManager->onMouseMove(e->pos(), e->modifiers());
         }
@@ -322,6 +422,31 @@ namespace TyrexCAD {
             m_interactionManager->onMouseWheel(e->angleDelta().y(), e->position().toPoint());
         }
         e->accept();
+    }
+
+    void TyrexViewWidget::updateCursorPosition(const QPoint& pos)
+    {
+        m_currentCursorPos = pos;
+        m_cursorInWidget = true;
+
+        // Emit world position signal if grid renderer is available
+        if (m_gridRenderer) {
+            double worldX, worldY;
+            screenToWorld(pos, worldX, worldY);
+
+            // Apply snap if enabled
+            double snappedX = worldX, snappedY = worldY;
+            if (m_gridRenderer->getGridConfig().snapEnabled) {
+                m_gridRenderer->snapToGrid(worldX, worldY, snappedX, snappedY);
+            }
+
+            emit cursorWorldPosition(snappedX, snappedY);
+        }
+
+        // Trigger repaint to update coordinate display
+        if (isCoordinateDisplayEnabled()) {
+            update();
+        }
     }
 
 } // namespace TyrexCAD

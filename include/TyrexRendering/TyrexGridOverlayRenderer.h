@@ -13,13 +13,25 @@
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
 #include <QColor>
+#include <QFont>
+#include <QPoint>
 #include <vector>
+#include <memory>
 
  // OpenCascade includes
 #include <V3d_View.hxx>
 #include <Standard_Handle.hxx>
 
 namespace TyrexCAD {
+
+    /**
+     * @brief Grid rendering style options
+     */
+    enum class GridStyle {
+        Lines,      ///< Traditional line grid
+        Dots,       ///< Dot grid at intersections
+        Crosses     ///< Small crosses at intersections
+    };
 
     /**
      * @brief AutoCAD-style grid configuration
@@ -45,21 +57,37 @@ namespace TyrexCAD {
         float majorLineWidth = 1.5f;        ///< Major line thickness
         float axisLineWidth = 2.0f;         ///< Axis line thickness
 
+        // Grid style
+        GridStyle style = GridStyle::Lines; ///< Grid rendering style
+        float dotSize = 3.0f;               ///< Size of dots for dot grid
+        float crossSize = 5.0f;             ///< Size of crosses for cross grid
+
         // Display options
         bool showAxes = true;               ///< Show X/Y axes at origin
         bool showOriginMarker = true;       ///< Show special marker at (0,0)
         float originMarkerSize = 8.0f;      ///< Origin marker size in pixels
 
+        // Coordinate display
+        bool showCoordinates = false;       ///< Show cursor coordinates
+        QFont coordinateFont = QFont("Arial", 10);
+        QColor coordinateColor = QColor(255, 255, 255, 200);
+        QPoint coordinateOffset = QPoint(10, 10);
+
+        // Snap settings
+        bool snapEnabled = true;            ///< Enable snap to grid
+        double snapTolerance = 0.5;         ///< Snap tolerance factor
+
         // Performance limits
         int maxGridLinesH = 500;            ///< Max horizontal lines
         int maxGridLinesV = 500;            ///< Max vertical lines
+        int maxDots = 10000;                ///< Max dots for dot grid
     };
 
     /**
      * @brief High-performance OpenGL grid overlay renderer
      *
-     * Renders AutoCAD-style grid using direct OpenGL calls, pixel-aligned
-     * and independent from the AIS scene geometry.
+     * Renders AutoCAD-style grid using modern OpenGL with shaders,
+     * pixel-aligned and independent from the AIS scene geometry.
      */
     class TyrexGridOverlayRenderer : protected QOpenGLFunctions
     {
@@ -117,13 +145,26 @@ namespace TyrexCAD {
         const GridConfig& getGridConfig() const;
 
         /**
+         * @brief Set grid rendering style
+         * @param style New grid style
+         */
+        void setGridStyle(GridStyle style);
+
+        /**
+         * @brief Get current grid style
+         * @return Current grid style
+         */
+        GridStyle getGridStyle() const;
+
+        /**
          * @brief Main rendering entry point
          *
          * Call this at the end of paintGL() after all scene geometry
          * @param viewportWidth Viewport width in pixels
          * @param viewportHeight Viewport height in pixels
+         * @param cursorPos Current cursor position (for coordinate display)
          */
-        void render(int viewportWidth, int viewportHeight);
+        void render(int viewportWidth, int viewportHeight, const QPoint& cursorPos = QPoint(-1, -1));
 
         /**
          * @brief Snap point to grid intersection
@@ -142,6 +183,16 @@ namespace TyrexCAD {
          */
         double getCurrentGridSpacing() const;
 
+        /**
+         * @brief Convert screen point to world coordinates
+         * @param screenX Screen X coordinate
+         * @param screenY Screen Y coordinate
+         * @param worldX Output world X
+         * @param worldY Output world Y
+         */
+        void screenToWorld(int screenX, int screenY,
+            double& worldX, double& worldY) const;
+
     private:
         // Core state
         Handle(V3d_View) m_view;
@@ -157,10 +208,17 @@ namespace TyrexCAD {
         int m_viewportWidth, m_viewportHeight;
 
         // OpenGL resources
-        QOpenGLShaderProgram* m_shaderProgram;
-        QOpenGLBuffer* m_vertexBuffer;
-        QOpenGLVertexArrayObject* m_vao;
+        std::unique_ptr<QOpenGLShaderProgram> m_shaderProgram;
+        std::unique_ptr<QOpenGLShaderProgram> m_textShaderProgram;
+        std::unique_ptr<QOpenGLBuffer> m_vertexBuffer;
+        std::unique_ptr<QOpenGLVertexArrayObject> m_vao;
         std::vector<float> m_vertices;
+
+        // Performance optimization
+        GLuint m_gridVBO;
+        GLuint m_gridVAO;
+        bool m_vboDirty;
+        std::vector<float> m_cachedVertices;
 
         // Internal methods
         void updateViewBounds();
@@ -169,6 +227,16 @@ namespace TyrexCAD {
         void renderGrid();
         void renderAxes();
         void renderOriginMarker();
+        void renderCoordinateDisplay(const QPoint& cursorPos);
+
+        // Style-specific rendering
+        void renderGridLines();
+        void renderGridDots();
+        void renderGridCrosses();
+
+        // VBO management
+        void updateVBO();
+        void createVBOForStyle();
 
         // OpenGL utilities
         bool createShaders();
@@ -178,12 +246,16 @@ namespace TyrexCAD {
         // Coordinate conversion helpers
         void worldToScreen(double worldX, double worldY,
             float& screenX, float& screenY) const;
-        void screenToWorld(float screenX, float screenY,
+        void screenToWorldInternal(float screenX, float screenY,
             double& worldX, double& worldY) const;
 
         // Performance optimization
         bool shouldRenderGrid() const;
         int clampGridLineCount(int proposedCount, int maxCount) const;
+        bool isIntersectionVisible(double x, double y) const;
+
+        // Text rendering
+        void renderText(const QString& text, float x, float y, const QColor& color);
 
         // Helper struct for color with alpha
         struct QColor4ub {
@@ -192,6 +264,12 @@ namespace TyrexCAD {
                 unsigned char b = 0, unsigned char a = 255)
                 : r(r), g(g), b(b), a(a) {
             }
+        };
+
+        // Vertex structure for VBO
+        struct GridVertex {
+            float x, y;
+            float r, g, b, a;
         };
     };
 

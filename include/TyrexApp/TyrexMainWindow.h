@@ -240,6 +240,20 @@ namespace TyrexCAD {
         QToolBar* m_viewToolBar;
         QToolBar* m_drawToolBar;
         QToolBar* m_sketchToolBar;  // New sketch toolbar
+        
+
+        // === ADVANCED GRID ACTIONS ===
+        QAction* m_gridSpacingAction;
+        QAction* m_toggleCoordinatesAction;
+
+        // Status bar widgets
+        QLabel* m_coordinateLabel;
+        QLabel* m_gridStatusLabel;
+
+        // In the private methods section, add:
+        void setupStatusBar();
+        void createViewMenu();
+        void initializeConnections();
     };
 
 } // namespace TyrexCAD
