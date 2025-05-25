@@ -136,6 +136,10 @@ namespace TyrexCAD {
     {
         if (m_canvasOverlay) {
             m_canvasOverlay->setGridStyle(style);
+            // Also update the grid renderer to match
+            if (m_gridRenderer && m_gridInitialized) {
+                m_gridRenderer->setGridStyle(style);
+            }
             update();
         }
     }
@@ -150,13 +154,20 @@ namespace TyrexCAD {
 
     bool TyrexViewWidget::snapToGrid(double worldX, double worldY, double& snappedX, double& snappedY) const
     {
-        if (m_canvasOverlay) {
+        if (m_canvasOverlay && m_canvasOverlay->getGridConfig().snapEnabled) {
             gp_Pnt2d point(worldX, worldY);
             gp_Pnt2d snapped = m_canvasOverlay->snapToGrid(point);
             snappedX = snapped.X();
             snappedY = snapped.Y();
             return (snappedX != worldX || snappedY != worldY);
         }
+        else if (m_gridRenderer && m_gridInitialized) {
+            // Fallback to grid renderer for snapping if canvas overlay isn't available
+            return m_gridRenderer->snapToGrid(worldX, worldY, snappedX, snappedY);
+        }
+        
+        snappedX = worldX;
+        snappedY = worldY;
         return false;
     }
 
@@ -233,8 +244,16 @@ namespace TyrexCAD {
         if (m_viewerManager) {
             m_viewerManager->initializeViewer(this);
             
-            // Initialize OpenGL based grid renderer
+            // Initialize overlay first to establish the canvas system
+            initializeOverlay();
+            
+            // Now initialize OpenGL based grid renderer with proper connections to view
             if (m_gridRenderer) {
+                // Connect grid renderer to the view
+                if (!m_viewerManager->view().IsNull()) {
+                    m_gridRenderer->setView(m_viewerManager->view());
+                }
+                
                 bool success = m_gridRenderer->initialize();
                 if (!success) {
                     qWarning() << "Failed to initialize grid renderer";
@@ -242,10 +261,14 @@ namespace TyrexCAD {
                 else {
                     qDebug() << "Grid renderer initialized successfully";
                     m_gridInitialized = true;
+                    
+                    // Sync grid configuration with canvas overlay
+                    if (m_canvasOverlay) {
+                        m_gridRenderer->setGridConfig(m_canvasOverlay->getGridConfig());
+                        m_gridRenderer->setGridEnabled(m_canvasOverlay->isGridVisible());
+                    }
                 }
             }
-            
-            initializeOverlay();
         }
     }
 
@@ -262,11 +285,28 @@ namespace TyrexCAD {
                 // Connect signals
                 connect(m_canvasOverlay.get(), &TyrexCanvasOverlay::gridSpacingChanged, this, [this](double spacing) {
                     emit gridSpacingChanged(spacing);
+                    if (m_gridRenderer && m_gridInitialized) {
+                        // Update the grid renderer when spacing changes
+                        m_gridRenderer->setGridConfig(m_canvasOverlay->getGridConfig());
+                    }
                 });
                 
                 connect(m_canvasOverlay.get(), &TyrexCanvasOverlay::gridConfigChanged, this, [this]() {
                     emit gridConfigChanged();
+                    if (m_gridRenderer && m_gridInitialized) {
+                        // Keep grid renderer in sync with overlay
+                        m_gridRenderer->setGridConfig(m_canvasOverlay->getGridConfig());
+                        m_gridRenderer->setGridEnabled(m_canvasOverlay->isGridVisible());
+                        update(); // Request a repaint to show changes
+                    }
                 });
+                
+                // Set default grid configuration
+                GridConfig config = m_canvasOverlay->getGridConfig();
+                config.showAxes = true;
+                config.showOriginMarker = true;
+                config.snapEnabled = true;
+                m_canvasOverlay->setGridConfig(config);
                 
                 qDebug() << "Canvas overlay initialized";
             }
@@ -282,12 +322,18 @@ namespace TyrexCAD {
             m_viewerManager->redraw();
         }
         
-        // Optional: Use grid renderer for additional OpenGL drawing
-        if (m_gridRenderer && m_gridInitialized && m_gridRenderer->isGridEnabled()) {
+        // Use grid renderer for OpenGL drawing based on canvas overlay settings
+        if (m_gridRenderer && m_gridInitialized && m_canvasOverlay) {
+            // Synchronize grid visibility state with canvas overlay
+            m_gridRenderer->setGridEnabled(m_canvasOverlay->isGridVisible());
+            
+            // Get cursor position for coordinate display
             QPoint cursorPos(-1, -1);
-            if (underMouse()) {
-                cursorPos = mapFromGlobal(QCursor::pos());
+            if (underMouse() && m_cursorInWidget) {
+                cursorPos = m_currentCursorPos;
             }
+            
+            // Render the grid with current settings
             m_gridRenderer->render(width(), height(), cursorPos);
         }
     }
@@ -357,19 +403,36 @@ namespace TyrexCAD {
         
         // Calculate and emit world coordinates for cursor position
         double worldX = 0.0, worldY = 0.0;
-        if (m_gridRenderer && m_gridInitialized) {
-            m_gridRenderer->screenToWorld(pos.x(), pos.y(), worldX, worldY);
+        
+        // Prefer using canvas overlay if available
+        if (m_canvasOverlay && m_viewerManager && !m_viewerManager->view().IsNull()) {
+            // Convert screen to world using View methods
+            Standard_Real xv, yv, zv;
+            m_viewerManager->view()->Convert(pos.x(), pos.y(), xv, yv, zv);
+            worldX = xv;
+            worldY = yv;
             
             // Apply snap if enabled
-            if (m_canvasOverlay && m_canvasOverlay->getGridConfig().snapEnabled) {
+            if (m_canvasOverlay->getGridConfig().snapEnabled) {
                 gp_Pnt2d point(worldX, worldY);
                 gp_Pnt2d snapped = m_canvasOverlay->snapToGrid(point);
                 worldX = snapped.X();
                 worldY = snapped.Y();
             }
+        } 
+        // Fallback to grid renderer if available
+        else if (m_gridRenderer && m_gridInitialized) {
+            m_gridRenderer->screenToWorld(pos.x(), pos.y(), worldX, worldY);
             
-            emit cursorWorldPosition(worldX, worldY);
+            // Apply snap if needed
+            double snappedX, snappedY;
+            if (snapToGrid(worldX, worldY, snappedX, snappedY)) {
+                worldX = snappedX;
+                worldY = snappedY;
+            }
         }
+        
+        emit cursorWorldPosition(worldX, worldY);
     }
 
 } // namespace TyrexCAD
