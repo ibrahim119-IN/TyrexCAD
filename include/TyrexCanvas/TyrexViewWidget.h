@@ -23,6 +23,7 @@ namespace TyrexCAD {
 
     class TyrexViewerManager;
     class TyrexInteractionManager;
+    class TyrexCanvasOverlay;
 
     class TyrexViewWidget : public QOpenGLWidget, protected QOpenGLFunctions
     {
@@ -55,6 +56,7 @@ namespace TyrexCAD {
     signals:
         void viewerInitialized();
         void gridConfigChanged();
+        void gridSpacingChanged(double spacing);
         void cursorWorldPosition(double x, double y);
 
     protected:
@@ -65,18 +67,17 @@ namespace TyrexCAD {
         void mouseMoveEvent(QMouseEvent* e) override;
         void mouseReleaseEvent(QMouseEvent* e) override;
         void wheelEvent(QWheelEvent* e) override;
-        void enterEvent(QEnterEvent* event) /*override removed*/;
-        void leaveEvent(QEvent* event) /*override removed*/;
-
+        void leaveEvent(QEvent* event) override;
 
     private:
         void initializeManagers();
         void setupGridRenderer();
+        void initializeOverlay();
         void updateCursorPosition(const QPoint& pos);
 
     private:
         std::shared_ptr<TyrexViewerManager> m_viewerManager;
-        std::unique_ptr<TyrexInteractionManager> m_interactionManager;
+        std::shared_ptr<TyrexCanvasOverlay> m_canvasOverlay;
         std::unique_ptr<TyrexGridOverlayRenderer> m_gridRenderer;
         bool m_gridInitialized;
         QPoint m_currentCursorPos;

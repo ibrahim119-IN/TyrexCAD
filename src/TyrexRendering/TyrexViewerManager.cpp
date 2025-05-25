@@ -42,6 +42,8 @@
 #include <QDebug>
 #include <QPoint>
 #include <QTimer>
+#include <QMouseEvent>
+#include <QWheelEvent>
 
 #include <cmath>
 
@@ -59,6 +61,231 @@ namespace TyrexCAD {
     TyrexViewerManager::~TyrexViewerManager()
     {
         // OpenCascade handles are reference-counted and will clean up automatically
+    }
+
+    void TyrexViewerManager::initializeViewer(QWidget* widget)
+    {
+        if (widget == nullptr) {
+            qWarning() << "Cannot initialize viewer with null widget";
+            return;
+        }
+
+        m_parentWidget = widget;
+
+        try {
+            // Create a graphic driver
+            Handle(Aspect_DisplayConnection) displayConnection;
+            Handle(OpenGl_GraphicDriver) graphicDriver = new OpenGl_GraphicDriver(displayConnection);
+
+            // Create a Viewer
+            m_viewer = new V3d_Viewer(graphicDriver);
+            m_viewer->SetDefaultLights();
+            m_viewer->SetLightOn();
+
+            // Create an interactive context
+            m_context = new AIS_InteractiveContext(m_viewer);
+            m_context->SetDisplayMode(AIS_Shaded, Standard_True);
+
+            // Create a view
+            m_view = m_viewer->CreateView();
+
+            // Set up the window for the view
+            if (m_parentWidget) {
+                WId windowId = m_parentWidget->winId();
+                Handle(WNT_Window) window = new WNT_Window((Aspect_Handle)windowId);
+                m_view->SetWindow(window);
+
+                if (!window->IsMapped()) {
+                    window->Map();
+                }
+
+                // Set background color
+                m_view->SetBackgroundColor(Quantity_NOC_DARKSLATEGRAY);
+
+                // Set default view parameters
+                m_view->SetProj(V3d_XposYnegZpos);  // Isometric view
+                m_view->TriedronDisplay(Aspect_TOTP_LEFT_LOWER, Quantity_NOC_WHITE, 0.08);
+
+                // Important: Enable depth buffer and shading
+                m_view->ChangeRenderingParams().Method = Graphic3d_RM_RASTERIZATION;
+                m_view->ChangeRenderingParams().IsAntialiasingEnabled = Standard_True;
+                m_view->ChangeRenderingParams().NbMsaaSamples = 4;
+
+                // Set up automatic updates
+                m_view->SetImmediateUpdate(Standard_True);
+
+                // Force initial redraw after a short delay
+                QTimer::singleShot(100, this, [this]() {
+                    if (!m_view.IsNull()) {
+                        try {
+                            m_view->MustBeResized();
+                            m_view->FitAll();
+                            m_view->ZFitAll();
+                            m_view->Redraw();
+                            m_view->Update();
+                        }
+                        catch (...) {
+                            // Ignore errors during initial setup
+                        }
+                    }
+                    });
+            }
+
+            qDebug() << "TyrexViewerManager initialized successfully with widget";
+        }
+        catch (const Standard_Failure& ex) {
+            qCritical() << "OpenCascade error during viewer initialization:"
+                << QString(ex.GetMessageString());
+        }
+        catch (const std::exception& ex) {
+            qCritical() << "Error during viewer initialization:" << ex.what();
+        }
+        catch (...) {
+            qCritical() << "Unknown error during viewer initialization";
+        }
+    }
+
+    void TyrexViewerManager::resizeViewer(int width, int height)
+    {
+        if (!m_view.IsNull() && width > 0 && height > 0) {
+            try {
+                m_view->Window()->Size(width, height);
+                m_view->MustBeResized();
+                m_view->Invalidate();
+                m_view->Redraw();
+                emit viewChanged();
+            }
+            catch (const Standard_Failure& ex) {
+                qWarning() << "Error during view resize:" << ex.GetMessageString();
+            }
+        }
+    }
+
+    void TyrexViewerManager::mousePress(QMouseEvent* event)
+    {
+        if (event == nullptr || m_view.IsNull()) {
+            return;
+        }
+
+        try {
+            // Forward to interaction manager if available
+            if (m_interactionManager) {
+                m_interactionManager->onMousePress(event->button(), event->pos());
+                return;
+            }
+
+            // Default handling if no interaction manager
+            if (event->button() == Qt::LeftButton) {
+                selectEntityAt(event->pos());
+            }
+            else if (event->button() == Qt::RightButton) {
+                // Usually for context menu - no default action here
+            }
+            else if (event->button() == Qt::MiddleButton) {
+                // Middle button often used for pan
+                m_view->StartRotation(event->pos().x(), event->pos().y());
+            }
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "OpenCascade error in mousePress:" << ex.GetMessageString();
+        }
+        catch (...) {
+            qWarning() << "Unknown error in mousePress";
+        }
+    }
+
+    void TyrexViewerManager::mouseMove(QMouseEvent* event)
+    {
+        if (event == nullptr || m_view.IsNull()) {
+            return;
+        }
+
+        try {
+            // Forward to interaction manager if available
+            if (m_interactionManager) {
+                m_interactionManager->onMouseMove(event->pos(), event->modifiers());
+                return;
+            }
+
+            // Default handling if no interaction manager
+            highlightEntityAt(event->pos());
+
+            // Handle pan/rotate if buttons are pressed
+            if (event->buttons() & Qt::MiddleButton) {
+                if (m_is2DMode) {
+                    // In 2D mode, middle button typically pans
+                    m_view->Pan(event->pos().x(), event->pos().y());
+                }
+                else {
+                    // In 3D mode, middle button typically rotates
+                    m_view->Rotation(event->pos().x(), event->pos().y());
+                }
+                emit viewChanged();
+            }
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "OpenCascade error in mouseMove:" << ex.GetMessageString();
+        }
+        catch (...) {
+            qWarning() << "Unknown error in mouseMove";
+        }
+    }
+
+    void TyrexViewerManager::mouseRelease(QMouseEvent* event)
+    {
+        if (event == nullptr || m_view.IsNull()) {
+            return;
+        }
+
+        try {
+            // Forward to interaction manager if available
+            if (m_interactionManager) {
+                m_interactionManager->onMouseRelease(event->button(), event->pos());
+                return;
+            }
+
+            // Default handling if no interaction manager
+            if (event->button() == Qt::MiddleButton) {
+                // End view rotation/pan
+                m_view->Redraw();
+            }
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "OpenCascade error in mouseRelease:" << ex.GetMessageString();
+        }
+        catch (...) {
+            qWarning() << "Unknown error in mouseRelease";
+        }
+    }
+
+    void TyrexViewerManager::mouseWheel(QWheelEvent* event)
+    {
+        if (event == nullptr || m_view.IsNull()) {
+            return;
+        }
+
+        try {
+            // Forward to interaction manager if available
+            if (m_interactionManager) {
+                m_interactionManager->onMouseWheel(event->angleDelta().y(), event->position().toPoint());
+                return;
+            }
+
+            // Default handling if no interaction manager
+            // Standard zoom behavior - positive delta zooms in, negative zooms out
+            double zoomFactor = (event->angleDelta().y() > 0) ? 1.1 : 0.9;
+            
+            // Use zoomAtPoint if we have position information
+            zoomAtPoint(event->position().toPoint(), zoomFactor);
+            
+            emit viewChanged();
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "OpenCascade error in mouseWheel:" << ex.GetMessageString();
+        }
+        catch (...) {
+            qWarning() << "Unknown error in mouseWheel";
+        }
     }
 
     Handle(AIS_InteractiveContext) TyrexViewerManager::context() const
@@ -429,37 +656,45 @@ namespace TyrexCAD {
     void TyrexViewerManager::handleAIS_InteractiveContext(const Handle(AIS_InteractiveContext)& context)
     {
         // Implementation for handling AIS context
-        // (Add specific functionality as needed)
+        if (!context.IsNull()) {
+            // Store the context
+            m_context = context;
+        }
     }
 
     void TyrexViewerManager::handleV3d_View(const Handle(V3d_View)& view)
     {
         // Implementation for handling V3d view
-        // (Add specific functionality as needed)
+        if (!view.IsNull()) {
+            // Store the view
+            m_view = view;
+        }
     }
 
     void TyrexViewerManager::initialize()
     {
         try {
-            // Create a graphic driver
-            Handle(Aspect_DisplayConnection) displayConnection;
-            Handle(OpenGl_GraphicDriver) graphicDriver = new OpenGl_GraphicDriver(displayConnection);
-
-            // Create a Viewer
-            m_viewer = new V3d_Viewer(graphicDriver);
-            m_viewer->SetDefaultLights();
-            m_viewer->SetLightOn();
-
-            // Create an interactive context
-            m_context = new AIS_InteractiveContext(m_viewer);
-            m_context->SetDisplayMode(AIS_Shaded, Standard_True);
-
-            // Create a view
-            m_view = m_viewer->CreateView();
-
-            // Set up the window for the view
+            // Only initialize if a parent widget is available
             if (m_parentWidget) {
                 WId windowId = m_parentWidget->winId();
+
+                // Create a graphic driver
+                Handle(Aspect_DisplayConnection) displayConnection;
+                Handle(OpenGl_GraphicDriver) graphicDriver = new OpenGl_GraphicDriver(displayConnection);
+
+                // Create a Viewer
+                m_viewer = new V3d_Viewer(graphicDriver);
+                m_viewer->SetDefaultLights();
+                m_viewer->SetLightOn();
+
+                // Create an interactive context
+                m_context = new AIS_InteractiveContext(m_viewer);
+                m_context->SetDisplayMode(AIS_Shaded, Standard_True);
+
+                // Create a view
+                m_view = m_viewer->CreateView();
+
+                // Set up the window for the view
                 Handle(WNT_Window) window = new WNT_Window((Aspect_Handle)windowId);
                 m_view->SetWindow(window);
 

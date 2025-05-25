@@ -1,4 +1,4 @@
-/***************************************************************************
+﻿/***************************************************************************
  *   Copyright (c) 2025 TyrexCAD development team                          *
  *                                                                         *
  *   This file is part of the TyrexCAD CAx development system.             *
@@ -14,7 +14,7 @@
 #include <QColor>
 #include <QPoint>
 
- // OpenCascade includes
+// OpenCascade includes
 #include <Standard_Handle.hxx>
 #include <AIS_InteractiveObject.hxx>
 #include <Quantity_Color.hxx>
@@ -41,53 +41,49 @@ namespace TyrexCAD {
      * @brief Grid configuration settings
      */
     struct GridConfig {
-        // === VISUAL APPEARANCE ===
+        // Visual appearance
         Quantity_Color backgroundColor{ 0.0, 0.0, 0.0, Quantity_TOC_RGB };
         Quantity_Color gridColorMajor{ 0.5, 0.5, 0.5, Quantity_TOC_RGB };
         Quantity_Color gridColorMinor{ 0.3, 0.3, 0.3, Quantity_TOC_RGB };
         Quantity_Color axisColorX{ 1.0, 0.0, 0.0, Quantity_TOC_RGB };
         Quantity_Color axisColorY{ 0.0, 1.0, 0.0, Quantity_TOC_RGB };
 
-        // === GRID SETTINGS ===
+        // Grid settings
         double baseSpacing = 10.0;
         int majorLineInterval = 5;
+        int majorFactor = 5;  // أضف هذا
         double lineWidthMajor = 0.5;
         double lineWidthMinor = 0.25;
+        double minorLineWidth = 1.0;  // أضف هذا
+        double axisLineWidth = 2.0;  // أضف هذا
         GridStyle style = GridStyle::Lines;
 
-        // === GRID CALCULATION PARAMETERS ===
-        int majorFactor = 5;                    // Determines major grid line frequency
+        // Grid style specific
+        double dotSize = 3.0;  // أضف هذا
+        double crossSize = 5.0;  // أضف هذا
+        double originMarkerSize = 5.0;  // أضف هذا
+        int maxDots = 1000;  // أضف هذا
 
-        // === GRID LINE LIMITS ===
-        int maxGridLinesV = 200;                // Maximum vertical lines to render
-        int maxGridLinesH = 200;                // Maximum horizontal lines to render
+        // Performance limits
+        int maxGridLinesH = 200;  // أضف هذا
+        int maxGridLinesV = 200;  // أضف هذا
 
-        // === VISUAL PROPERTIES ===
-        float minorLineWidth = 1.0f;            // Line width for minor grid lines
-        float dotSize = 3.0f;                   // Size of dots in dot grid style
-        float crossSize = 5.0f;                 // Size of crosses in cross grid style
-        float axisLineWidth = 2.0f;             // Width of X and Y axes
-        float originMarkerSize = 8.0f;          // Size of origin point marker
+        // Coordinate display
+        QPoint coordinateOffset{ 20, 20 };  // أضف هذا
+        QColor coordinateColor{ 255, 255, 255 };  // أضف هذا
+        bool showCoordinates = false;  // أضف هذا
 
-        // === PERFORMANCE LIMITS ===
-        int maxDots = 5000;                     // Maximum dots/crosses to render
+        // Snap settings
+        double snapTolerance = 0.5;  // أضف هذا
 
-        // === COORDINATE DISPLAY ===
-        bool showCoordinates = false;           // Enable coordinate display
-        QColor coordinateColor = QColor(255, 255, 255, 255);  // White text
-        QPoint coordinateOffset = QPoint(15, -15);  // Offset from cursor
-
-        // === SNAP CONFIGURATION ===
-        double snapTolerance = 0.1;             // Grid snap tolerance (0.0-1.0)
-
-        // === ADAPTIVE BEHAVIOR ===
+        // Adaptive behavior
         bool adaptiveSpacing = true;
-        double minSpacingPixels = 15.0;         // Minimum pixel spacing
-        double maxSpacingPixels = 100.0;        // Maximum pixel spacing
-        double minPixelSpacing = 20.0;          // Alternative min spacing
-        double maxPixelSpacing = 80.0;          // Alternative max spacing
+        double minSpacingPixels = 15.0;
+        double maxSpacingPixels = 100.0;
+        double minPixelSpacing = 15.0;
+        double maxPixelSpacing = 100.0;
 
-        // === DISPLAY OPTIONS ===
+        // Display options
         bool showOriginMarker = true;
         bool showAxes = true;
         double gridExtensionFactor = 1.2;

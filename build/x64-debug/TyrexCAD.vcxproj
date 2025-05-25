@@ -161,7 +161,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>D:\Tools\vcpkg\installed\x64-windows\debug\lib\Qt5OpenGLd.lib;TKBool.lib;TKShHealing.lib;TKDESTEP.lib;TKDEIGES.lib;TKXSBase.lib;TKXCAF.lib;TKCAF.lib;TKLCAF.lib;TKGeomBase.lib;TKMath.lib;TKG3d.lib;TKG2d.lib;TKBRep.lib;TKTopAlgo.lib;TKPrim.lib;TKBO.lib;TKOpenGl.lib;TKService.lib;TKV3d.lib;TKernel.lib;D:\Tools\vcpkg\installed\x64-windows\debug\lib\Qt5Widgetsd.lib;D:\Tools\vcpkg\installed\x64-windows\debug\lib\Qt5Guid.lib;D:\Tools\vcpkg\installed\x64-windows\debug\lib\Qt5Cored.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>D:\Tools\vcpkg\installed\x64-windows\debug\lib\Qt5OpenGLd.lib;TKBool.lib;TKShHealing.lib;TKDESTEP.lib;TKDEIGES.lib;TKXSBase.lib;TKXCAF.lib;TKCAF.lib;TKLCAF.lib;TKGeomBase.lib;TKMath.lib;TKG3d.lib;TKG2d.lib;TKBRep.lib;TKTopAlgo.lib;TKPrim.lib;TKBO.lib;TKOpenGl.lib;TKService.lib;TKV3d.lib;TKernel.lib;opengl32.lib;D:\Tools\vcpkg\installed\x64-windows\debug\lib\Qt5Widgetsd.lib;D:\Tools\vcpkg\installed\x64-windows\debug\lib\Qt5Guid.lib;D:\Tools\vcpkg\installed\x64-windows\debug\lib\Qt5Cored.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>D:/OpenCascade/install/win64/vc14/lib;D:/OpenCascade/install/win64/vc14/lib/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -251,7 +251,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>D:\Tools\vcpkg\installed\x64-windows\lib\Qt5OpenGL.lib;TKBool.lib;TKShHealing.lib;TKDESTEP.lib;TKDEIGES.lib;TKXSBase.lib;TKXCAF.lib;TKCAF.lib;TKLCAF.lib;TKGeomBase.lib;TKMath.lib;TKG3d.lib;TKG2d.lib;TKBRep.lib;TKTopAlgo.lib;TKPrim.lib;TKBO.lib;TKOpenGl.lib;TKService.lib;TKV3d.lib;TKernel.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Widgets.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Gui.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Core.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>D:\Tools\vcpkg\installed\x64-windows\lib\Qt5OpenGL.lib;TKBool.lib;TKShHealing.lib;TKDESTEP.lib;TKDEIGES.lib;TKXSBase.lib;TKXCAF.lib;TKCAF.lib;TKLCAF.lib;TKGeomBase.lib;TKMath.lib;TKG3d.lib;TKG2d.lib;TKBRep.lib;TKTopAlgo.lib;TKPrim.lib;TKBO.lib;TKOpenGl.lib;TKService.lib;TKV3d.lib;TKernel.lib;opengl32.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Widgets.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Gui.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Core.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>D:/OpenCascade/install/win64/vc14/lib;D:/OpenCascade/install/win64/vc14/lib/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -341,7 +341,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>D:\Tools\vcpkg\installed\x64-windows\lib\Qt5OpenGL.lib;TKBool.lib;TKShHealing.lib;TKDESTEP.lib;TKDEIGES.lib;TKXSBase.lib;TKXCAF.lib;TKCAF.lib;TKLCAF.lib;TKGeomBase.lib;TKMath.lib;TKG3d.lib;TKG2d.lib;TKBRep.lib;TKTopAlgo.lib;TKPrim.lib;TKBO.lib;TKOpenGl.lib;TKService.lib;TKV3d.lib;TKernel.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Widgets.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Gui.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Core.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>D:\Tools\vcpkg\installed\x64-windows\lib\Qt5OpenGL.lib;TKBool.lib;TKShHealing.lib;TKDESTEP.lib;TKDEIGES.lib;TKXSBase.lib;TKXCAF.lib;TKCAF.lib;TKLCAF.lib;TKGeomBase.lib;TKMath.lib;TKG3d.lib;TKG2d.lib;TKBRep.lib;TKTopAlgo.lib;TKPrim.lib;TKBO.lib;TKOpenGl.lib;TKService.lib;TKV3d.lib;TKernel.lib;opengl32.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Widgets.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Gui.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Core.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>D:/OpenCascade/install/win64/vc14/lib;D:/OpenCascade/install/win64/vc14/lib/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -430,7 +430,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>D:\Tools\vcpkg\installed\x64-windows\lib\Qt5OpenGL.lib;TKBool.lib;TKShHealing.lib;TKDESTEP.lib;TKDEIGES.lib;TKXSBase.lib;TKXCAF.lib;TKCAF.lib;TKLCAF.lib;TKGeomBase.lib;TKMath.lib;TKG3d.lib;TKG2d.lib;TKBRep.lib;TKTopAlgo.lib;TKPrim.lib;TKBO.lib;TKOpenGl.lib;TKService.lib;TKV3d.lib;TKernel.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Widgets.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Gui.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Core.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>D:\Tools\vcpkg\installed\x64-windows\lib\Qt5OpenGL.lib;TKBool.lib;TKShHealing.lib;TKDESTEP.lib;TKDEIGES.lib;TKXSBase.lib;TKXCAF.lib;TKCAF.lib;TKLCAF.lib;TKGeomBase.lib;TKMath.lib;TKG3d.lib;TKG2d.lib;TKBRep.lib;TKTopAlgo.lib;TKPrim.lib;TKBO.lib;TKOpenGl.lib;TKService.lib;TKV3d.lib;TKernel.lib;opengl32.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Widgets.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Gui.lib;D:\Tools\vcpkg\installed\x64-windows\lib\Qt5Core.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>D:/OpenCascade/install/win64/vc14/lib;D:/OpenCascade/install/win64/vc14/lib/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -507,6 +507,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexApp\TyrexMainWindow.cpp" />
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexCanvasOverlay.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexCanvasWidget.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexModelSpace.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexViewWidget.cpp" />
@@ -553,6 +554,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexUtils\UUID.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\main.cpp" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexApp\TyrexMainWindow.h" />
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasOverlay.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasWidget.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexModelSpace.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexViewWidget.h" />

@@ -25,6 +25,8 @@ class V3d_View;
 class V3d_Viewer;
 class Aspect_DisplayConnection;
 class OpenGl_GraphicDriver;
+class QMouseEvent;
+class QWheelEvent;
 
 namespace TyrexCAD {
 
@@ -39,15 +41,52 @@ namespace TyrexCAD {
 
     public:
         /**
-         * @brief Constructor
+         * @brief Constructor with QWidget parent
          * @param parent Parent widget to render into
          */
-        explicit TyrexViewerManager(QWidget* parent);
+        explicit TyrexViewerManager(QWidget* parent = nullptr);
 
         /**
          * @brief Destructor
          */
         ~TyrexViewerManager();
+
+        /**
+         * @brief Initialize the viewer for a specific widget
+         * @param widget The widget to initialize with
+         */
+        void initializeViewer(QWidget* widget);
+
+        /**
+         * @brief Resize the view to match the widget size
+         * @param width New width
+         * @param height New height
+         */
+        void resizeViewer(int width, int height);
+
+        /**
+         * @brief Handle mouse press events
+         * @param event Mouse event data
+         */
+        void mousePress(QMouseEvent* event);
+
+        /**
+         * @brief Handle mouse move events
+         * @param event Mouse event data
+         */
+        void mouseMove(QMouseEvent* event);
+
+        /**
+         * @brief Handle mouse release events
+         * @param event Mouse event data
+         */
+        void mouseRelease(QMouseEvent* event);
+
+        /**
+         * @brief Handle mouse wheel events
+         * @param event Wheel event data
+         */
+        void mouseWheel(QWheelEvent* event);
 
         /**
          * @brief Get the OpenCascade interactive context

@@ -40,6 +40,12 @@ add_executable(TyrexCAD
     ${TYREXCAD_HEADERS}
  "include/TyrexSketch/TyrexSketchDisplayHelper.h" "include/TyrexSketch/TyrexSketchConfig.h" "src/TyrexSketch/TyrexSketchConfig.cpp" "include/TyrexRendering/TyrexGridOverlayRenderer.h" "src/TyrexRendering/TyrexGridOverlayRenderer.cpp")
 
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        src/TyrexCanvas/TyrexCanvasOverlay.cpp
+        # ملفات أخرى...
+)
+
 # ================== Qt Integration (via vcpkg) ==================
 find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
 target_compile_definitions(TyrexCAD PRIVATE QT_WIDGETS_LIB)
@@ -65,6 +71,8 @@ target_link_libraries(TyrexCAD PRIVATE
     TKBool TKShHealing TKDESTEP TKDEIGES TKXSBase TKXCAF TKCAF TKLCAF
     TKGeomBase TKMath TKG3d TKG2d TKBRep TKTopAlgo TKPrim TKBO
     TKOpenGl TKService TKV3d TKernel
+
+    opengl32
 )
 
 # ================== DLL Copy ==================

@@ -45,7 +45,12 @@ namespace TyrexCAD {
         qDebug() << "TyrexSketchLineCommand destroyed";
     }
 
-    // ... (start, cancel, isFinished, onMousePress, onMouseMove, onMouseRelease, etc. remain same as previous correct version)
+    void TyrexSketchLineCommand::start() {}
+    void TyrexSketchLineCommand::cancel() {}
+    bool TyrexSketchLineCommand::isFinished() const { return false; }
+    void TyrexSketchLineCommand::onMousePress(const QPoint&) {}
+    void TyrexSketchLineCommand::onMouseMove(const QPoint&) {}
+    void TyrexSketchLineCommand::onMouseRelease(const QPoint&) {}
 
     void TyrexSketchLineCommand::updatePreview(const gp_Pnt2d& currentPoint)
     {

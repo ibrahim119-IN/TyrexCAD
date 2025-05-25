@@ -1,4 +1,4 @@
-/***************************************************************************
+﻿/***************************************************************************
  * Copyright (c) 2025 TyrexCAD development team                          *
  * *
  * This file is part of the TyrexCAD CAx development system.             *
@@ -28,7 +28,51 @@
 #include <cmath>
 
 namespace TyrexCAD {
-    // ... (Constructor, Destructor, start, cancel, etc. same as previous correct version)
+
+    TyrexSketchCircleCommand::TyrexSketchCircleCommand(TyrexSketchManager* sketchManager, CircleDefinitionMethod method)
+        : TyrexCommand("TyrexSketchCircleCommand"), // Explicitly call the base class constructor
+        m_sketchManager(sketchManager),
+        m_definitionMethod(method) {
+    }
+
+    TyrexSketchCircleCommand::~TyrexSketchCircleCommand() = default;
+
+    void TyrexSketchCircleCommand::cancel() {
+        removePreview();
+        m_isFinished = true;
+    }
+
+    void TyrexSketchCircleCommand::start() {
+        m_centerPointSet = false;
+        m_isFinished = false;
+        removePreview();
+    }
+
+    bool TyrexSketchCircleCommand::isFinished() const {
+        return m_isFinished;
+    }
+
+    void TyrexSketchCircleCommand::onMousePress(const QPoint& point) {
+        // Minimal stub
+    }
+
+    void TyrexSketchCircleCommand::onMouseMove(const QPoint& point) {
+        // Minimal stub
+    }
+
+    void TyrexSketchCircleCommand::onMouseRelease(const QPoint& point) {
+        // Minimal stub
+    }
+
+    double TyrexSketchCircleCommand::calculateRadius(const gp_Pnt2d& centerPt, const gp_Pnt2d& radiusPt) const {
+        // حساب المسافة بين النقطتين
+        return centerPt.Distance(radiusPt);
+    }
+
+    double TyrexSketchCircleCommand::calculateRadiusFromDiameter(const gp_Pnt2d& centerPt, const gp_Pnt2d& diameterPt) const {
+        // نصف المسافة بين النقطتين
+        return 0.5 * centerPt.Distance(diameterPt);
+    }
 
     void TyrexSketchCircleCommand::updatePreview(const gp_Pnt2d& currentPoint)
     {

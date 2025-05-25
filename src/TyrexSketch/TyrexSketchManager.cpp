@@ -14,7 +14,7 @@
 #include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexCanvas/TyrexCanvasOverlay.h"
 
- // OpenCascade includes
+// OpenCascade includes
 #include <Standard_Handle.hxx>
 #include <Standard_Type.hxx>
 #include <AIS_InteractiveContext.hxx>
@@ -48,7 +48,10 @@
 
 namespace TyrexCAD {
 
-    // ... كود البداية يبقى كما هو ...
+    TyrexSketchManager::TyrexSketchManager(const Handle(AIS_InteractiveContext)& context, TyrexViewerManager* viewerManager, QObject* parent)
+        : QObject(parent), m_viewerManager(viewerManager) {}
+
+    TyrexSketchManager::~TyrexSketchManager() = default;
 
     gp_Pnt2d TyrexSketchManager::screenToSketch(const QPoint& screenPoint) const
     {
@@ -241,5 +244,32 @@ namespace TyrexCAD {
             qWarning() << "Unknown error drawing sketch entity";
         }
     }
+
+    bool TyrexSketchManager::onMousePress(const QPoint& screenPos) {
+        // TODO: implement logic
+        return false;
+    }
+
+    void TyrexSketchManager::removeSketchEntity(const std::string&) {}
+
+    bool TyrexSketchManager::onMouseMove(const QPoint&) { return false; }
+
+    bool TyrexSketchManager::onMouseRelease(const QPoint&) { return false; }
+
+    void TyrexSketchManager::clearSelection() {}
+
+    std::vector<std::shared_ptr<TyrexSketchEntity>> TyrexSketchManager::getSelectedEntities() const { return {}; }
+
+    const gp_Pln& TyrexSketchManager::sketchPlane() const { static gp_Pln dummy; return dummy; }
+
+    Handle(AIS_InteractiveContext) TyrexSketchManager::context() const { return Handle(AIS_InteractiveContext)(); }
+
+    gp_Pnt2d TyrexSketchManager::applyOrthoMode(const gp_Pnt2d& p) const { return p; }
+
+    void TyrexSketchManager::enterSketchMode() {}
+
+    void TyrexSketchManager::exitSketchMode() {}
+
+    bool TyrexSketchManager::isInSketchMode() const { return false; }
 
 } // namespace TyrexCAD
