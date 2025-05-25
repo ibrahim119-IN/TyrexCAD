@@ -209,6 +209,7 @@ namespace TyrexCAD {
     {
         auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
         if (viewWidget) {
+            // Connect cursor position for coordinate display
             connect(viewWidget, &TyrexViewWidget::cursorWorldPosition, this, [this](double x, double y) {
                 if (m_coordinateLabel && m_toggleCoordinatesAction && m_toggleCoordinatesAction->isChecked()) {
                     m_coordinateLabel->setText(QString("X: %1, Y: %2").arg(x, 0, 'f', 2).arg(y, 0, 'f', 2));
@@ -216,8 +217,48 @@ namespace TyrexCAD {
                 else if (m_coordinateLabel) {
                     m_coordinateLabel->setText("X: --, Y: --");
                 }
-                });
+            });
+            
+            // Connect grid config changes to update UI
             connect(viewWidget, &TyrexViewWidget::gridConfigChanged, this, &TyrexMainWindow::updateSketchStatusBar);
+            
+            // Connect grid spacing changes to display in status bar
+            connect(viewWidget, &TyrexViewWidget::gridSpacingChanged, this, [this](double spacing) {
+                if (m_gridStatusLabel) {
+                    // Temporarily show grid spacing in status bar
+                    QString message = QString("Grid spacing: %1").arg(spacing, 0, 'f', 2);
+                    statusBar()->showMessage(message, 2000);
+                }
+            });
+        }
+        
+        // Connect camera system with sketch system
+        if (m_viewerManager && m_sketchManager) {
+            // Connect view changes to update sketch system
+            connect(m_viewerManager.get(), &TyrexViewerManager::viewChanged, this, [this]() {
+                if (m_sketchManager && m_sketchManager->isInSketchMode()) {
+                    // Ensure grid is updated when view changes in sketch mode
+                    auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+                    if (viewWidget) {
+                        viewWidget->update();
+                    }
+                }
+            });
+        }
+        
+        // Connect sketch mode actions
+        if (m_sketchModeAction) {
+            connect(m_sketchModeAction, &QAction::toggled, this, [this](bool checked) {
+                // Ensure sketch mode UI is consistent with action state
+                if (checked != m_isInSketchMode) {
+                    toggleSketchMode();
+                }
+            });
+        }
+        
+        if (m_toggleGridAction && viewWidget) {
+            // Ensure grid visibility is consistent with toggle state
+            viewWidget->setGridEnabled(m_toggleGridAction->isChecked());
         }
     }
 
@@ -561,29 +602,60 @@ namespace TyrexCAD {
         m_isInSketchMode = m_sketchManager && m_sketchManager->isInSketchMode();
         qDebug() << "Updating UI for sketch mode change. Is in sketch mode: " << m_isInSketchMode;
 
-        if (m_sketchModeAction) m_sketchModeAction->setChecked(m_isInSketchMode);
-        if (m_sketchModeAction) m_sketchModeAction->setText(m_isInSketchMode ? tr("Exit Sketch Mode") : tr("Enter Sketch Mode"));
+        // Update sketch mode action state
+        if (m_sketchModeAction) {
+            // Block signals to prevent recursive calls
+            m_sketchModeAction->blockSignals(true);
+            m_sketchModeAction->setChecked(m_isInSketchMode);
+            m_sketchModeAction->setText(m_isInSketchMode ? tr("Exit Sketch Mode") : tr("Enter Sketch Mode"));
+            m_sketchModeAction->blockSignals(false);
+        }
 
+        // Update sketch-related actions visibility/state
         if (m_exitSketchAction) m_exitSketchAction->setVisible(m_isInSketchMode);
         if (m_sketchLineAction) m_sketchLineAction->setEnabled(m_isInSketchMode);
         if (m_sketchCircleAction) m_sketchCircleAction->setEnabled(m_isInSketchMode);
 
+        // Show/hide toolbars based on mode
         if (m_drawToolBar) m_drawToolBar->setVisible(!m_isInSketchMode);
         if (m_sketchToolBar) m_sketchToolBar->setVisible(m_isInSketchMode);
 
+        // Update grid settings for current mode
         auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
         if (viewWidget) {
             viewWidget->setSketchModeGrid(m_isInSketchMode);
+            
+            // Ensure grid is visible in sketch mode
+            if (m_isInSketchMode && m_toggleGridAction) {
+                m_toggleGridAction->blockSignals(true);
+                m_toggleGridAction->setChecked(true);
+                m_toggleGridAction->blockSignals(false);
+                viewWidget->setGridEnabled(true);
+            }
         }
 
+        // Update view mode (2D or 3D)
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
             if (m_isInSketchMode) {
                 m_viewerManager->set2DMode();
+                
+                // Fit view to show all content in sketch mode
+                QTimer::singleShot(100, this, [this]() {
+                    if (m_viewerManager) m_viewerManager->fitAll();
+                });
             }
             else {
                 m_viewerManager->set3DMode();
             }
         }
+        
+        // Update status bar with mode information
+        if (m_isInSketchMode) {
+            updateStatusBar("2D Sketch Mode - Select or draw sketch entities");
+        } else {
+            updateStatusBar("3D Modeling Mode");
+        }
+        
         updateSketchStatusBar();
     }
 
@@ -604,18 +676,73 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::enterSketchMode()
     {
-        if (!m_sketchManager) return;
-        if (m_commandManager && m_commandManager->activeCommand()) m_commandManager->cancelCommand();
+        if (!m_sketchManager) {
+            qWarning() << "Cannot enter sketch mode - sketch manager not initialized";
+            if (m_sketchModeAction) m_sketchModeAction->setChecked(false);
+            return;
+        }
+        
+        // Cancel any active command
+        if (m_commandManager && m_commandManager->activeCommand()) {
+            m_commandManager->cancelCommand();
+        }
+        
+        // Save current view state if needed for later restoration
+        if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+            // Store view parameters if needed for 3D mode restoration
+        }
 
+        // Enter sketch mode in the manager
         m_sketchManager->enterSketchMode();
+        
+        // Update UI to reflect sketch mode
+        updateSketchModeUI();
+        
+        // Update toolbars
+        setupSketchModeToolbars();
+        
+        // Update status with helpful information
+        updateStatusBar("Entered 2D Sketch Mode - Create 2D geometry on XY plane");
     }
 
     void TyrexMainWindow::exitSketchMode()
     {
-        if (!m_sketchManager) return;
-        if (m_commandManager && m_commandManager->activeCommand()) m_commandManager->cancelCommand();
+        if (!m_sketchManager) {
+            qWarning() << "Cannot exit sketch mode - sketch manager not initialized";
+            return;
+        }
+        
+        // Cancel any active command
+        if (m_commandManager && m_commandManager->activeCommand()) {
+            m_commandManager->cancelCommand();
+        }
+        
+        // Ask for confirmation if there are unsaved sketch changes
+        if (isWindowModified() && m_sketchManager->isInSketchMode()) {
+            QMessageBox::StandardButton result = QMessageBox::question(this,
+                tr("Exit Sketch Mode"),
+                tr("There are unsaved changes in the sketch. Exit anyway?"),
+                QMessageBox::Yes | QMessageBox::No,
+                QMessageBox::No);
+                
+            if (result == QMessageBox::No) {
+                // Cancel exit and keep sketch mode
+                if (m_sketchModeAction) m_sketchModeAction->setChecked(true);
+                return;
+            }
+        }
 
+        // Exit sketch mode in the manager
         m_sketchManager->exitSketchMode();
+        
+        // Update UI to reflect 3D mode
+        updateSketchModeUI();
+        
+        // Restore normal toolbars
+        restoreNormalToolbars();
+        
+        // Update status
+        updateStatusBar("Returned to 3D Modeling Mode");
     }
 
     void TyrexMainWindow::startSketchLineCommand()
@@ -644,18 +771,44 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::updateSketchStatusBar() {
         if (!m_gridStatusLabel) return;
+        
+        // Build status text with mode indicator
+        QString modeText = m_isInSketchMode ? "SKETCH: " : "3D: ";
 
+        // Grid status
         QString gridText = "Grid: ";
-        gridText += (m_toggleGridAction && m_toggleGridAction->isChecked()) ? "ON" : "OFF";
+        bool gridEnabled = m_toggleGridAction && m_toggleGridAction->isChecked();
+        gridText += gridEnabled ? "ON" : "OFF";
+        
+        // If grid is enabled, add current spacing info
+        if (gridEnabled) {
+            auto viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                double spacing = viewWidget->getCurrentGridSpacing();
+                gridText += QString(" [%1]").arg(spacing, 0, 'f', 1);
+            }
+        }
 
+        // Snap status
         QString snapText = " Snap: ";
         snapText += (m_toggleSnapAction && m_toggleSnapAction->isChecked()) ? "ON" : "OFF";
 
+        // Ortho status (only relevant in sketch mode)
         QString orthoText = " Ortho: ";
         orthoText += (m_toggleOrthoAction && m_toggleOrthoAction->isChecked()) ? "ON" : "OFF";
+        
+        // Style indicator
+        QString styleText = "";
+        if (gridEnabled) {
+            if (m_gridLinesAction && m_gridLinesAction->isChecked()) styleText = " Style: Lines";
+            else if (m_gridDotsAction && m_gridDotsAction->isChecked()) styleText = " Style: Dots";
+            else if (m_gridCrossesAction && m_gridCrossesAction->isChecked()) styleText = " Style: Crosses";
+        }
 
-        m_gridStatusLabel->setText(gridText + snapText + orthoText);
+        // Set combined status text
+        m_gridStatusLabel->setText(modeText + gridText + snapText + orthoText + styleText);
 
+        // Coordinate display visibility
         if (m_coordinateLabel && m_toggleCoordinatesAction) {
             m_coordinateLabel->setVisible(m_toggleCoordinatesAction->isChecked());
         }
