@@ -49,7 +49,23 @@
 namespace TyrexCAD {
 
     TyrexSketchManager::TyrexSketchManager(const Handle(AIS_InteractiveContext)& context, TyrexViewerManager* viewerManager, QObject* parent)
-        : QObject(parent), m_viewerManager(viewerManager) {}
+        : QObject(parent), 
+          m_viewerManager(viewerManager),
+          m_isInSketchMode(false),
+          m_sketchPlane(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)),
+          m_currentMode(InteractionMode::ObjectSelect),
+          m_isDraggingEntity(false),
+          m_firstPointSet(false)
+    {
+        // Store context for interaction
+        m_context = context;
+        
+        // Configure canvas overlay for grid
+        if (m_viewerManager) {
+            m_canvasOverlay = m_viewerManager->view().IsNull() ? nullptr : 
+                std::make_unique<TyrexCanvasOverlay>(context, m_viewerManager->view(), this);
+        }
+    }
 
     TyrexSketchManager::~TyrexSketchManager() = default;
 
@@ -246,30 +262,419 @@ namespace TyrexCAD {
     }
 
     bool TyrexSketchManager::onMousePress(const QPoint& screenPos) {
-        // TODO: implement logic
-        return false;
+        if (!m_isInSketchMode || !m_viewerManager) {
+            return false;
+        }
+
+        try {
+            // Convert screen position to sketch coordinates
+            gp_Pnt2d sketchPoint = screenToSketch(screenPos);
+            
+            // If we have an active command, forward the event to it
+            if (m_activeCommand) {
+                m_activeCommand->onMousePress(sketchPoint);
+                return true;
+            }
+            
+            // Otherwise check for entity selection
+            // Find entity under cursor
+            Handle(AIS_InteractiveContext) ctx = context();
+            if (!ctx.IsNull()) {
+                ctx->MoveTo(screenPos.x(), screenPos.y(), m_viewerManager->view(), Standard_True);
+                
+                // Try to select entity
+                ctx->Select(Standard_True);
+                
+                // See if anything was selected
+                if (ctx->NbSelected() > 0) {
+                    AIS_ListOfInteractive selected;
+                    ctx->SelectedObjects(selected);
+                    
+                    // Process selected entities
+                    for (const Handle(AIS_InteractiveObject)& obj : selected) {
+                        // Check if this is one of our sketch entities
+                        for (auto& entity : m_sketchEntities) {
+                            if (entity->getAISShape() == obj) {
+                                // Found a sketch entity to select
+                                selectEntity(entity);
+                                m_entityUnderCursor = entity;
+                                m_lastCursorPos = screenPos;
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // If we reach here, nothing was found to select
+            clearSelection();
+            m_entityUnderCursor.reset();
+            m_lastCursorPos = screenPos;
+            return true;
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error in sketch mouse press:" << ex.GetMessageString();
+            return false;
+        }
+        catch (...) {
+            qWarning() << "Unknown error in sketch mouse press";
+            return false;
+        }
     }
 
-    void TyrexSketchManager::removeSketchEntity(const std::string&) {}
+    void TyrexSketchManager::removeSketchEntity(const std::string& entityId) {
+        // Find the entity by ID
+        auto it = std::find_if(m_sketchEntities.begin(), m_sketchEntities.end(),
+            [&entityId](const std::shared_ptr<TyrexSketchEntity>& entity) {
+                return entity && entity->getId() == entityId;
+            });
 
-    bool TyrexSketchManager::onMouseMove(const QPoint&) { return false; }
+        if (it != m_sketchEntities.end()) {
+            // If entity is selected, clear selection first
+            if ((*it)->isSelected()) {
+                clearSelection();
+            }
+            
+            // Remove entity from AIS context
+            Handle(AIS_InteractiveContext) ctx = context();
+            if (!ctx.IsNull()) {
+                Handle(AIS_Shape) shape = (*it)->getAISShape();
+                if (!shape.IsNull()) {
+                    ctx->Remove(shape, Standard_True);
+                }
+            }
+            
+            // Remove from entity list
+            m_sketchEntities.erase(it);
+            
+            // Notify that the entity was removed
+            emit entityRemoved(entityId);
+        }
+    }
+    
+    void TyrexSketchManager::selectEntity(std::shared_ptr<TyrexSketchEntity> entity) {
+        if (!entity) return;
+        
+        // Clear previous selection
+        clearSelection();
+        
+        // Set the entity as selected
+        entity->setSelected(true);
+        
+        // Add to selected entities list
+        m_selectedEntities.push_back(entity);
+        
+        // Redraw with selected state
+        drawSketchEntity(entity);
+        
+        // Show control points
+        showControlPoints(entity);
+        
+        // Notify about selection
+        emit entitySelected(entity->getId());
+    }
+    
+    void TyrexSketchManager::drawAllEntities() {
+        for (auto& entity : m_sketchEntities) {
+            if (entity) {
+                drawSketchEntity(entity);
+            }
+        }
+    }
+    
+    void TyrexSketchManager::hideAllEntities() {
+        Handle(AIS_InteractiveContext) ctx = context();
+        if (ctx.IsNull()) return;
+        
+        for (auto& entity : m_sketchEntities) {
+            if (entity) {
+                Handle(AIS_Shape) shape = entity->getAISShape();
+                if (!shape.IsNull()) {
+                    ctx->Erase(shape, Standard_False);
+                }
+            }
+        }
+        
+        // Update display
+        ctx->UpdateCurrentViewer();
+    }
+    
+    void TyrexSketchManager::showControlPoints(std::shared_ptr<TyrexSketchEntity> entity) {
+        if (!entity) return;
+        
+        // Hide any existing control points
+        hideControlPoints();
+        
+        // Get control points for the entity
+        std::vector<ControlPoint> controlPoints = getControlPoints(entity);
+        
+        // Create visuals for each control point
+        Handle(AIS_InteractiveContext) ctx = context();
+        if (!ctx.IsNull()) {
+            for (const auto& cp : controlPoints) {
+                Handle(AIS_InteractiveObject) visual = createControlPointVisual(cp);
+                if (!visual.IsNull()) {
+                    ctx->Display(visual, Standard_False);
+                    m_controlPointVisuals.push_back(visual);
+                }
+            }
+            
+            // Update display
+            ctx->UpdateCurrentViewer();
+        }
+    }
+    
+    void TyrexSketchManager::hideControlPoints() {
+        Handle(AIS_InteractiveContext) ctx = context();
+        if (ctx.IsNull()) return;
+        
+        for (auto& visual : m_controlPointVisuals) {
+            if (!visual.IsNull()) {
+                ctx->Erase(visual, Standard_False);
+            }
+        }
+        
+        m_controlPointVisuals.clear();
+        ctx->UpdateCurrentViewer();
+    }
 
-    bool TyrexSketchManager::onMouseRelease(const QPoint&) { return false; }
+    bool TyrexSketchManager::onMouseMove(const QPoint& screenPos) {
+        if (!m_isInSketchMode || !m_viewerManager) {
+            return false;
+        }
 
-    void TyrexSketchManager::clearSelection() {}
+        try {
+            // Convert screen position to sketch coordinates
+            gp_Pnt2d sketchPoint = screenToSketch(screenPos);
+            
+            // If we have an active command, forward the event to it
+            if (m_activeCommand) {
+                m_activeCommand->onMouseMove(sketchPoint);
+                return true;
+            }
+            
+            // Handle entity highlighting
+            Handle(AIS_InteractiveContext) ctx = context();
+            if (!ctx.IsNull()) {
+                ctx->MoveTo(screenPos.x(), screenPos.y(), m_viewerManager->view(), Standard_True);
+                
+                // Update cursor position
+                m_lastCursorPos = screenPos;
+                
+                // Emit cursor position for status display
+                emit cursorPositionChanged(sketchPoint.X(), sketchPoint.Y());
+                
+                return true;
+            }
+            
+            return false;
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error in sketch mouse move:" << ex.GetMessageString();
+            return false;
+        }
+        catch (...) {
+            qWarning() << "Unknown error in sketch mouse move";
+            return false;
+        }
+    }
 
-    std::vector<std::shared_ptr<TyrexSketchEntity>> TyrexSketchManager::getSelectedEntities() const { return {}; }
+    bool TyrexSketchManager::onMouseRelease(const QPoint& screenPos) {
+        if (!m_isInSketchMode || !m_viewerManager) {
+            return false;
+        }
 
-    const gp_Pln& TyrexSketchManager::sketchPlane() const { static gp_Pln dummy; return dummy; }
+        try {
+            // Convert screen position to sketch coordinates
+            gp_Pnt2d sketchPoint = screenToSketch(screenPos);
+            
+            // If we have an active command, forward the event to it
+            if (m_activeCommand) {
+                m_activeCommand->onMouseRelease(sketchPoint);
+                return true;
+            }
+            
+            // If we had an entity selected and were dragging it, finalize the move
+            if (m_entityUnderCursor && m_isDraggingEntity) {
+                // Finalize entity movement
+                m_isDraggingEntity = false;
+                
+                // Notify about modification
+                emit entityModified(m_entityUnderCursor->getId());
+                
+                // Update display
+                drawSketchEntity(m_entityUnderCursor);
+                
+                // Return true to indicate we handled the event
+                return true;
+            }
+            
+            return false;
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error in sketch mouse release:" << ex.GetMessageString();
+            return false;
+        }
+        catch (...) {
+            qWarning() << "Unknown error in sketch mouse release";
+            return false;
+        }
+    }
 
-    Handle(AIS_InteractiveContext) TyrexSketchManager::context() const { return Handle(AIS_InteractiveContext)(); }
+    void TyrexSketchManager::clearSelection() {
+        // Clear control points
+        hideControlPoints();
+        
+        // Clear selected state for all entities
+        for (auto& entity : m_selectedEntities) {
+            if (entity) {
+                entity->setSelected(false);
+                drawSketchEntity(entity);
+            }
+        }
+        
+        // Clear selection list
+        m_selectedEntities.clear();
+        
+        // Notify about clear
+        emit selectionCleared();
+    }
 
-    gp_Pnt2d TyrexSketchManager::applyOrthoMode(const gp_Pnt2d& p) const { return p; }
+    std::vector<std::shared_ptr<TyrexSketchEntity>> TyrexSketchManager::getSelectedEntities() const { 
+        return m_selectedEntities; 
+    }
 
-    void TyrexSketchManager::enterSketchMode() {}
+    const gp_Pln& TyrexSketchManager::sketchPlane() const { 
+        return m_sketchPlane; 
+    }
 
-    void TyrexSketchManager::exitSketchMode() {}
+    Handle(AIS_InteractiveContext) TyrexSketchManager::context() const {
+        if (m_viewerManager) {
+            return m_viewerManager->context();
+        }
+        return Handle(AIS_InteractiveContext)();
+    }
 
-    bool TyrexSketchManager::isInSketchMode() const { return false; }
+    gp_Pnt2d TyrexSketchManager::applyOrthoMode(const gp_Pnt2d& p) const {
+        // If not in ortho mode or no first point set, just return the input point
+        if (!m_sketchConfig.interaction.orthoMode || !m_firstPointSet) {
+            return p;
+        }
+        
+        // Calculate distance in X and Y direction from first point
+        double dx = p.X() - m_firstPoint.X();
+        double dy = p.Y() - m_firstPoint.Y();
+        
+        // If movement is primarily horizontal
+        if (std::abs(dx) >= std::abs(dy)) {
+            // Lock Y coordinate to first point
+            return gp_Pnt2d(p.X(), m_firstPoint.Y());
+        }
+        else {
+            // Lock X coordinate to first point
+            return gp_Pnt2d(m_firstPoint.X(), p.Y());
+        }
+    }
+
+    void TyrexSketchManager::enterSketchMode() {
+        if (m_isInSketchMode) {
+            return; // Already in sketch mode
+        }
+        
+        try {
+            // Switch to 2D mode via viewer manager
+            if (m_viewerManager) {
+                m_viewerManager->set2DMode();
+            }
+            
+            // Setup sketch plane (XY plane by default)
+            m_sketchPlane = gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1));
+            
+            // Initialize sketch state
+            m_isInSketchMode = true;
+            m_activeCommand = nullptr;
+            m_isDraggingEntity = false;
+            m_entityUnderCursor.reset();
+            
+            // Show all sketch entities
+            drawAllEntities();
+            
+            // Configure canvas overlay for sketch mode if available
+            if (m_canvasOverlay) {
+                GridConfig config = m_canvasOverlay->getGridConfig();
+                config.showAxes = true;
+                config.showOriginMarker = true;
+                config.snapEnabled = true;
+                config.showCoordinates = true;
+                m_canvasOverlay->setGridConfig(config);
+                m_canvasOverlay->setGridVisible(true);
+            }
+            
+            // Notify listeners
+            emit sketchModeEntered();
+            
+            qDebug() << "Entered sketch mode";
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error entering sketch mode:" << ex.GetMessageString();
+        }
+        catch (...) {
+            qWarning() << "Unknown error entering sketch mode";
+        }
+    }
+
+    void TyrexSketchManager::exitSketchMode() {
+        if (!m_isInSketchMode) {
+            return; // Not in sketch mode
+        }
+        
+        try {
+            // Cancel any active command
+            if (m_activeCommand) {
+                m_activeCommand->cancel();
+                m_activeCommand = nullptr;
+            }
+            
+            // Clear selection
+            clearSelection();
+            
+            // Hide all sketch entities
+            hideAllEntities();
+            
+            // Reset sketch state
+            m_isInSketchMode = false;
+            m_entityUnderCursor.reset();
+            m_isDraggingEntity = false;
+            
+            // Switch back to 3D mode via viewer manager
+            if (m_viewerManager) {
+                m_viewerManager->set3DMode();
+            }
+            
+            // Restore canvas overlay for 3D mode if available
+            if (m_canvasOverlay) {
+                GridConfig config = m_canvasOverlay->getGridConfig();
+                config.showAxes = true;
+                config.showOriginMarker = true;
+                config.snapEnabled = false;
+                m_canvasOverlay->setGridConfig(config);
+            }
+            
+            // Notify listeners
+            emit sketchModeExited();
+            
+            qDebug() << "Exited sketch mode";
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error exiting sketch mode:" << ex.GetMessageString();
+        }
+        catch (...) {
+            qWarning() << "Unknown error exiting sketch mode";
+        }
+    }
+
+    bool TyrexSketchManager::isInSketchMode() const { 
+        return m_isInSketchMode; 
+    }
 
 } // namespace TyrexCAD
