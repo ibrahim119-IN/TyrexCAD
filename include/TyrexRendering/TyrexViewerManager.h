@@ -221,6 +221,13 @@ namespace TyrexCAD {
          */
         void initialize();
        
+        /**
+         * @brief Performs zoom operation with advanced handling for both 2D and 3D modes
+         * @param center Center point for zoom in screen coordinates
+         * @param factor Zoom factor (>1 zooms in, <1 zooms out)
+         */
+        void performZoom(const QPoint& center, double factor);
+       
     /**
      * @brief Convert screen coordinates to 3D model coordinates
      * @param screenPos Screen position

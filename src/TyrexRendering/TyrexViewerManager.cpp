@@ -210,16 +210,30 @@ namespace TyrexCAD {
             // Default handling if no interaction manager
             highlightEntityAt(event->pos());
 
-            // Handle pan/rotate if buttons are pressed
+            // Handle different mouse movements based on button and mode
             if (event->buttons() & Qt::MiddleButton) {
                 if (m_is2DMode) {
                     // In 2D mode, middle button typically pans
-                    m_view->Pan(event->pos().x(), event->pos().y());
+                    QPoint lastPos = event->pos() - event->globalPosition().toPoint() + event->globalPos();
+                    int dx = event->pos().x() - lastPos.x();
+                    int dy = event->pos().y() - lastPos.y();
+                    pan(dx, dy);
                 }
                 else {
                     // In 3D mode, middle button typically rotates
-                    m_view->Rotation(event->pos().x(), event->pos().y());
+                    QPoint lastPos = event->pos() - event->globalPosition().toPoint() + event->globalPos();
+                    int dx = event->pos().x() - lastPos.x();
+                    int dy = event->pos().y() - lastPos.y();
+                    rotate(dx, dy);
                 }
+                emit viewChanged();
+            }
+            else if (event->buttons() & Qt::RightButton) {
+                // Optional: Handle right button drag (maybe pan in both modes)
+                QPoint lastPos = event->pos() - event->globalPosition().toPoint() + event->globalPos();
+                int dx = event->pos().x() - lastPos.x();
+                int dy = event->pos().y() - lastPos.y();
+                pan(dx, dy);
                 emit viewChanged();
             }
         }
@@ -275,8 +289,8 @@ namespace TyrexCAD {
             // Standard zoom behavior - positive delta zooms in, negative zooms out
             double zoomFactor = (event->angleDelta().y() > 0) ? 1.1 : 0.9;
             
-            // Use zoomAtPoint if we have position information
-            zoomAtPoint(event->position().toPoint(), zoomFactor);
+            // Use performZoom with position information for better zoom experience
+            performZoom(event->position().toPoint(), zoomFactor);
             
             emit viewChanged();
         }
@@ -285,6 +299,60 @@ namespace TyrexCAD {
         }
         catch (...) {
             qWarning() << "Unknown error in mouseWheel";
+        }
+    }
+
+    void TyrexViewerManager::performZoom(const QPoint& center, double factor)
+    {
+        if (m_view.IsNull()) return;
+        
+        try {
+            // Get current view scale
+            double currentScale = m_view->Scale();
+            
+            // Calculate new scale with limits to prevent extreme zoom
+            double newScale = currentScale * factor;
+            const double MIN_SCALE = 0.0001;
+            const double MAX_SCALE = 1000.0;
+            
+            if (newScale < MIN_SCALE) newScale = MIN_SCALE;
+            if (newScale > MAX_SCALE) newScale = MAX_SCALE;
+            
+            // For 2D mode, use a simpler zoom approach
+            if (m_is2DMode) {
+                // Start zoom operation at the specified point
+                m_view->StartZoomAtPoint(center.x(), center.y());
+                
+                // Set the new scale directly
+                m_view->SetScale(newScale);
+                
+                // End the zoom operation
+                m_view->ZoomAtPoint(center.x(), center.y(), 1.0, 1.0);
+            }
+            // For 3D mode, use perspective-aware zooming
+            else {
+                // Store the 3D point under cursor before zoom
+                Standard_Real xv, yv, zv;
+                m_view->Convert(center.x(), center.y(), xv, yv, zv);
+                gp_Pnt pointBeforeZoom(xv, yv, zv);
+                
+                // Apply the zoom
+                m_view->SetScale(newScale);
+                
+                // Optionally: Center the view on the point that was under the cursor
+                if (factor != 1.0) {
+                    m_view->StartZoomAtPoint(center.x(), center.y());
+                    m_view->ZoomAtPoint(center.x(), center.y(), 1.0, 1.0);
+                }
+            }
+            
+            // Make sure view is updated
+            m_view->Invalidate();
+            
+            emit viewChanged();
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error during performZoom:" << ex.GetMessageString();
         }
     }
 
@@ -363,15 +431,22 @@ namespace TyrexCAD {
     {
         if (!m_view.IsNull()) {
             try {
-                // Scale pan speed based on current zoom level
+                // Scale pan speed based on current zoom level for smoother panning
                 double scale = m_view->Scale();
                 double panSpeed = 1.0 / scale;
 
-                // Apply scaled pan
-                m_view->Pan(static_cast<Standard_Integer>(dx * panSpeed),
-                    static_cast<Standard_Integer>(dy * panSpeed),
-                    1.0,
-                    Standard_True);
+                // Apply different pan handling based on mode
+                if (m_is2DMode) {
+                    // In 2D mode, panning should maintain the view plane
+                    m_view->Pan(static_cast<Standard_Integer>(dx * panSpeed),
+                               static_cast<Standard_Integer>(dy * panSpeed),
+                               1.0,
+                               Standard_True);
+                } else {
+                    // In 3D mode, panning should work in the view plane
+                    m_view->Pan(static_cast<Standard_Integer>(dx),
+                               static_cast<Standard_Integer>(dy));
+                }
 
                 emit viewChanged();
             }
@@ -386,7 +461,24 @@ namespace TyrexCAD {
         if (!m_view.IsNull() && !m_is2DMode) {
             try {
                 // Only allow rotation in 3D mode
-                m_view->Rotate(dx, dy);
+                // Scale rotation based on view size for more consistent feel
+                Standard_Integer width, height;
+                m_view->Window()->Size(width, height);
+                
+                // Calculate rotation scale factor based on view size
+                double rotScale = 1.0;
+                if (width > 0 && height > 0) {
+                    rotScale = std::min(width, height) / 500.0; // Baseline for medium-sized view
+                    if (rotScale < 0.5) rotScale = 0.5;
+                    if (rotScale > 2.0) rotScale = 2.0;
+                }
+                
+                // Apply scaled rotation
+                m_view->Rotation(
+                    m_view->Rotation().X() + dx * rotScale,
+                    m_view->Rotation().Y() + dy * rotScale
+                );
+                
                 emit viewChanged();
             }
             catch (const Standard_Failure& ex) {
@@ -399,8 +491,13 @@ namespace TyrexCAD {
     {
         if (!m_view.IsNull()) {
             try {
-                m_view->SetScale(m_view->Scale() * factor);
-                emit viewChanged();
+                // Get view dimensions to calculate center
+                Standard_Integer width, height;
+                m_view->Window()->Size(width, height);
+                
+                // Zoom at the center of the view
+                QPoint center(width / 2, height / 2);
+                performZoom(center, factor);
             }
             catch (const Standard_Failure& ex) {
                 qWarning() << "Error during zoom:" << ex.GetMessageString();
@@ -410,24 +507,8 @@ namespace TyrexCAD {
 
     void TyrexViewerManager::zoomAtPoint(const QPoint& center, double factor)
     {
-        if (!m_view.IsNull()) {
-            try {
-                // Start zoom at specific point
-                m_view->StartZoomAtPoint(center.x(), center.y());
-
-                // Apply zoom - note the correct method name
-                m_view->Zoom(0, 0, static_cast<Standard_Integer>(center.x()),
-                    static_cast<Standard_Integer>(center.y()));
-
-                // Update scale
-                m_view->SetScale(m_view->Scale() * factor);
-
-                emit viewChanged();
-            }
-            catch (const Standard_Failure& ex) {
-                qWarning() << "Error during zoom at point:" << ex.GetMessageString();
-            }
-        }
+        // Use the improved performZoom method for consistent behavior
+        performZoom(center, factor);
     }
 
     void TyrexViewerManager::highlightEntityAt(const QPoint& position)
