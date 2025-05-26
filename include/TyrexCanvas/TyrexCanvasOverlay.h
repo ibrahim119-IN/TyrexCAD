@@ -14,7 +14,7 @@
 #include <QColor>
 #include <QPoint>
 
-// OpenCascade includes
+ // OpenCascade includes
 #include <Standard_Handle.hxx>
 #include <AIS_InteractiveObject.hxx>
 #include <Quantity_Color.hxx>
@@ -51,30 +51,30 @@ namespace TyrexCAD {
         // Grid settings
         double baseSpacing = 10.0;
         int majorLineInterval = 5;
-        int majorFactor = 5;  // أضف هذا
+        int majorFactor = 5;
         double lineWidthMajor = 0.5;
         double lineWidthMinor = 0.25;
-        double minorLineWidth = 1.0;  // أضف هذا
-        double axisLineWidth = 2.0;  // أضف هذا
+        double minorLineWidth = 1.0;
+        double axisLineWidth = 2.0;
         GridStyle style = GridStyle::Lines;
 
         // Grid style specific
-        double dotSize = 3.0;  // أضف هذا
-        double crossSize = 5.0;  // أضف هذا
-        double originMarkerSize = 5.0;  // أضف هذا
-        int maxDots = 1000;  // أضف هذا
+        double dotSize = 3.0;
+        double crossSize = 5.0;
+        double originMarkerSize = 5.0;
+        int maxDots = 1000;
 
         // Performance limits
-        int maxGridLinesH = 200;  // أضف هذا
-        int maxGridLinesV = 200;  // أضف هذا
+        int maxGridLinesH = 200;
+        int maxGridLinesV = 200;
 
         // Coordinate display
-        QPoint coordinateOffset{ 20, 20 };  // أضف هذا
-        QColor coordinateColor{ 255, 255, 255 };  // أضف هذا
-        bool showCoordinates = false;  // أضف هذا
+        QPoint coordinateOffset{ 20, 20 };
+        QColor coordinateColor{ 255, 255, 255 };
+        bool showCoordinates = false;
 
         // Snap settings
-        double snapTolerance = 0.5;  // أضف هذا
+        double snapTolerance = 0.5;
 
         // Adaptive behavior
         bool adaptiveSpacing = true;
@@ -161,10 +161,29 @@ namespace TyrexCAD {
         GridStyle getGridStyle() const;
 
         /**
+         * @brief Set grid spacing
+         * @param spacing New grid spacing
+         */
+        void setGridSpacing(double spacing);
+
+        /**
          * @brief Get current grid spacing
          * @return Current effective grid spacing
          */
         double getCurrentGridSpacing() const;
+
+        /**
+         * @brief Set snap enabled state
+         * @param enabled True to enable snap
+         */
+        void setSnapEnabled(bool enabled);
+
+        /**
+         * @brief Convert screen coordinates to world coordinates
+         * @param screenPos Screen position
+         * @return World coordinates as 2D point
+         */
+        gp_Pnt2d screenToWorld(const QPoint& screenPos) const;
 
         /**
          * @brief Snap point to grid

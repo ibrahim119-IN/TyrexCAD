@@ -40,6 +40,7 @@ namespace TyrexCAD {
         void setGridSpacing(double spacing);
         void setSnapToGrid(bool enabled);
         void setSketchModeGrid(bool enabled);
+        void refreshGrid();  // NEW: Force grid refresh
 
         // Force redraw
         void update() { QOpenGLWidget::update(); }

@@ -153,6 +153,9 @@
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasWidget.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexGridConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexModelSpace.h">
       <Filter>Header Files</Filter>
     </ClInclude>

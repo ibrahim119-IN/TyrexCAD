@@ -80,7 +80,6 @@ namespace TyrexCAD {
         // Helper methods
         void selectEntityAt(const QPoint& point);
         void highlightEntityAt(const QPoint& point);
-        void performZoom(const QPoint& position, int delta);
 
     private:
         // OpenCascade components

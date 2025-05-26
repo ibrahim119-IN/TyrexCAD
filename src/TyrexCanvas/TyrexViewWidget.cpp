@@ -84,12 +84,24 @@ namespace TyrexCAD {
 
             m_gridRenderer->setGridConfig(defaultConfig);
             m_gridRenderer->setGridEnabled(true);
+
+            // CRITICAL FIX: Set view handle immediately if available
+            if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+                m_gridRenderer->setView(m_viewerManager->view());
+                qDebug() << "Grid renderer view handle set immediately";
+            }
         }
 
         // Initialize canvas overlay AFTER viewer is ready
         QTimer::singleShot(50, this, [this]() {
             if (m_viewerManager && !m_viewerManager->view().IsNull()) {
                 initializeOverlay();
+
+                // CRITICAL FIX: Ensure grid renderer has view handle
+                if (m_gridRenderer && m_gridInitialized) {
+                    m_gridRenderer->setView(m_viewerManager->view());
+                    qDebug() << "Grid renderer view handle updated after overlay init";
+                }
 
                 // Force initial grid display
                 if (m_canvasOverlay) {
@@ -118,7 +130,7 @@ namespace TyrexCAD {
         if (m_gridRenderer && m_gridInitialized && m_gridRenderer->isGridEnabled()) {
             QPoint cursorPos = m_cursorInWidget ? m_currentCursorPos : QPoint(-1, -1);
 
-            // Set view for grid renderer
+            // CRITICAL FIX: Always ensure view is set before rendering
             if (m_viewerManager && !m_viewerManager->view().IsNull()) {
                 m_gridRenderer->setView(m_viewerManager->view());
             }
@@ -137,6 +149,9 @@ namespace TyrexCAD {
         if (m_canvasOverlay) {
             m_canvasOverlay->update();
         }
+
+        // Force grid refresh on resize
+        refreshGrid();
 
         // Force redraw
         update();
@@ -170,9 +185,10 @@ namespace TyrexCAD {
             m_viewerManager->mouseMove(event);
 
             // Get world coordinates and emit signal
-            if (m_canvasOverlay) {
-                auto worldPos = m_canvasOverlay->screenToWorld(event->pos());
-                emit cursorWorldPosition(worldPos.X(), worldPos.Y());
+            if (m_gridRenderer) {
+                double worldX, worldY;
+                m_gridRenderer->screenToWorld(event->pos().x(), event->pos().y(), worldX, worldY);
+                emit cursorWorldPosition(worldX, worldY);
             }
         }
         update();
@@ -241,6 +257,18 @@ namespace TyrexCAD {
         qDebug() << "Canvas overlay initialized and grid enabled";
     }
 
+    void TyrexViewWidget::refreshGrid()
+    {
+        if (m_gridRenderer && m_gridInitialized && m_viewerManager && !m_viewerManager->view().IsNull()) {
+            m_gridRenderer->setView(m_viewerManager->view());
+            qDebug() << "Grid refreshed";
+        }
+
+        if (m_canvasOverlay) {
+            m_canvasOverlay->update();
+        }
+    }
+
     void TyrexViewWidget::setGridEnabled(bool enabled)
     {
         if (m_canvasOverlay) {
@@ -257,7 +285,9 @@ namespace TyrexCAD {
     void TyrexViewWidget::setGridSpacing(double spacing)
     {
         if (m_canvasOverlay) {
-            m_canvasOverlay->setGridSpacing(spacing);
+            GridConfig config = m_canvasOverlay->getGridConfig();
+            config.baseSpacing = spacing;
+            m_canvasOverlay->setGridConfig(config);
             update();
         }
 
@@ -301,10 +331,13 @@ namespace TyrexCAD {
         }
     }
 
-    void TyrexViewWidget::setSnapEnabled(bool enabled)
+    void TyrexViewWidget::setSnapToGrid(bool enabled)
     {
         if (m_canvasOverlay) {
-            m_canvasOverlay->setSnapEnabled(enabled);
+            GridConfig config = m_canvasOverlay->getGridConfig();
+            config.snapEnabled = enabled;
+            m_canvasOverlay->setGridConfig(config);
+            emit snapToGridChanged(enabled);
         }
     }
 

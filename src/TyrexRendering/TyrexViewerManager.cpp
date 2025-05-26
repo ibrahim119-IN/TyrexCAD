@@ -1,6 +1,5 @@
 ﻿#include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexInteraction/TyrexInteractionManager.h"
-#include "TyrexEntity/TyrexEntityBase.h"
 
 #include <AIS_DisplayMode.hxx>
 #include <AIS_InteractiveContext.hxx>
@@ -36,7 +35,7 @@ namespace TyrexCAD {
         // Cleanup will be handled automatically by Handle
     }
 
-    void TyrexViewerManager::initializeViewer(QOpenGLWidget* glWidget)
+    void TyrexViewerManager::initializeViewer(QWidget* glWidget)
     {
         if (!glWidget) {
             qCritical() << "Cannot initialize viewer without OpenGL widget";
@@ -79,11 +78,7 @@ namespace TyrexCAD {
             m_view->SetProj(V3d_XposYnegZpos);
             m_view->FitAll();
 
-            // Create interaction manager
-            m_interactionManager = std::make_unique<TyrexInteractionManager>(m_context, this);
-
             qDebug() << "Viewer initialized successfully";
-            emit viewerInitialized();
 
         }
         catch (const Standard_Failure& e) {
@@ -180,31 +175,6 @@ namespace TyrexCAD {
         }
     }
 
-    void TyrexViewerManager::displayEntity(std::shared_ptr<TyrexEntityBase> entity)
-    {
-        if (!entity || m_context.IsNull()) {
-            return;
-        }
-
-        entity->draw(m_context);
-    }
-
-    void TyrexViewerManager::eraseEntity(std::shared_ptr<TyrexEntityBase> entity)
-    {
-        if (!entity || m_context.IsNull()) {
-            return;
-        }
-
-        entity->undraw(m_context);
-    }
-
-    void TyrexViewerManager::clearDisplay()
-    {
-        if (!m_context.IsNull()) {
-            m_context->RemoveAll(Standard_True);
-        }
-    }
-
     void TyrexViewerManager::mouseWheel(QWheelEvent* event)
     {
         if (!event || m_view.IsNull()) {
@@ -221,8 +191,8 @@ namespace TyrexCAD {
                 return;
             }
 
-            // Default zoom behavior
-            performZoom(event->position().toPoint(), delta);
+            // Default zoom behavior - FIXED
+            zoomAtPoint(event->position().toPoint(), delta > 0 ? 1.1 : 0.9);
 
         }
         catch (const Standard_Failure& ex) {
@@ -230,17 +200,17 @@ namespace TyrexCAD {
         }
     }
 
-    void TyrexViewerManager::performZoom(const QPoint& position, int delta)
+    void TyrexViewerManager::zoomAtPoint(const QPoint& center, double factor)
     {
         if (m_view.IsNull()) {
             return;
         }
 
         try {
-            // Calculate zoom factor
-            double zoomStep = 1.1; // 10% per step
-            double factor = (delta > 0) ? zoomStep : (1.0 / zoomStep);
+            Standard_Integer x = center.x();
+            Standard_Integer y = center.y();
 
+            // CRITICAL FIX: Correct zoom implementation
             if (m_is2DMode) {
                 // 2D Mode: Simple scale-based zoom
                 double currentScale = m_view->Scale();
@@ -252,36 +222,18 @@ namespace TyrexCAD {
                 }
             }
             else {
-                // 3D Mode: Position-based zoom
-                Standard_Integer x = position.x();
-                Standard_Integer y = position.y();
+                // 3D Mode: Use StartZoomAtPoint + SetScale
+                m_view->StartZoomAtPoint(x, y);
 
-                // Get current view bounds
-                Standard_Real xmin, ymin, xmax, ymax;
-                m_view->WindowFit(xmin, ymin, xmax, ymax);
-
-                // Calculate zoom center as ratio
-                Standard_Real centerX = x / (xmax - xmin);
-                Standard_Real centerY = y / (ymax - ymin);
-
-                // Perform zoom
-                if (delta > 0) {
-                    // Zoom in
-                    m_view->ZoomAtPoint(x, y, x + 5, y + 5);
-                }
-                else {
-                    // Zoom out
-                    m_view->ZoomAtPoint(x - 5, y - 5, x, y);
-                }
+                // Apply zoom factor
+                double currentScale = m_view->Scale();
+                m_view->SetScale(currentScale * factor);
             }
 
-            // Update view
-            m_view->Redraw();
             emit viewChanged();
-
         }
         catch (const Standard_Failure& ex) {
-            qWarning() << "Error performing zoom:" << ex.GetMessageString();
+            qWarning() << "Error during zoom at point:" << ex.GetMessageString();
         }
     }
 
@@ -433,7 +385,7 @@ namespace TyrexCAD {
             // Check if anything was selected
             if (m_context->HasSelectedShape()) {
                 qDebug() << "Entity selected at" << screenPos;
-                emit entitySelected();
+                emit entitySelected(m_context->SelectedInteractive());
             }
 
         }
@@ -452,10 +404,20 @@ namespace TyrexCAD {
             // Move to screen position for highlighting
             m_context->MoveTo(screenPos.x(), screenPos.y(), m_view, Standard_True);
 
+            // Check if anything is highlighted
+            if (m_context->HasDetected()) {
+                emit entityHighlighted(m_context->DetectedInteractive());
+            }
+
         }
         catch (const Standard_Failure& ex) {
             qWarning() << "Error highlighting entity:" << ex.GetMessageString();
         }
+    }
+
+    void TyrexViewerManager::setInteractionManager(TyrexInteractionManager* manager)
+    {
+        m_interactionManager = manager;
     }
 
     Handle(AIS_InteractiveContext) TyrexViewerManager::context() const
@@ -475,12 +437,7 @@ namespace TyrexCAD {
 
     TyrexInteractionManager* TyrexViewerManager::interactionManager() const
     {
-        return m_interactionManager.get();
-    }
-
-    bool TyrexViewerManager::is2DMode() const
-    {
-        return m_is2DMode;
+        return m_interactionManager;
     }
 
 } // namespace TyrexCAD

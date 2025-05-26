@@ -556,6 +556,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexApp\TyrexMainWindow.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasOverlay.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasWidget.h" />
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexGridConfig.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexModelSpace.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexViewWidget.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCommands\LineCommand.h" />

@@ -54,6 +54,31 @@ namespace TyrexCAD {
             // Setup canvas overlay for sketch mode
             if (m_viewerManager->view() && !m_viewerManager->view().IsNull()) {
                 initializeCanvasOverlay();
+
+                // CRITICAL FIX: Force grid to be visible and configured for sketch mode
+                if (m_canvasOverlay) {
+                    GridConfig config;
+                    config.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
+                    config.gridColorMajor = Quantity_Color(0.4, 0.4, 0.4, Quantity_TOC_RGB);
+                    config.gridColorMinor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
+                    config.axisColorX = Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB);
+                    config.axisColorY = Quantity_Color(0.0, 1.0, 0.0, Quantity_TOC_RGB);
+                    config.style = GridStyle::Lines;
+                    config.showAxes = true;
+                    config.showOriginMarker = true;
+                    config.snapEnabled = true;
+                    config.baseSpacing = 10.0;
+                    config.adaptiveSpacing = true;
+                    config.minPixelSpacing = 15.0;
+                    config.maxPixelSpacing = 100.0;
+
+                    m_canvasOverlay->setGridConfig(config);
+                    m_canvasOverlay->setGridVisible(true);
+                    m_canvasOverlay->setAxisVisible(true);
+                    m_canvasOverlay->update();
+
+                    qDebug() << "Grid configured for sketch mode";
+                }
             }
         }
 
@@ -88,6 +113,24 @@ namespace TyrexCAD {
             m_viewerManager->set3DMode();
         }
 
+        // Reset canvas overlay
+        if (m_canvasOverlay) {
+            GridConfig config;
+            config.backgroundColor = Quantity_Color(0.05, 0.05, 0.05, Quantity_TOC_RGB);
+            config.gridColorMajor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
+            config.gridColorMinor = Quantity_Color(0.2, 0.2, 0.2, Quantity_TOC_RGB);
+            config.axisColorX = Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB);
+            config.axisColorY = Quantity_Color(0.0, 1.0, 0.0, Quantity_TOC_RGB);
+            config.style = GridStyle::Lines;
+            config.showAxes = true;
+            config.showOriginMarker = true;
+            config.snapEnabled = false;
+            config.baseSpacing = 10.0;
+
+            m_canvasOverlay->setGridConfig(config);
+            m_canvasOverlay->update();
+        }
+
         emit sketchModeExited();
         qDebug() << "Sketch mode deactivated";
     }
@@ -101,6 +144,7 @@ namespace TyrexCAD {
     {
         m_currentMode = mode;
         m_firstPointSet = false;
+        clearPreview();
 
         qDebug() << "Interaction mode changed to:" << static_cast<int>(mode);
     }
@@ -123,6 +167,7 @@ namespace TyrexCAD {
         drawSketchEntity(entity);
 
         qDebug() << "Added sketch entity:" << QString::fromStdString(entity->getId());
+        emit entityCreated(entity->getId());
     }
 
     void TyrexSketchManager::removeSketchEntity(const std::string& entityId)
@@ -148,6 +193,39 @@ namespace TyrexCAD {
         );
 
         qDebug() << "Removed sketch entity:" << QString::fromStdString(entityId);
+        emit entityDeleted(entityId);
+    }
+
+    std::shared_ptr<TyrexSketchEntity> TyrexSketchManager::getEntity(const std::string& entityId) const
+    {
+        auto it = m_entityMap.find(entityId);
+        return (it != m_entityMap.end()) ? it->second : nullptr;
+    }
+
+    std::vector<std::shared_ptr<TyrexSketchEntity>> TyrexSketchManager::getAllEntities() const
+    {
+        return m_sketchEntities;
+    }
+
+    void TyrexSketchManager::selectEntity(const std::string& entityId)
+    {
+        auto entity = getEntity(entityId);
+        if (entity) {
+            selectEntity(entity);
+        }
+    }
+
+    void TyrexSketchManager::deselectEntity(const std::string& entityId)
+    {
+        auto entity = getEntity(entityId);
+        if (entity) {
+            entity->setSelected(false);
+            m_selectedEntities.erase(
+                std::remove(m_selectedEntities.begin(), m_selectedEntities.end(), entity),
+                m_selectedEntities.end()
+            );
+            drawSketchEntity(entity);
+        }
     }
 
     bool TyrexSketchManager::onMousePress(const QPoint& screenPos)
@@ -339,28 +417,15 @@ namespace TyrexCAD {
     void TyrexSketchManager::initializeCanvasOverlay()
     {
         if (!m_viewerManager || m_viewerManager->view().IsNull()) {
+            qWarning() << "Cannot initialize canvas overlay - no view available";
             return;
         }
 
+        // Use existing canvas overlay if available
         m_canvasOverlay = std::make_unique<TyrexCanvasOverlay>(
             m_context, m_viewerManager->view(), nullptr);
 
-        // Configure for sketch mode
-        GridConfig config;
-        config.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
-        config.gridColorMajor = Quantity_Color(0.4, 0.4, 0.4, Quantity_TOC_RGB);
-        config.gridColorMinor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
-        config.axisColorX = Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB);
-        config.axisColorY = Quantity_Color(0.0, 1.0, 0.0, Quantity_TOC_RGB);
-        config.style = GridStyle::Lines;
-        config.showAxes = true;
-        config.showOriginMarker = true;
-        config.snapEnabled = true;
-        config.baseSpacing = 10.0;
-
-        m_canvasOverlay->setGridConfig(config);
-        m_canvasOverlay->setGridVisible(true);
-        m_canvasOverlay->setAxisVisible(true);
+        qDebug() << "Canvas overlay initialized for sketch mode";
     }
 
     bool TyrexSketchManager::handleSelectMode(const QPoint& screenPos, const gp_Pnt2d& sketchPoint)
@@ -421,7 +486,6 @@ namespace TyrexCAD {
             // Reset for next line
             m_firstPointSet = false;
 
-            emit entityCreated(line->getId());
             emit statusMessage("Line created");
             return true;
         }
@@ -459,7 +523,6 @@ namespace TyrexCAD {
             // Reset for next circle
             m_firstPointSet = false;
 
-            emit entityCreated(circle->getId());
             emit statusMessage("Circle created");
             return true;
         }
@@ -649,10 +712,7 @@ namespace TyrexCAD {
 
             // Apply grid snap if enabled
             if (m_canvasOverlay && m_canvasOverlay->getGridConfig().snapEnabled) {
-                double spacing = m_canvasOverlay->getGridConfig().baseSpacing;
-                double x = std::round(sketchPoint.X() / spacing) * spacing;
-                double y = std::round(sketchPoint.Y() / spacing) * spacing;
-                return gp_Pnt2d(x, y);
+                return m_canvasOverlay->snapToGrid(sketchPoint);
             }
 
             return sketchPoint;
