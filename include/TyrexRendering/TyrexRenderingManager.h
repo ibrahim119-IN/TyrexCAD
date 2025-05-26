@@ -3,13 +3,21 @@
 
 #include <memory>
 #include <QObject>
+#include <TyrexCanvas/TyrexModelSpace.h>
+#include <V3d_Viewer.hxx>
+#include <TyrexCore/UpdateManager.h>
+#include <OpenGl_GraphicDriver.hxx>
+#include <TyrexCanvas/TyrexGridConfig.h>
+#include "TyrexGridOverlayRenderer.h"
 
 namespace TyrexCAD {
 
     // Forward declarations
     class OpenCascadeRenderer;
     class OpenGLOverlayRenderer;
+    
     class GridRenderer;
+    
     class UpdateManager;
 
     /**
@@ -90,12 +98,37 @@ namespace TyrexCAD {
          */
         void viewportResized(int width, int height);
 
+        /**
+         * @brief Emitted when grid visibility changes
+         * @param enabled New visibility state
+         */
+        void gridVisibilityChanged(bool enabled);
+
     private slots:
         /**
          * @brief Perform actual rendering
          */
         void performRender();
 
+        /**
+         * @brief Update grid visibility
+         * @param enabled New visibility state
+         */
+        void updateGridVisibility(bool enabled);
+        
+        /**
+         * @brief Emit signal when grid visibility changes
+         * @param enabled New visibility state
+         */
+        void onGridVisibilityChanged(bool enabled);
+
+        /**
+         * @brief Handle changes to grid visibility
+         * @param enabled New visibility state
+         */
+        void handleGridVisibilityChanged(bool enabled);
+                            
+        
     private:
         // Rendering subsystems
         std::unique_ptr<OpenCascadeRenderer> m_occRenderer;

@@ -118,6 +118,7 @@ namespace TyrexCAD {
         void initializeViewers();
         void initializeCommandSystem();
 
+
         // === SKETCH SYSTEM METHODS ===
         /**
          * @brief Initialize the sketching system

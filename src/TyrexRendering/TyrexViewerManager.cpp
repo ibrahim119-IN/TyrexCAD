@@ -53,7 +53,7 @@ namespace TyrexCAD {
         try {
             // Create OpenCascade viewer
             Handle(Aspect_DisplayConnection) displayConnection = new Aspect_DisplayConnection();
-            Handle(OpenGl_GraphicDriver) graphicDriver = new OpenGl_GraphicDriver(displayConnection);
+            Handle(Graphic3d_GraphicDriver) graphicDriver = new OpenGl_GraphicDriver(displayConnection);
 
             m_viewer = new V3d_Viewer(graphicDriver);
             m_viewer->SetDefaultLights();
@@ -67,8 +67,7 @@ namespace TyrexCAD {
             m_window = new WNT_Window((Aspect_Handle)glWidget->winId());
 #else
             // Linux/Mac implementation
-            Handle(Aspect_DisplayConnection) aDisplayConnection = new Aspect_DisplayConnection();
-            m_window = new Xw_Window(aDisplayConnection, (Window)glWidget->winId());
+            m_window = new Xw_Window(displayConnection, (Window)glWidget->winId());
 #endif
 
             m_view->SetWindow(m_window);
