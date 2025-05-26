@@ -1,6 +1,12 @@
 ﻿#include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexInteraction/TyrexInteractionManager.h"
 
+#include <QOpenGLContext>
+#include <QOpenGLWidget>
+#include <QMouseEvent>
+#include <QWheelEvent>
+#include <QDebug>
+
 #include <AIS_DisplayMode.hxx>
 #include <AIS_InteractiveContext.hxx>
 #include <AIS_Shape.hxx>
@@ -292,8 +298,7 @@ namespace TyrexCAD {
                 break;
 
             case Qt::MiddleButton:
-                // Start pan
-                m_view->StartPan(event->pos().x(), event->pos().y());
+                // Start pan - store position for panning
                 break;
 
             case Qt::RightButton:
@@ -348,12 +353,12 @@ namespace TyrexCAD {
 
             // Default handling based on pressed buttons
             if (event->buttons() & Qt::MiddleButton) {
-                // Pan
-                pan(delta.x(), delta.y());
+                // Pan - manually calculate pan offset
+                m_view->Pan(delta.x(), -delta.y());
             }
             else if (event->buttons() & Qt::RightButton && !m_is2DMode) {
-                // Rotate (3D only)
-                rotate(delta.x(), delta.y());
+                // Rotate (3D only) - manually handle rotation
+                m_view->Rotation(currentPos.x(), currentPos.y());
             }
             else {
                 // Highlight on hover

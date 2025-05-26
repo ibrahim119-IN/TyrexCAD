@@ -721,6 +721,12 @@ namespace TyrexCAD {
         return gp_Pnt2d(screenPos.x(), screenPos.y());
     }
 
+    gp_Pnt TyrexSketchManager::sketchToWorld(const gp_Pnt2d& sketchPoint) const
+    {
+        // Convert 2D sketch coordinates to 3D world coordinates using sketch plane
+        return ElSLib::Value(sketchPoint.X(), sketchPoint.Y(), m_sketchPlane);
+    }
+
     gp_Pnt2d TyrexSketchManager::applyOrthoMode(const gp_Pnt2d& point) const
     {
         if (!m_sketchConfig.interaction.orthoMode || !m_firstPointSet) {

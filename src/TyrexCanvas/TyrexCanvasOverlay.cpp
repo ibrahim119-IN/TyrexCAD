@@ -1,4 +1,6 @@
-﻿#include <AIS_InteractiveContext.hxx>
+﻿#include "TyrexCanvas/TyrexCanvasOverlay.h"
+
+#include <AIS_InteractiveContext.hxx>
 #include <V3d_View.hxx>
 #include <Graphic3d_AspectLine3d.hxx>
 #include <Prs3d_LineAspect.hxx>

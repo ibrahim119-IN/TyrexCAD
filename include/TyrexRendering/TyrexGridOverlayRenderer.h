@@ -14,7 +14,7 @@
 #include <V3d_View.hxx>
 #include <Standard_Handle.hxx>
 
-#include "TyrexCanvas/TyrexCanvasOverlay.h"
+#include "TyrexCanvas/TyrexGridConfig.h"
 
 namespace TyrexCAD {
 
@@ -133,4 +133,4 @@ namespace TyrexCAD {
 
 }
 
-#endif
+#endif // TYREX_GRID_OVERLAY_RENDERER_H

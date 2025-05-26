@@ -15,13 +15,13 @@
  // OpenCascade includes
 #include <Standard_Handle.hxx>
 #include <Standard_Type.hxx>
-#include <Standard_DefineHandle.hxx>
 #include <gp_Pnt2d.hxx>
 #include <gp_Pln.hxx>
 #include <TopoDS_Shape.hxx>
 #include <AIS_Shape.hxx>
 #include <AIS_InteractiveContext.hxx>
 #include <Quantity_Color.hxx>
+#include <Aspect_TypeOfLine.hxx>
 
 namespace TyrexCAD {
 
@@ -200,6 +200,18 @@ namespace TyrexCAD {
         bool isHighlighted() const;
 
         /**
+         * @brief Set the line style for this entity
+         * @param lineStyle Line style (solid, dashed, etc.)
+         */
+        void setLineStyle(Aspect_TypeOfLine lineStyle);
+
+        /**
+         * @brief Get the line style of this entity
+         * @return Line style
+         */
+        Aspect_TypeOfLine getLineStyle() const;
+
+        /**
          * @brief Convert a 2D sketch point to 3D world coordinates
          * @param sketchPoint 2D point in sketch plane
          * @return 3D point in world space
@@ -256,6 +268,7 @@ namespace TyrexCAD {
         Quantity_Color m_color;               ///< Entity color
         bool m_isSelected;                    ///< Selection state
         bool m_isHighlighted;                 ///< Highlight state
+        Aspect_TypeOfLine m_lineStyle;        ///< Line style
 
         // Visual properties
         double m_lineWidth;                   ///< Line width for display

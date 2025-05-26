@@ -14,7 +14,10 @@
 #include <QColor>
 #include <QPoint>
 
- // OpenCascade includes
+ // Include GridConfig definitions
+#include "TyrexCanvas/TyrexGridConfig.h"
+
+// OpenCascade includes
 #include <Standard_Handle.hxx>
 #include <AIS_InteractiveObject.hxx>
 #include <Quantity_Color.hxx>
@@ -28,67 +31,8 @@ class Geom_TrimmedCurve;
 
 namespace TyrexCAD {
 
-    /**
-     * @brief Grid rendering style
-     */
-    enum class GridStyle {
-        Lines,      ///< Traditional line grid
-        Dots,       ///< Dot grid at intersections
-        Crosses     ///< Small crosses at intersections
-    };
-
-    /**
-     * @brief Grid configuration settings
-     */
-    struct GridConfig {
-        // Visual appearance
-        Quantity_Color backgroundColor{ 0.0, 0.0, 0.0, Quantity_TOC_RGB };
-        Quantity_Color gridColorMajor{ 0.5, 0.5, 0.5, Quantity_TOC_RGB };
-        Quantity_Color gridColorMinor{ 0.3, 0.3, 0.3, Quantity_TOC_RGB };
-        Quantity_Color axisColorX{ 1.0, 0.0, 0.0, Quantity_TOC_RGB };
-        Quantity_Color axisColorY{ 0.0, 1.0, 0.0, Quantity_TOC_RGB };
-
-        // Grid settings
-        double baseSpacing = 10.0;
-        int majorLineInterval = 5;
-        int majorFactor = 5;
-        double lineWidthMajor = 0.5;
-        double lineWidthMinor = 0.25;
-        double minorLineWidth = 1.0;
-        double axisLineWidth = 2.0;
-        GridStyle style = GridStyle::Lines;
-
-        // Grid style specific
-        double dotSize = 3.0;
-        double crossSize = 5.0;
-        double originMarkerSize = 5.0;
-        int maxDots = 1000;
-
-        // Performance limits
-        int maxGridLinesH = 200;
-        int maxGridLinesV = 200;
-
-        // Coordinate display
-        QPoint coordinateOffset{ 20, 20 };
-        QColor coordinateColor{ 255, 255, 255 };
-        bool showCoordinates = false;
-
-        // Snap settings
-        double snapTolerance = 0.5;
-
-        // Adaptive behavior
-        bool adaptiveSpacing = true;
-        double minSpacingPixels = 15.0;
-        double maxSpacingPixels = 100.0;
-        double minPixelSpacing = 15.0;
-        double maxPixelSpacing = 100.0;
-
-        // Display options
-        bool showOriginMarker = true;
-        bool showAxes = true;
-        double gridExtensionFactor = 1.2;
-        bool snapEnabled = true;
-    };
+    // Forward declaration to avoid redefinition
+    // GridStyle and GridConfig are defined in TyrexGridConfig.h
 
     /**
      * @brief Canvas overlay system for grid, axes, and other 2D elements

@@ -11,8 +11,9 @@
 // OpenCascade includes
 #include <gp_Pln.hxx>
 #include <gp_Pnt2d.hxx>
-#include <Handle_AIS_InteractiveContext.hxx>
-#include <Handle_AIS_InteractiveObject.hxx>
+#include <AIS_InteractiveContext.hxx>
+#include <AIS_InteractiveObject.hxx>
+#include <Standard_Handle.hxx>
 
 #include "TyrexSketch/TyrexSketchConfig.h"
 
@@ -114,6 +115,7 @@ namespace TyrexCAD {
         // Utility
         void redrawSketch();
         gp_Pnt2d screenToSketch(const QPoint& screenPos) const;
+        gp_Pnt sketchToWorld(const gp_Pnt2d& sketchPoint) const;
 
     signals:
         void sketchModeEntered();
