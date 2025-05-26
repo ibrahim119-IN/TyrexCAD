@@ -1,25 +1,19 @@
-/***************************************************************************
- *   Copyright (c) 2025 TyrexCAD development team                          *
- *                                                                         *
- *   This file is part of the TyrexCAD CAx development system.             *
- *                                                                         *
- ***************************************************************************/
-
 #include "TyrexCore/TyrexLineCommand.h"
 #include "TyrexCanvas/TyrexModelSpace.h"
 #include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexEntities/TyrexLineEntity.h"
-#include "TyrexCore/TyrexEntityManager.h"
+#include "TyrexCore/CoordinateConverter.h"
+#include "TyrexCore/SafeHandleUtils.h"
+
+#include <chrono>
 
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <TopoDS_Edge.hxx>
+#include <AIS_Shape.hxx>
 #include <Quantity_Color.hxx>
-#include <Quantity_NameOfColor.hxx>
 #include <AIS_InteractiveContext.hxx>
 #include <V3d_View.hxx>
 #include <QDebug>
-#include <sstream>
-#include <iomanip>
 
 namespace TyrexCAD {
 
@@ -28,46 +22,33 @@ namespace TyrexCAD {
         , m_modelSpace(modelSpace)
         , m_viewerManager(viewerManager)
         , m_firstPointSet(false)
-        , m_firstPoint(0, 0, 0)
-        , m_secondPoint(0, 0, 0)
     {
-        // Initialize preview shape as null
-        m_previewShape.Nullify();
-
-        qDebug() << "TyrexLineCommand created with model space and viewer manager";
+        qDebug() << "TyrexLineCommand created";
     }
 
     TyrexLineCommand::~TyrexLineCommand()
     {
-        // Clean up preview if it exists
         cleanupPreview();
         qDebug() << "TyrexLineCommand destroyed";
     }
 
     void TyrexLineCommand::start()
     {
-        TyrexCommand::start();
-
-        // Reset state to initial conditions
+        m_isStarted = true;
+        m_isFinished = false;
         m_firstPointSet = false;
-        m_firstPoint = gp_Pnt(0, 0, 0);
-        m_secondPoint = gp_Pnt(0, 0, 0);
-
-        // Clean up any existing preview
         cleanupPreview();
 
-        qDebug() << "Line command started - click to place first point";
+        qDebug() << "Line command started - click to set first point";
     }
 
     void TyrexLineCommand::cancel()
     {
-        // Clean up preview shape
         cleanupPreview();
+        m_firstPointSet = false;
+        m_isFinished = true;
 
-        // Call base class cancel
-        TyrexCommand::cancel();
-
-        qDebug() << "Line command canceled";
+        qDebug() << "Line command cancelled";
     }
 
     bool TyrexLineCommand::isFinished() const
@@ -77,127 +58,112 @@ namespace TyrexCAD {
 
     void TyrexLineCommand::onMousePress(const QPoint& point)
     {
-        if (!m_viewerManager) {
-            qWarning() << "No viewer manager available in line command";
-            m_isFinished = true;
+        if (!m_modelSpace || !m_viewerManager) {
+            qWarning() << "TyrexLineCommand: Missing model space or viewer manager";
             return;
         }
 
-        // Convert screen coordinates to 3D model coordinates
-        gp_Pnt modelPoint = m_viewerManager->screenToModel(point);
+        Handle(V3d_View) view = m_viewerManager->view();
+        if (view.IsNull()) {
+            qWarning() << "TyrexLineCommand: View is null";
+            return;
+        }
+
+        // Convert screen to world coordinates
+        gp_Pnt worldPoint = CoordinateConverter::screenToWorld3D(point, view);
 
         if (!m_firstPointSet) {
-            // Set the first point
-            m_firstPoint = modelPoint;
+            // Set first point
+            m_firstPoint = worldPoint;
             m_firstPointSet = true;
+            updatePreview(m_firstPoint);
 
-            qDebug() << QString("First point set at (%1, %2, %3)")
-                .arg(m_firstPoint.X(), 0, 'f', 3)
-                .arg(m_firstPoint.Y(), 0, 'f', 3)
-                .arg(m_firstPoint.Z(), 0, 'f', 3);
-
-            qDebug() << "Move mouse and click to place second point";
+            qDebug() << "First point set at:" << m_firstPoint.X() << m_firstPoint.Y() << m_firstPoint.Z();
+            qDebug() << "Click to set second point";
         }
         else {
-            // Set the second point and create the line
-            m_secondPoint = modelPoint;
+            // Set second point and create line
+            m_secondPoint = worldPoint;
 
-            qDebug() << QString("Second point set at (%1, %2, %3)")
-                .arg(m_secondPoint.X(), 0, 'f', 3)
-                .arg(m_secondPoint.Y(), 0, 'f', 3)
-                .arg(m_secondPoint.Z(), 0, 'f', 3);
+            qDebug() << "Second point set at:" << m_secondPoint.X() << m_secondPoint.Y() << m_secondPoint.Z();
 
-            // Validate that the two points are different
-            if (m_firstPoint.Distance(m_secondPoint) < 1e-6) {
-                qWarning() << "Points are too close together, line not created";
-                return;
-            }
-
-            // Create the actual line entity
             if (createLine()) {
-                // Command completed successfully
                 m_isFinished = true;
-                qDebug() << "Line command completed successfully";
+                qDebug() << "Line created successfully";
             }
             else {
-                qWarning() << "Failed to create line entity";
-                m_isFinished = true;
+                qWarning() << "Failed to create line";
+                cancel();
             }
         }
     }
 
     void TyrexLineCommand::onMouseMove(const QPoint& point)
     {
-        if (!m_firstPointSet || !m_viewerManager) {
+        if (!m_firstPointSet) {
             return;
         }
 
-        // Convert current mouse position to 3D coordinates
-        gp_Pnt currentPoint = m_viewerManager->screenToModel(point);
+        if (!m_viewerManager) {
+            return;
+        }
 
-        // Update or create preview
+        Handle(V3d_View) view = m_viewerManager->view();
+        if (view.IsNull()) {
+            return;
+        }
+
+        // Update preview with current mouse position
+        gp_Pnt currentPoint = CoordinateConverter::screenToWorld3D(point, view);
         updatePreview(currentPoint);
     }
 
-    void TyrexLineCommand::onMouseRelease(const QPoint& /*point*/)
+    void TyrexLineCommand::onMouseRelease(const QPoint& point)
     {
-        // No specific action needed on mouse release for line command
-        // The click handling is done in onMousePress
+        // No action needed on mouse release for line command
+        Q_UNUSED(point);
     }
 
     bool TyrexLineCommand::createLine()
     {
         if (!m_modelSpace) {
-            qCritical() << "Cannot create line - model space is null";
+            qWarning() << "Cannot create line - no model space";
             return false;
         }
 
-        // Clean up preview before creating final line
-        cleanupPreview();
+        // Check if points are different
+        double distance = m_firstPoint.Distance(m_secondPoint);
+        if (distance < 1e-6) {
+            qWarning() << "Cannot create line - points are too close";
+            return false;
+        }
 
         try {
-            // Generate a unique ID for the line
-            auto& entityManager = Tyrex::Core::TyrexEntityManager::getInstance();
-            std::string lineId = entityManager.generateUniqueEntityId("line");
-
-            // Calculate line length for debugging
-            Standard_Real lineLength = m_firstPoint.Distance(m_secondPoint);
-            qDebug() << QString("Creating line with length: %1").arg(lineLength, 0, 'f', 3);
-
-            // Create the line entity with a distinct color
-            Quantity_Color lineColor(0.0, 0.7, 1.0, Quantity_TOC_RGB); // Bright blue
+            // Create line entity
             auto lineEntity = std::make_shared<TyrexLineEntity>(
-                lineId,
-                "default",
-                lineColor,
+                "line_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()),
                 m_firstPoint,
                 m_secondPoint
             );
 
-            // Add the entity to both the local model space and global entity manager
+            // Add to model space
             m_modelSpace->addEntity(lineEntity);
-            entityManager.addEntity(lineEntity);
 
-            // Force a view update to show the new line
-            if (m_viewerManager) {
-                m_viewerManager->redraw();
-            }
-
-            qDebug() << QString("Line entity created successfully with ID: %1")
-                .arg(QString::fromStdString(lineId));
+            // Clean up preview
+            cleanupPreview();
 
             return true;
         }
         catch (const Standard_Failure& ex) {
-            qCritical() << "OpenCascade error creating line:" << ex.GetMessageString();
+            qWarning() << "OpenCascade error creating line:" << ex.GetMessageString();
             return false;
         }
         catch (const std::exception& ex) {
-            qCritical() << "Standard error creating line:" << ex.what();
+            qWarning() << "Error creating line:" << ex.what();
             return false;
         }
         catch (...) {
-            qCritical() << "Unknown error creating line";
+            qWarning() << "Unknown error creating line";
             return false;
         }
     }
@@ -214,46 +180,41 @@ namespace TyrexCAD {
         }
 
         try {
-            // Validate points are different
-            if (m_firstPoint.Distance(currentPoint) < 1e-6) {
-                return; // Don't show preview for identical points
+            // Remove existing preview
+            cleanupPreview();
+
+            // Don't create preview if points are the same
+            double distance = m_firstPoint.Distance(currentPoint);
+            if (distance < 1e-6) {
+                return;
             }
 
-            if (m_previewShape.IsNull()) {
-                // Create new preview shape
-                TopoDS_Edge previewEdge = BRepBuilderAPI_MakeEdge(m_firstPoint, currentPoint);
-                m_previewShape = new AIS_Shape(previewEdge);
-
-                // Set preview appearance (red dashed line)
-                m_previewShape->SetColor(Quantity_NOC_RED);
-                m_previewShape->SetWidth(1.5);
-                m_previewShape->SetTransparency(0.3); // Semi-transparent
-
-                // Set line style to dashed
-                m_previewShape->Attributes()->SetLineAspect(
-                    new Prs3d_LineAspect(Quantity_NOC_RED, Aspect_TOL_DASH, 1.5)
-                );
-
-                // Display the preview
-                context->Display(m_previewShape, Standard_False);
-            }
-            else {
-                // Update existing preview shape
-                TopoDS_Edge updatedEdge = BRepBuilderAPI_MakeEdge(m_firstPoint, currentPoint);
-                m_previewShape->Set(updatedEdge);
-
-                // Redisplay the updated preview
-                context->Redisplay(m_previewShape, Standard_False);
+            // Create preview edge
+            BRepBuilderAPI_MakeEdge edgeMaker(m_firstPoint, currentPoint);
+            if (!edgeMaker.IsDone()) {
+                qWarning() << "Failed to create preview edge";
+                return;
             }
 
-            // Update the view to show changes
+            TopoDS_Edge previewEdge = edgeMaker.Edge();
+            m_previewShape = new AIS_Shape(previewEdge);
+
+            // Set preview appearance
+            SAFE_HANDLE_CALL(m_previewShape, SetColor(Quantity_Color(0.0, 0.8, 0.8, Quantity_TOC_RGB)));
+            SAFE_HANDLE_CALL(m_previewShape, SetWidth(2.0));
+            SAFE_HANDLE_CALL(m_previewShape, SetTransparency(0.3));
+
+            // Display preview
+            context->Display(m_previewShape, Standard_False);
             context->UpdateCurrentViewer();
         }
         catch (const Standard_Failure& ex) {
             qWarning() << "Error updating line preview:" << ex.GetMessageString();
+            cleanupPreview();
         }
         catch (...) {
             qWarning() << "Unknown error updating line preview";
+            cleanupPreview();
         }
     }
 
@@ -261,20 +222,13 @@ namespace TyrexCAD {
     {
         if (!m_previewShape.IsNull() && m_viewerManager) {
             Handle(AIS_InteractiveContext) context = m_viewerManager->context();
-            if (!context.IsNull()) {
-                try {
-                    context->Remove(m_previewShape, Standard_False);
-                    context->UpdateCurrentViewer();
-                    qDebug() << "Preview shape cleaned up";
-                }
-                catch (const Standard_Failure& ex) {
-                    qWarning() << "Error cleaning up preview:" << ex.GetMessageString();
-                }
-                catch (...) {
-                    qWarning() << "Unknown error cleaning up preview";
-                }
-            }
+            SAFE_HANDLE_CALL_OR(context, Remove(m_previewShape, Standard_False), {
+                qWarning() << "Cannot remove preview - null context";
+                });
+
             m_previewShape.Nullify();
+
+            SAFE_HANDLE_CALL(context, UpdateCurrentViewer());
         }
     }
 

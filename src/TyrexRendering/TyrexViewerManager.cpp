@@ -19,12 +19,14 @@
 #include <V3d_Viewer.hxx>
 #include <V3d_View.hxx>
 #include <Graphic3d_Camera.hxx>
+#include <Aspect_Window.hxx>
+
+#ifdef _WIN32
 #include <WNT_Window.hxx>
-#include <QOpenGLContext>
-#include <QOpenGLWidget>
-#include <QMouseEvent>
-#include <QWheelEvent>
-#include <QDebug>
+#else
+#include <Xw_Window.hxx>
+#endif
+
 #include <cmath>
 
 namespace TyrexCAD {
@@ -64,8 +66,9 @@ namespace TyrexCAD {
 #ifdef _WIN32
             m_window = new WNT_Window((Aspect_Handle)glWidget->winId());
 #else
-    // Linux/Mac implementation would go here
-#error "Platform not supported yet"
+            // Linux/Mac implementation
+            Handle(Aspect_DisplayConnection) aDisplayConnection = new Aspect_DisplayConnection();
+            m_window = new Xw_Window(aDisplayConnection, (Window)glWidget->winId());
 #endif
 
             m_view->SetWindow(m_window);
@@ -179,6 +182,16 @@ namespace TyrexCAD {
         catch (const Standard_Failure& ex) {
             qWarning() << "Error setting 3D mode:" << ex.GetMessageString();
         }
+    }
+
+    void TyrexViewerManager::zoom(double factor)
+    {
+        if (m_view.IsNull()) {
+            return;
+        }
+
+        m_view->SetScale(m_view->Scale() * factor);
+        emit viewChanged();
     }
 
     void TyrexViewerManager::mouseWheel(QWheelEvent* event)

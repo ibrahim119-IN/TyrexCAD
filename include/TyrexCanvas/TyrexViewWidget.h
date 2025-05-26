@@ -8,6 +8,10 @@
 
 #include "TyrexCanvas/TyrexGridConfig.h"
 
+QT_BEGIN_NAMESPACE
+class QEnterEvent;
+QT_END_NAMESPACE
+
 namespace TyrexCAD {
 
     // Forward declarations
@@ -40,7 +44,11 @@ namespace TyrexCAD {
         void setGridSpacing(double spacing);
         void setSnapToGrid(bool enabled);
         void setSketchModeGrid(bool enabled);
-        void refreshGrid();  // NEW: Force grid refresh
+        void refreshGrid();  // Force grid refresh
+
+        // Grid system selection
+        void setUseOpenGLGrid(bool use) { m_useOpenGLGrid = use; }
+        bool isUsingOpenGLGrid() const { return m_useOpenGLGrid; }
 
         // Force redraw
         void update() { QOpenGLWidget::update(); }
@@ -65,7 +73,11 @@ namespace TyrexCAD {
         void wheelEvent(QWheelEvent* event) override;
 
         // Widget events
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         void enterEvent(QEnterEvent* event) override;
+#else
+        void enterEvent(QEvent* event) override;
+#endif
         void leaveEvent(QEvent* event) override;
 
     private:
@@ -80,6 +92,7 @@ namespace TyrexCAD {
         // State
         bool m_gridInitialized;
         bool m_cursorInWidget;
+        bool m_useOpenGLGrid;  // Choose between OpenGL or OpenCascade grid
         QPoint m_currentCursorPos;
     };
 

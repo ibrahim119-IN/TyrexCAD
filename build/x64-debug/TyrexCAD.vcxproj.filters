@@ -13,6 +13,9 @@
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexCanvasWidget.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexGridConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexModelSpace.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -168,6 +171,12 @@
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCommands\TyrexCommand.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\CoordinateConverter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\SafeHandleUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\TyrexApplication.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -187,6 +196,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\TyrexSelectionMode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\UpdateManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexDatabase\TyrexDrawingDatabase.h">
@@ -226,6 +238,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexGridOverlayRenderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexRenderingManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexViewerManager.h">

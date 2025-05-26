@@ -1,3 +1,0 @@
-D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD.dir
-D:/Projects/TyrexCAD/CMakeFiles/ALL_BUILD.dir
-D:/Projects/TyrexCAD/CMakeFiles/ZERO_CHECK.dir

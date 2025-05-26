@@ -1,7 +1,7 @@
 #ifndef TYREX_GRID_OVERLAY_RENDERER_H
 #define TYREX_GRID_OVERLAY_RENDERER_H
 
-#include <QOpenGLFunctions_3_3_Core> // Include the correct OpenGL functions header
+#include <QOpenGLFunctions_3_3_Core>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
@@ -18,7 +18,7 @@
 
 namespace TyrexCAD {
 
-    class TyrexGridOverlayRenderer : protected QOpenGLFunctions_3_3_Core // Use QOpenGLFunctions_3_3_Core
+    class TyrexGridOverlayRenderer : protected QOpenGLFunctions_3_3_Core
     {
     public:
         TyrexGridOverlayRenderer();
@@ -49,10 +49,15 @@ namespace TyrexCAD {
             double& worldX, double& worldY) const;
 
     private:
+        // OpenGL context management
+        void makeCurrent();
+
+        // Member variables
         Handle(V3d_View) m_view;
         GridConfig m_config;
         bool m_gridEnabled;
         bool m_initialized;
+        QOpenGLFunctions_3_3_Core* m_glFunctions;  // Store OpenGL functions pointer
 
         double m_currentSpacing;
         double m_viewScale;

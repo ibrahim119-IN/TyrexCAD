@@ -9,8 +9,11 @@
 #include <V3d_View.hxx>
 #include <ElSLib.hxx>
 #include <AIS_Shape.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Vertex.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <Prs3d_PointAspect.hxx>
+#include <Aspect_TypeOfMarker.hxx>
 #include <QDebug>
 #include <cmath>
 
@@ -474,6 +477,7 @@ namespace TyrexCAD {
             // Create the line entity
             auto line = std::make_shared<TyrexSketchLineEntity>(
                 "line_" + std::to_string(m_sketchEntities.size()),
+                m_sketchPlane,
                 m_firstPoint,
                 endPoint
             );
@@ -511,6 +515,7 @@ namespace TyrexCAD {
             // Create the circle entity
             auto circle = std::make_shared<TyrexSketchCircleEntity>(
                 "circle_" + std::to_string(m_sketchEntities.size()),
+                m_sketchPlane,
                 m_firstPoint,
                 radius
             );
@@ -674,7 +679,7 @@ namespace TyrexCAD {
         TopoDS_Vertex vertex = BRepBuilderAPI_MakeVertex(pt3d);
 
         // Create AIS object
-        Handle(AIS_Shape) aisPoint = new AIS_Shape(vertex);
+        Handle(AIS_Shape) aisPoint = new AIS_Shape(TopoDS_Shape(vertex));
 
         // Set appearance
         Handle(Prs3d_PointAspect) pointAspect = new Prs3d_PointAspect(
@@ -706,9 +711,9 @@ namespace TyrexCAD {
 
             // Project onto sketch plane
             gp_Pnt worldPoint(xv, yv, zv);
-            gp_Pnt2d sketchPoint;
-            ElSLib::Parameters(m_sketchPlane, worldPoint, sketchPoint.ChangeCoord().ChangeX(),
-                sketchPoint.ChangeCoord().ChangeY());
+            Standard_Real u, v;
+            ElSLib::Parameters(m_sketchPlane, worldPoint, u, v);
+            gp_Pnt2d sketchPoint(u, v);
 
             // Apply grid snap if enabled
             if (m_canvasOverlay && m_canvasOverlay->getGridConfig().snapEnabled) {
@@ -755,6 +760,7 @@ namespace TyrexCAD {
         // Create a temporary line for preview
         m_previewEntity = std::make_shared<TyrexSketchLineEntity>(
             "preview_line",
+            m_sketchPlane,
             startPoint,
             startPoint  // Initially same as start
         );
@@ -789,6 +795,7 @@ namespace TyrexCAD {
         // Create a temporary circle for preview
         m_previewEntity = std::make_shared<TyrexSketchCircleEntity>(
             "preview_circle",
+            m_sketchPlane,
             center,
             0.1  // Small initial radius
         );

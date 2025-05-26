@@ -18,7 +18,7 @@
 #include <Aspect_TypeOfLine.hxx> 
 #include <AIS_InteractiveContext.hxx>
 #include <Prs3d_Drawer.hxx>       
-
+#include <TopoDS.hxx>
 // Qt includes
 #include <QDebug>
 #include <sstream>

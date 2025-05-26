@@ -54,6 +54,7 @@ namespace TyrexCAD {
         // Camera modes
         void set2DMode();
         void set3DMode();
+        void zoom(double factor);
         bool is2DMode() const { return m_is2DMode; }
 
         // Mouse interaction

@@ -8,6 +8,10 @@
 #include <QTimer>
 #include <QOpenGLContext>
 #include <QSurfaceFormat>
+#include <QEvent>
+#include <QMouseEvent>
+#include <QWheelEvent>
+#include <QEnterEvent>
 
 namespace TyrexCAD {
 
@@ -16,7 +20,8 @@ namespace TyrexCAD {
         m_gridRenderer(nullptr),
         m_canvasOverlay(nullptr),
         m_gridInitialized(false),
-        m_cursorInWidget(false)
+        m_cursorInWidget(false),
+        m_useOpenGLGrid(true)  // Use OpenGL grid by default
     {
         // Set OpenGL format
         QSurfaceFormat format;
@@ -32,8 +37,6 @@ namespace TyrexCAD {
 
         // Enable mouse tracking for coordinate display
         setMouseTracking(true);
-
-        // DO NOT initialize overlay here - wait for OpenGL context
     }
 
     TyrexViewWidget::~TyrexViewWidget()
@@ -58,65 +61,63 @@ namespace TyrexCAD {
         // Initialize viewer with this widget
         m_viewerManager->initializeViewer(this);
 
-        // Initialize Grid Renderer
-        m_gridRenderer = std::make_unique<TyrexGridOverlayRenderer>();
-        bool gridSuccess = m_gridRenderer->initialize();
+        // Initialize Grid Renderer only if using OpenGL grid
+        if (m_useOpenGLGrid) {
+            m_gridRenderer = std::make_unique<TyrexGridOverlayRenderer>();
+            bool gridSuccess = m_gridRenderer->initialize();
 
-        if (!gridSuccess) {
-            qWarning() << "Failed to initialize grid renderer";
+            if (!gridSuccess) {
+                qWarning() << "Failed to initialize grid renderer";
+                m_useOpenGLGrid = false;
+            }
+            else {
+                qDebug() << "Grid renderer initialized successfully";
+                m_gridInitialized = true;
+
+                // Set default grid configuration
+                GridConfig defaultConfig;
+                defaultConfig.backgroundColor = Quantity_Color(0.05, 0.05, 0.05, Quantity_TOC_RGB);
+                defaultConfig.gridColorMajor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
+                defaultConfig.gridColorMinor = Quantity_Color(0.2, 0.2, 0.2, Quantity_TOC_RGB);
+                defaultConfig.axisColorX = Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB);
+                defaultConfig.axisColorY = Quantity_Color(0.0, 1.0, 0.0, Quantity_TOC_RGB);
+                defaultConfig.showAxes = true;
+                defaultConfig.showOriginMarker = true;
+                defaultConfig.baseSpacing = 10.0;
+                defaultConfig.adaptiveSpacing = true;
+                defaultConfig.snapEnabled = true;
+
+                m_gridRenderer->setGridConfig(defaultConfig);
+                m_gridRenderer->setGridEnabled(true);
+
+                // Set view handle immediately if available
+                if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+                    m_gridRenderer->setView(m_viewerManager->view());
+                    qDebug() << "Grid renderer view handle set immediately";
+                }
+            }
+        }
+
+        // Initialize canvas overlay after viewer is ready (for OpenCascade grid option)
+        if (!m_useOpenGLGrid) {
+            QTimer::singleShot(50, this, [this]() {
+                if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+                    initializeOverlay();
+
+                    if (m_canvasOverlay) {
+                        m_canvasOverlay->setGridVisible(true);
+                        m_canvasOverlay->setAxisVisible(true);
+                        m_canvasOverlay->update();
+                    }
+
+                    emit viewerInitialized();
+                    update();
+                }
+                });
         }
         else {
-            qDebug() << "Grid renderer initialized successfully";
-            m_gridInitialized = true;
-
-            // Set default grid configuration
-            GridConfig defaultConfig;
-            defaultConfig.backgroundColor = Quantity_Color(0.05, 0.05, 0.05, Quantity_TOC_RGB);
-            defaultConfig.gridColorMajor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
-            defaultConfig.gridColorMinor = Quantity_Color(0.2, 0.2, 0.2, Quantity_TOC_RGB);
-            defaultConfig.axisColorX = Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB);
-            defaultConfig.axisColorY = Quantity_Color(0.0, 1.0, 0.0, Quantity_TOC_RGB);
-            defaultConfig.showAxes = true;
-            defaultConfig.showOriginMarker = true;
-            defaultConfig.baseSpacing = 10.0;
-            defaultConfig.adaptiveSpacing = true;
-            defaultConfig.snapEnabled = true;
-
-            m_gridRenderer->setGridConfig(defaultConfig);
-            m_gridRenderer->setGridEnabled(true);
-
-            // CRITICAL FIX: Set view handle immediately if available
-            if (m_viewerManager && !m_viewerManager->view().IsNull()) {
-                m_gridRenderer->setView(m_viewerManager->view());
-                qDebug() << "Grid renderer view handle set immediately";
-            }
+            emit viewerInitialized();
         }
-
-        // Initialize canvas overlay AFTER viewer is ready
-        QTimer::singleShot(50, this, [this]() {
-            if (m_viewerManager && !m_viewerManager->view().IsNull()) {
-                initializeOverlay();
-
-                // CRITICAL FIX: Ensure grid renderer has view handle
-                if (m_gridRenderer && m_gridInitialized) {
-                    m_gridRenderer->setView(m_viewerManager->view());
-                    qDebug() << "Grid renderer view handle updated after overlay init";
-                }
-
-                // Force initial grid display
-                if (m_canvasOverlay) {
-                    m_canvasOverlay->setGridVisible(true);
-                    m_canvasOverlay->setAxisVisible(true);
-                    m_canvasOverlay->update();
-                }
-
-                // Emit signal that everything is ready
-                emit viewerInitialized();
-
-                // Force a redraw
-                update();
-            }
-            });
     }
 
     void TyrexViewWidget::paintGL()
@@ -126,17 +127,21 @@ namespace TyrexCAD {
             m_viewerManager->redraw();
         }
 
-        // Then render grid overlay using OpenGL
-        if (m_gridRenderer && m_gridInitialized && m_gridRenderer->isGridEnabled()) {
-            QPoint cursorPos = m_cursorInWidget ? m_currentCursorPos : QPoint(-1, -1);
+        // Then render grid overlay using selected system
+        if (m_useOpenGLGrid) {
+            // Use OpenGL grid renderer
+            if (m_gridRenderer && m_gridInitialized && m_gridRenderer->isGridEnabled()) {
+                QPoint cursorPos = m_cursorInWidget ? m_currentCursorPos : QPoint(-1, -1);
 
-            // CRITICAL FIX: Always ensure view is set before rendering
-            if (m_viewerManager && !m_viewerManager->view().IsNull()) {
-                m_gridRenderer->setView(m_viewerManager->view());
+                // Always ensure view is set before rendering
+                if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+                    m_gridRenderer->setView(m_viewerManager->view());
+                }
+
+                m_gridRenderer->render(width(), height(), cursorPos);
             }
-
-            m_gridRenderer->render(width(), height(), cursorPos);
         }
+        // Note: If using OpenCascade grid, it's already rendered as part of the viewer
     }
 
     void TyrexViewWidget::resizeGL(int width, int height)
@@ -145,15 +150,14 @@ namespace TyrexCAD {
             m_viewerManager->resizeViewer(width, height);
         }
 
-        // Update canvas overlay on resize
-        if (m_canvasOverlay) {
+        // Update appropriate grid system on resize
+        if (m_useOpenGLGrid) {
+            refreshGrid();
+        }
+        else if (m_canvasOverlay) {
             m_canvasOverlay->update();
         }
 
-        // Force grid refresh on resize
-        refreshGrid();
-
-        // Force redraw
         update();
     }
 
@@ -185,10 +189,14 @@ namespace TyrexCAD {
             m_viewerManager->mouseMove(event);
 
             // Get world coordinates and emit signal
-            if (m_gridRenderer) {
+            if (m_useOpenGLGrid && m_gridRenderer) {
                 double worldX, worldY;
                 m_gridRenderer->screenToWorld(event->pos().x(), event->pos().y(), worldX, worldY);
                 emit cursorWorldPosition(worldX, worldY);
+            }
+            else if (!m_useOpenGLGrid && m_canvasOverlay) {
+                gp_Pnt2d worldPos = m_canvasOverlay->screenToWorld(event->pos());
+                emit cursorWorldPosition(worldPos.X(), worldPos.Y());
             }
         }
         update();
@@ -202,14 +210,25 @@ namespace TyrexCAD {
         update();
     }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     void TyrexViewWidget::enterEvent(QEnterEvent* event)
     {
+        Q_UNUSED(event);
         m_cursorInWidget = true;
         update();
     }
+#else
+    void TyrexViewWidget::enterEvent(QEvent* event)
+    {
+        Q_UNUSED(event);
+        m_cursorInWidget = true;
+        update();
+    }
+#endif
 
     void TyrexViewWidget::leaveEvent(QEvent* event)
     {
+        Q_UNUSED(event);
         m_cursorInWidget = false;
         emit cursorWorldPosition(0, 0);
         update();
@@ -236,12 +255,15 @@ namespace TyrexCAD {
 
         m_canvasOverlay = std::make_shared<TyrexCanvasOverlay>(context, view, this);
 
-        // Connect signals
+        // Connect signals with lambda to handle void signal properly
         connect(m_canvasOverlay.get(), &TyrexCanvasOverlay::gridSpacingChanged,
             this, &TyrexViewWidget::gridSpacingChanged);
 
+        // Use lambda for gridConfigChanged to emit with parameter
         connect(m_canvasOverlay.get(), &TyrexCanvasOverlay::gridConfigChanged,
-            this, &TyrexViewWidget::gridConfigChanged);
+            this, [this]() {
+                emit gridConfigChanged(m_canvasOverlay->getGridConfig());
+            });
 
         // Set default configuration
         GridConfig config = m_canvasOverlay->getGridConfig();
@@ -259,86 +281,76 @@ namespace TyrexCAD {
 
     void TyrexViewWidget::refreshGrid()
     {
-        if (m_gridRenderer && m_gridInitialized && m_viewerManager && !m_viewerManager->view().IsNull()) {
+        if (m_useOpenGLGrid && m_gridRenderer && m_gridInitialized &&
+            m_viewerManager && !m_viewerManager->view().IsNull()) {
             m_gridRenderer->setView(m_viewerManager->view());
             qDebug() << "Grid refreshed";
         }
 
-        if (m_canvasOverlay) {
+        if (!m_useOpenGLGrid && m_canvasOverlay) {
             m_canvasOverlay->update();
         }
     }
 
     void TyrexViewWidget::setGridEnabled(bool enabled)
     {
-        if (m_canvasOverlay) {
-            m_canvasOverlay->setGridVisible(enabled);
-            update();
-        }
-
-        if (m_gridRenderer) {
+        if (m_useOpenGLGrid && m_gridRenderer) {
             m_gridRenderer->setGridEnabled(enabled);
-            update();
         }
+        else if (!m_useOpenGLGrid && m_canvasOverlay) {
+            m_canvasOverlay->setGridVisible(enabled);
+        }
+        update();
     }
 
     void TyrexViewWidget::setGridSpacing(double spacing)
     {
-        if (m_canvasOverlay) {
-            GridConfig config = m_canvasOverlay->getGridConfig();
-            config.baseSpacing = spacing;
-            m_canvasOverlay->setGridConfig(config);
-            update();
-        }
-
-        if (m_gridRenderer) {
+        if (m_useOpenGLGrid && m_gridRenderer) {
             auto config = m_gridRenderer->getGridConfig();
             config.baseSpacing = spacing;
             m_gridRenderer->setGridConfig(config);
-            update();
         }
+        else if (!m_useOpenGLGrid && m_canvasOverlay) {
+            m_canvasOverlay->setGridSpacing(spacing);
+        }
+        update();
     }
 
     void TyrexViewWidget::setGridStyle(GridStyle style)
     {
-        if (m_canvasOverlay) {
-            GridConfig config = m_canvasOverlay->getGridConfig();
-            config.style = style;
-            m_canvasOverlay->setGridConfig(config);
-            update();
+        if (m_useOpenGLGrid && m_gridRenderer) {
+            m_gridRenderer->setGridStyle(style);
         }
-
-        if (m_gridRenderer) {
-            auto config = m_gridRenderer->getGridConfig();
-            config.style = style;
-            m_gridRenderer->setGridConfig(config);
-            update();
+        else if (!m_useOpenGLGrid && m_canvasOverlay) {
+            m_canvasOverlay->setGridStyle(style);
         }
+        update();
     }
 
     void TyrexViewWidget::setAxisVisible(bool visible)
     {
-        if (m_canvasOverlay) {
-            m_canvasOverlay->setAxisVisible(visible);
-            update();
-        }
-
-        if (m_gridRenderer) {
+        if (m_useOpenGLGrid && m_gridRenderer) {
             auto config = m_gridRenderer->getGridConfig();
             config.showAxes = visible;
             m_gridRenderer->setGridConfig(config);
-            update();
         }
+        else if (!m_useOpenGLGrid && m_canvasOverlay) {
+            m_canvasOverlay->setAxisVisible(visible);
+        }
+        update();
     }
 
     void TyrexViewWidget::setSnapToGrid(bool enabled)
     {
-        if (m_canvasOverlay) {
-            GridConfig config = m_canvasOverlay->getGridConfig();
+        if (m_useOpenGLGrid && m_gridRenderer) {
+            auto config = m_gridRenderer->getGridConfig();
             config.snapEnabled = enabled;
-            m_canvasOverlay->setGridConfig(config);
-            emit snapToGridChanged(enabled);
+            m_gridRenderer->setGridConfig(config);
         }
+        else if (!m_useOpenGLGrid && m_canvasOverlay) {
+            m_canvasOverlay->setSnapEnabled(enabled);
+        }
+        emit snapToGridChanged(enabled);
     }
 
     void TyrexViewWidget::setSketchModeGrid(bool sketchMode)
@@ -372,12 +384,11 @@ namespace TyrexCAD {
             config.baseSpacing = 10.0;
         }
 
-        if (m_canvasOverlay) {
-            m_canvasOverlay->setGridConfig(config);
-        }
-
-        if (m_gridRenderer) {
+        if (m_useOpenGLGrid && m_gridRenderer) {
             m_gridRenderer->setGridConfig(config);
+        }
+        else if (!m_useOpenGLGrid && m_canvasOverlay) {
+            m_canvasOverlay->setGridConfig(config);
         }
 
         update();
