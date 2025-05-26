@@ -10,8 +10,6 @@
 #include "TyrexEntities/TyrexCircleEntity.h"
 #include "TyrexEntities/TyrexEntity.h"
 
-
-// Commands
 #include "TyrexCore/TyrexLineCommand.h"
 #include "TyrexSketch/TyrexSketchLineCommand.h"
 #include "TyrexSketch/TyrexSketchCircleCommand.h"
@@ -36,12 +34,7 @@
 #include <QApplication>
 #include <QMainWindow>
 #include <QAction>
-#include <QDebug>
-#include <QWidget>
-#include <QLabel>
 #include <QFrame>
-
-
 
 namespace TyrexCAD {
 
@@ -70,9 +63,7 @@ namespace TyrexCAD {
         createDockWindows();
         setupStatusBar();
 
-        // Initialize after UI is set up
         QTimer::singleShot(100, this, &TyrexMainWindow::initialize);
-        initializeConnections();    
     }
 
     TyrexMainWindow::~TyrexMainWindow()
@@ -82,7 +73,6 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::setupUI()
     {
-        // Create central widget (3D view)
         auto* viewWidget = new TyrexViewWidget(this);
         setCentralWidget(viewWidget);
     }
@@ -97,29 +87,23 @@ namespace TyrexCAD {
             return;
         }
 
-        // Get viewer manager from view widget
         m_viewerManager = viewWidget->viewerManager();
         if (!m_viewerManager) {
             qCritical() << "Failed to get viewer manager!";
             return;
         }
 
-        // Initialize connections first
-        TyrexCAD::TyrexMainWindow::initializeConnections();
+        initializeConnections();
 
-        // Wait for viewer initialization
         connect(viewWidget, &TyrexViewWidget::viewerInitialized, this, [this]() {
             qDebug() << "Viewer initialized signal received";
 
-            // Initialize model space
             m_modelSpace = std::make_unique<TyrexModelSpace>(m_viewerManager->context());
 
-            // Initialize interaction manager
             auto* interactionManager = new TyrexInteractionManager();
             interactionManager->setViewerManager(m_viewerManager.get());
             m_viewerManager->setInteractionManager(interactionManager);
 
-            // Initialize command manager
             m_commandManager = new TyrexCommandManager(this);
             m_commandManager->setModelSpace(m_modelSpace.get());
             m_commandManager->setViewerManager(m_viewerManager.get());
@@ -133,23 +117,18 @@ namespace TyrexCAD {
             connect(m_commandManager, &TyrexCommandManager::commandCanceled,
                 this, []() { qDebug() << "Command canceled"; });
 
-            // Set command manager in interaction manager
             interactionManager->setCommandManager(m_commandManager);
 
-            // Initialize sketch manager
             m_sketchManager = std::make_shared<TyrexSketchManager>(
                 m_viewerManager->context(),
                 m_viewerManager.get(),
                 this
             );
 
-            // Setup sketch manager connections
             setupConnections();
 
-            // Set sketch manager in interaction manager
             interactionManager->setSketchManager(m_sketchManager.get());
 
-            // Enable grid by default
             auto* vw = qobject_cast<TyrexViewWidget*>(centralWidget());
             if (vw) {
                 vw->setGridEnabled(true);
@@ -170,7 +149,6 @@ namespace TyrexCAD {
             return;
         }
 
-        // Connect cursor position updates
         connect(viewWidget, &TyrexViewWidget::cursorWorldPosition,
             this, [this](double x, double y) {
                 if (m_coordinateLabel && m_toggleCoordinatesAction &&
@@ -183,11 +161,9 @@ namespace TyrexCAD {
                 }
             });
 
-        // Connect grid configuration changes
         connect(viewWidget, &TyrexViewWidget::gridConfigChanged,
             this, &TyrexMainWindow::updateSketchStatusBar);
 
-        // Connect grid spacing changes
         connect(viewWidget, &TyrexViewWidget::gridSpacingChanged,
             this, [this](double spacing) {
                 updateStatusBar(QString("Grid spacing: %1").arg(spacing, 0, 'f', 2));
@@ -200,7 +176,6 @@ namespace TyrexCAD {
             return;
         }
 
-        // Connect sketch manager signals
         connect(m_sketchManager.get(), &TyrexSketchManager::sketchModeEntered,
             this, &TyrexMainWindow::updateSketchModeUI);
         connect(m_sketchManager.get(), &TyrexSketchManager::sketchModeExited,
@@ -215,7 +190,6 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::createActions()
     {
-        // File actions
         m_newAction = new QAction(tr("&New"), this);
         m_newAction->setShortcut(QKeySequence::New);
         connect(m_newAction, &QAction::triggered, this, &TyrexMainWindow::newFile);
@@ -236,7 +210,6 @@ namespace TyrexCAD {
         m_exitAction->setShortcut(QKeySequence::Quit);
         connect(m_exitAction, &QAction::triggered, this, &QWidget::close);
 
-        // Draw actions
         m_lineAction = new QAction(tr("&Line"), this);
         m_lineAction->setShortcut(Qt::Key_L);
         connect(m_lineAction, &QAction::triggered, this, &TyrexMainWindow::startLineCommand);
@@ -244,18 +217,15 @@ namespace TyrexCAD {
         m_directLineAction = new QAction(tr("&Direct Line"), this);
         connect(m_directLineAction, &QAction::triggered, this, &TyrexMainWindow::createSampleLine);
 
-        // Help actions
         m_aboutAction = new QAction(tr("&About"), this);
         connect(m_aboutAction, &QAction::triggered, this, &TyrexMainWindow::about);
 
-        // Test action
         m_testGeometryAction = new QAction(tr("Create Test Geometry"), this);
         connect(m_testGeometryAction, &QAction::triggered, this, &TyrexMainWindow::createTestGeometry);
     }
 
     void TyrexMainWindow::createAdvancedSketchActions()
     {
-        // Toggle Grid
         m_toggleGridAction = new QAction(tr("Show &Grid"), this);
         m_toggleGridAction->setCheckable(true);
         m_toggleGridAction->setChecked(true);
@@ -268,7 +238,6 @@ namespace TyrexCAD {
             }
             });
 
-        // Toggle Snap
         m_toggleSnapAction = new QAction(tr("Snap to Grid"), this);
         m_toggleSnapAction->setCheckable(true);
         m_toggleSnapAction->setChecked(false);
@@ -281,13 +250,11 @@ namespace TyrexCAD {
             }
             });
 
-        // Toggle Ortho
         m_toggleOrthoAction = new QAction(tr("Ortho Mode"), this);
         m_toggleOrthoAction->setCheckable(true);
         m_toggleOrthoAction->setChecked(false);
         m_toggleOrthoAction->setShortcut(Qt::Key_F8);
 
-        // Grid style group
         m_gridStyleGroup = new QActionGroup(this);
 
         m_gridLinesAction = new QAction(tr("Grid Lines"), this);
@@ -303,7 +270,6 @@ namespace TyrexCAD {
         m_gridCrossesAction->setCheckable(true);
         m_gridStyleGroup->addAction(m_gridCrossesAction);
 
-        // Connect grid style actions
         connect(m_gridLinesAction, &QAction::triggered, this, [this]() {
             auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
             if (viewWidget) {
@@ -325,7 +291,6 @@ namespace TyrexCAD {
             }
             });
 
-        // Additional actions
         m_gridSpacingAction = new QAction(tr("Grid Spacing..."), this);
         connect(m_gridSpacingAction, &QAction::triggered, this, [this]() {
             bool ok;
@@ -346,25 +311,21 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::createSketchActions()
     {
-        // Sketch mode action
         m_sketchModeAction = new QAction(tr("Enter Sketch Mode"), this);
         m_sketchModeAction->setCheckable(true);
         m_sketchModeAction->setShortcut(Qt::Key_S);
         connect(m_sketchModeAction, &QAction::triggered, this, &TyrexMainWindow::toggleSketchMode);
 
-        // Exit sketch action
         m_exitSketchAction = new QAction(tr("Exit Sketch"), this);
         m_exitSketchAction->setShortcut(Qt::Key_Escape);
         m_exitSketchAction->setVisible(false);
         connect(m_exitSketchAction, &QAction::triggered, this, &TyrexMainWindow::exitSketchMode);
 
-        // Sketch line action
         m_sketchLineAction = new QAction(tr("Sketch &Line"), this);
         m_sketchLineAction->setShortcut(Qt::SHIFT | Qt::Key_L);
         m_sketchLineAction->setEnabled(false);
         connect(m_sketchLineAction, &QAction::triggered, this, &TyrexMainWindow::startSketchLineCommand);
 
-        // Sketch circle action
         m_sketchCircleAction = new QAction(tr("Sketch &Circle"), this);
         m_sketchCircleAction->setShortcut(Qt::SHIFT | Qt::Key_C);
         m_sketchCircleAction->setEnabled(false);
@@ -373,7 +334,6 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::createMenus()
     {
-        // File menu
         m_fileMenu = menuBar()->addMenu(tr("&File"));
         m_fileMenu->addAction(m_newAction);
         m_fileMenu->addAction(m_openAction);
@@ -382,10 +342,8 @@ namespace TyrexCAD {
         m_fileMenu->addSeparator();
         m_fileMenu->addAction(m_exitAction);
 
-        // Edit menu
         m_editMenu = menuBar()->addMenu(tr("&Edit"));
 
-        // View menu
         m_viewMenu = menuBar()->addMenu(tr("&View"));
         m_viewMenu->addAction(m_toggleGridAction);
         m_viewMenu->addAction(m_toggleSnapAction);
@@ -399,47 +357,39 @@ namespace TyrexCAD {
         gridStyleMenu->addAction(m_gridCrossesAction);
         m_viewMenu->addAction(m_gridSpacingAction);
 
-        // Draw menu
         m_drawMenu = menuBar()->addMenu(tr("&Draw"));
         m_drawMenu->addAction(m_lineAction);
         m_drawMenu->addAction(m_directLineAction);
         m_drawMenu->addSeparator();
         m_drawMenu->addAction(m_sketchModeAction);
 
-        // Sketch menu
         m_sketchMenu = menuBar()->addMenu(tr("&Sketch"));
         m_sketchMenu->addAction(m_exitSketchAction);
         m_sketchMenu->addSeparator();
         m_sketchMenu->addAction(m_sketchLineAction);
         m_sketchMenu->addAction(m_sketchCircleAction);
 
-        // Tools menu
         m_toolsMenu = menuBar()->addMenu(tr("&Tools"));
         m_toolsMenu->addAction(m_testGeometryAction);
 
-        // Help menu
         m_helpMenu = menuBar()->addMenu(tr("&Help"));
         m_helpMenu->addAction(m_aboutAction);
     }
 
     void TyrexMainWindow::createToolbars()
     {
-        // File toolbar
         m_fileToolBar = addToolBar(tr("File"));
         m_fileToolBar->addAction(m_newAction);
         m_fileToolBar->addAction(m_openAction);
         m_fileToolBar->addAction(m_saveAction);
 
-        // View toolbar
         m_viewToolBar = addToolBar(tr("View"));
         m_viewToolBar->addAction(m_toggleGridAction);
         m_viewToolBar->addAction(m_toggleSnapAction);
         m_viewToolBar->addAction(m_toggleOrthoAction);
 
-        // Grid control toolbar
         QToolBar* gridToolBar = addToolBar(tr("Grid Controls"));
 
-        // Grid spacing control
         QLabel* spacingLabel = new QLabel("Grid Spacing: ");
         gridToolBar->addWidget(spacingLabel);
 
@@ -457,7 +407,6 @@ namespace TyrexCAD {
         spacingSpinBox->setSuffix(" units");
         gridToolBar->addWidget(spacingSpinBox);
 
-        // Connect slider and spinbox
         connect(spacingSlider, &QSlider::valueChanged, spacingSpinBox, &QSpinBox::setValue);
         connect(spacingSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             spacingSlider, &QSlider::setValue);
@@ -471,7 +420,6 @@ namespace TyrexCAD {
 
         gridToolBar->addSeparator();
 
-        // Grid style control
         QLabel* styleLabel = new QLabel("Grid Style: ");
         gridToolBar->addWidget(styleLabel);
 
@@ -487,14 +435,12 @@ namespace TyrexCAD {
                 }
             });
 
-        // Draw toolbar
         m_drawToolBar = addToolBar(tr("Draw"));
         m_drawToolBar->addAction(m_lineAction);
         m_drawToolBar->addAction(m_directLineAction);
         m_drawToolBar->addSeparator();
         m_drawToolBar->addAction(m_sketchModeAction);
 
-        // Sketch toolbar (hidden by default)
         m_sketchToolBar = addToolBar(tr("Sketch"));
         m_sketchToolBar->addAction(m_exitSketchAction);
         m_sketchToolBar->addSeparator();
@@ -505,13 +451,11 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::createDockWindows()
     {
-        // Properties dock
         QDockWidget* propertiesDock = new QDockWidget(tr("Properties"), this);
         QListWidget* propertiesList = new QListWidget(propertiesDock);
         propertiesDock->setWidget(propertiesList);
         addDockWidget(Qt::RightDockWidgetArea, propertiesDock);
 
-        // Entities dock
         QDockWidget* entitiesDock = new QDockWidget(tr("Entities"), this);
         QListWidget* entitiesList = new QListWidget(entitiesDock);
         entitiesDock->setWidget(entitiesList);
@@ -520,16 +464,13 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::setupStatusBar()
     {
-        // Main status message
         statusBar()->showMessage(tr("Ready"));
 
-        // Add coordinate display
         m_coordinateLabel = new QLabel("X: --, Y: --");
         m_coordinateLabel->setFrameStyle(QFrame::Panel | QFrame::Sunken);
         m_coordinateLabel->setMinimumWidth(150);
         statusBar()->addPermanentWidget(m_coordinateLabel);
 
-        // Add grid status
         m_gridStatusLabel = new QLabel("Grid: ON");
         m_gridStatusLabel->setFrameStyle(QFrame::Panel | QFrame::Sunken);
         m_gridStatusLabel->setMinimumWidth(100);
@@ -538,7 +479,7 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::updateStatusBar(const QString& message)
     {
-        statusBar()->showMessage(message, 5000); // Show for 5 seconds
+        statusBar()->showMessage(message, 5000);
     }
 
     void TyrexMainWindow::updateSketchStatusBar()
@@ -567,28 +508,23 @@ namespace TyrexCAD {
         m_isInSketchMode = m_sketchManager && m_sketchManager->isInSketchMode();
         qDebug() << "=== Updating UI for sketch mode: " << m_isInSketchMode << " ===";
 
-        // Update actions
         if (m_sketchModeAction) {
             m_sketchModeAction->setChecked(m_isInSketchMode);
             m_sketchModeAction->setText(m_isInSketchMode ?
                 tr("Exit Sketch Mode") : tr("Enter Sketch Mode"));
         }
 
-        // Enable/disable sketch actions
         if (m_exitSketchAction) m_exitSketchAction->setVisible(m_isInSketchMode);
         if (m_sketchLineAction) m_sketchLineAction->setEnabled(m_isInSketchMode);
         if (m_sketchCircleAction) m_sketchCircleAction->setEnabled(m_isInSketchMode);
 
-        // Update toolbars
         if (m_drawToolBar) m_drawToolBar->setVisible(!m_isInSketchMode);
         if (m_sketchToolBar) m_sketchToolBar->setVisible(m_isInSketchMode);
 
-        // Update grid for sketch mode
         auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
         if (viewWidget) {
             viewWidget->setSketchModeGrid(m_isInSketchMode);
 
-            // Force grid visibility in sketch mode
             if (m_isInSketchMode) {
                 viewWidget->setGridEnabled(true);
                 if (m_toggleGridAction) m_toggleGridAction->setChecked(true);
@@ -598,10 +534,8 @@ namespace TyrexCAD {
         updateSketchStatusBar();
     }
 
-    // File operations
     void TyrexMainWindow::newFile()
     {
-        // TODO: Implement new file
         updateStatusBar("New file created");
     }
 
@@ -610,14 +544,12 @@ namespace TyrexCAD {
         QString fileName = QFileDialog::getOpenFileName(this,
             tr("Open File"), "", tr("TyrexCAD Files (*.txc);;All Files (*)"));
         if (!fileName.isEmpty()) {
-            // TODO: Implement file opening
             updateStatusBar(QString("Opened: %1").arg(fileName));
         }
     }
 
     void TyrexMainWindow::saveFile()
     {
-        // TODO: Implement file saving
         updateStatusBar("File saved");
     }
 
@@ -626,7 +558,6 @@ namespace TyrexCAD {
         QString fileName = QFileDialog::getSaveFileName(this,
             tr("Save File As"), "", tr("TyrexCAD Files (*.txc);;All Files (*)"));
         if (!fileName.isEmpty()) {
-            // TODO: Implement file saving
             updateStatusBar(QString("Saved as: %1").arg(fileName));
         }
     }
@@ -639,7 +570,6 @@ namespace TyrexCAD {
                 "Built with Qt and OpenCascade"));
     }
 
-    // Drawing commands
     void TyrexMainWindow::startLineCommand()
     {
         if (!m_commandManager || !m_modelSpace || !m_viewerManager) {
@@ -674,7 +604,6 @@ namespace TyrexCAD {
         updateStatusBar("Ready");
     }
 
-    // Sketch mode operations
     void TyrexMainWindow::toggleSketchMode()
     {
         if (m_sketchModeAction->isChecked()) {
@@ -694,15 +623,12 @@ namespace TyrexCAD {
 
         qDebug() << "=== TyrexMainWindow::enterSketchMode() ===";
 
-        // Cancel any active 3D commands
         if (m_commandManager && m_commandManager->activeCommand()) {
             m_commandManager->cancelCommand();
         }
 
-        // Enter sketch mode
         m_sketchManager->enterSketchMode();
 
-        // Update status
         updateStatusBar("Entered 2D Sketch Mode");
     }
 
@@ -714,15 +640,12 @@ namespace TyrexCAD {
 
         qDebug() << "=== TyrexMainWindow::exitSketchMode() ===";
 
-        // Cancel any active sketch commands
         if (m_commandManager && m_commandManager->activeCommand()) {
             m_commandManager->cancelCommand();
         }
 
-        // Exit sketch mode
         m_sketchManager->exitSketchMode();
 
-        // Update status
         updateStatusBar("Returned to 3D Modeling Mode");
     }
 
@@ -761,13 +684,11 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::updatePropertyPanel(const std::string& entityId)
     {
-        // TODO: Update property panel with entity information
         Q_UNUSED(entityId);
     }
 
     void TyrexMainWindow::clearPropertyPanel()
     {
-        // TODO: Clear property panel
     }
 
     void TyrexMainWindow::setDocumentModified(bool modified)
@@ -775,7 +696,6 @@ namespace TyrexCAD {
         setWindowModified(modified);
     }
 
-    // Test functions
     void TyrexMainWindow::createTestGeometry()
     {
         if (!m_modelSpace || !m_viewerManager || m_viewerManager->context().IsNull()) {
@@ -786,7 +706,6 @@ namespace TyrexCAD {
         try {
             m_modelSpace->clear();
 
-            // Create a square with diagonal
             Quantity_Color colors[] = {
                 Quantity_NOC_RED,
                 Quantity_NOC_GREEN,
@@ -804,7 +723,6 @@ namespace TyrexCAD {
 
             const char* ids[] = { "line_1", "line_2", "line_3", "line_4" };
 
-            // Create square
             for (int i = 0; i < 4; ++i) {
                 auto line = std::make_shared<TyrexLineEntity>(
                     ids[i], "default", colors[i],
@@ -813,22 +731,18 @@ namespace TyrexCAD {
                 m_modelSpace->addEntity(line);
             }
 
-            // Create diagonal
             auto diag = std::make_shared<TyrexLineEntity>(
                 "diag_line", "default", colors[4],
                 points[0], points[2]
             );
             m_modelSpace->addEntity(diag);
 
-            // Draw all entities
             m_modelSpace->drawAll();
 
-            // Set view to show all
             if (!m_viewerManager->view().IsNull()) {
                 m_viewerManager->view()->SetProj(V3d_Zpos);
                 m_viewerManager->fitAll();
 
-                // Force grid update after fit
                 auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
                 if (viewWidget) {
                     viewWidget->update();

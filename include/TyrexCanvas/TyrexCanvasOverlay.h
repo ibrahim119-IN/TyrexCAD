@@ -16,13 +16,14 @@
 
  // Include GridConfig definitions
 #include "TyrexCanvas/TyrexGridConfig.h"
-
+#include "TyrexCanvas/TyrexCanvasOverlay.h"
 // OpenCascade includes
 #include <Standard_Handle.hxx>
 #include <AIS_InteractiveObject.hxx>
 #include <Quantity_Color.hxx>
 #include <gp_Pnt2d.hxx>
 #include <gp_Vec2d.hxx>
+
 
 // Forward declarations
 class AIS_InteractiveContext;
@@ -182,4 +183,9 @@ namespace TyrexCAD {
 
 } // namespace TyrexCAD
 
-#endif // TYREX_CANVAS_OVERLAY_H
+#endif // TYREX_CANVAS_OVERLAY_H// Add forward declaration for TyrexCanvasOverlay in the header file where it is used.  
+namespace TyrexCAD {  
+    class TyrexCanvasOverlay;  
+}
+// Include the full definition of TyrexCanvasOverlay in the source file where it is used.  
+

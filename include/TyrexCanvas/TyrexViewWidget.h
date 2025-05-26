@@ -98,4 +98,4 @@ namespace TyrexCAD {
 
 } // namespace TyrexCAD
 
-#endif // TYREXVIEWWIDGET_H
+#endif // TYREXVIEWWIDGET_H#include "TyrexCanvas/TyrexCanvasOverlay.h"
