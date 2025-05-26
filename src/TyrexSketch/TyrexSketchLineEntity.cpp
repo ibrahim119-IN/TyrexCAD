@@ -97,8 +97,8 @@ namespace TyrexCAD {
 
         try {
             // Convert 2D points to 3D using the sketch plane
-            gp_Pnt startPoint3D = sketcht_o3D(m_startPoint);
-            gp_Pnt endPoint3D = sketcht_o3D(m_endPoint);
+            gp_Pnt startPoint3D = sketchTo3D(m_startPoint);  // Fixed typo here
+            gp_Pnt endPoint3D = sketchTo3D(m_endPoint);      // Fixed typo here
 
             qDebug() << QString("Creating line from (%1,%2,%3) to (%4,%5,%6)")
                 .arg(startPoint3D.X(), 0, 'f', 3)

@@ -112,7 +112,7 @@ namespace TyrexCAD {
 
         try {
             // Convert center to 3D using the sketch plane
-            gp_Pnt center3D = sketcht_o3D(m_center);
+            gp_Pnt center3D = sketchTo3D(m_center);  // Fixed typo here
 
             qDebug() << QString("Creating circle at (%1,%2,%3) with radius %4")
                 .arg(center3D.X(), 0, 'f', 3)

@@ -13,6 +13,7 @@
 #include "TyrexCore/TyrexLineCommand.h"
 #include "TyrexSketch/TyrexSketchLineCommand.h"
 #include "TyrexSketch/TyrexSketchCircleCommand.h"
+#include "TyrexCanvas/TyrexCanvasOverlay.h"
 
 #include <QMenuBar>
 #include <QToolBar>

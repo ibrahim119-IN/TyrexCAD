@@ -139,9 +139,11 @@ namespace TyrexCAD {
         }
 
         try {
-            // Create line entity
+            // Create line entity with all required parameters
             auto lineEntity = std::make_shared<TyrexLineEntity>(
                 "line_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()),
+                "default",                                              // layer name
+                Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_RGB),      // white color
                 m_firstPoint,
                 m_secondPoint
             );

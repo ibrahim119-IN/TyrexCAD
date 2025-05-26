@@ -1,4 +1,5 @@
 ﻿#include "TyrexCanvas/TyrexCanvasOverlay.h"
+#include "TyrexCanvas/TyrexGridConfig.h"  // Add this include
 
 #include <AIS_InteractiveContext.hxx>
 #include <V3d_View.hxx>
@@ -17,8 +18,6 @@
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <TopoDS_Edge.hxx>
 #include <cmath>  // For std::fmod
-
-#include "TyrexCanvas/TyrexCanvasOverlay.h"
 
 namespace TyrexCAD {
 
