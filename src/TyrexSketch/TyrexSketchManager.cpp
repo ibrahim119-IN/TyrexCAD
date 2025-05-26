@@ -1,275 +1,764 @@
-﻿/***************************************************************************
- *   Copyright (c) 2025 TyrexCAD development team                          *
- *                                                                         *
- *   This file is part of the TyrexCAD CAx development system.             *
- *                                                                         *
- ***************************************************************************/
-
-#include "TyrexSketch/TyrexSketchManager.h"
+﻿#include "TyrexSketch/TyrexSketchManager.h"
 #include "TyrexSketch/TyrexSketchEntity.h"
 #include "TyrexSketch/TyrexSketchLineEntity.h"
 #include "TyrexSketch/TyrexSketchCircleEntity.h"
-#include "TyrexSketch/TyrexSketchConfig.h"
-#include "TyrexSketch/TyrexSketchDisplayHelper.h"
 #include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexCanvas/TyrexCanvasOverlay.h"
 
-// OpenCascade includes
-#include <Standard_Handle.hxx>
-#include <Standard_Type.hxx>
 #include <AIS_InteractiveContext.hxx>
 #include <V3d_View.hxx>
-#include <gp_Pln.hxx>
-#include <gp_Ax3.hxx>
-#include <gp_Dir.hxx>
-#include <gp_Pnt.hxx>
-#include <gp_Vec.hxx>
-#include <AIS_Point.hxx>
-#include <Geom_CartesianPoint.hxx>
-#include <Quantity_Color.hxx>
-#include <Quantity_NameOfColor.hxx>
-#include <Prs3d_PointAspect.hxx>
-#include <Prs3d_LineAspect.hxx>
-#include <Prs3d_Drawer.hxx>
 #include <ElSLib.hxx>
-#include <Graphic3d_Camera.hxx>
 #include <AIS_Shape.hxx>
-#include <Aspect_TypeOfLine.hxx>
-#include <Aspect_TypeOfMarker.hxx>
-
-// Qt includes
+#include <BRepBuilderAPI_MakeVertex.hxx>
+#include <Prs3d_PointAspect.hxx>
 #include <QDebug>
-#include <QTimer>
 #include <cmath>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 namespace TyrexCAD {
 
-    TyrexSketchManager::TyrexSketchManager(const Handle(AIS_InteractiveContext)& context, TyrexViewerManager* viewerManager, QObject* parent)
-        : QObject(parent), m_viewerManager(viewerManager) {}
-
-    TyrexSketchManager::~TyrexSketchManager() = default;
-
-    gp_Pnt2d TyrexSketchManager::screenToSketch(const QPoint& screenPoint) const
+    TyrexSketchManager::TyrexSketchManager(
+        const Handle(AIS_InteractiveContext)& context,
+        TyrexViewerManager* viewerManager,
+        QObject* parent)
+        : QObject(parent),
+        m_context(context),
+        m_viewerManager(viewerManager),
+        m_isInSketchMode(false),
+        m_sketchPlane(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), // Default XY plane
+        m_currentMode(InteractionMode::None),
+        m_isDragging(false),
+        m_firstPointSet(false)
     {
-        if (!m_viewerManager) {
-            qWarning() << "Cannot convert screen to sketch - no viewer manager";
-            return gp_Pnt2d(0, 0);
+        qDebug() << "TyrexSketchManager created";
+    }
+
+    TyrexSketchManager::~TyrexSketchManager()
+    {
+        exitSketchMode();
+    }
+
+    void TyrexSketchManager::enterSketchMode()
+    {
+        if (m_isInSketchMode) {
+            return;
         }
 
-        try {
-            Handle(V3d_View) view = m_viewerManager->view();
-            if (view.IsNull()) {
-                qWarning() << "Cannot convert screen to sketch - no view available";
-                return gp_Pnt2d(0, 0);
+        qDebug() << "=== Entering Sketch Mode ===";
+
+        m_isInSketchMode = true;
+
+        // Switch viewer to 2D mode
+        if (m_viewerManager) {
+            m_viewerManager->set2DMode();
+
+            // Setup canvas overlay for sketch mode
+            if (m_viewerManager->view() && !m_viewerManager->view().IsNull()) {
+                initializeCanvasOverlay();
             }
-
-            // Use improved 2D conversion
-            Standard_Real xv, yv, zv;
-            view->Convert(screenPoint.x(), screenPoint.y(), xv, yv, zv);
-            gp_Pnt converted3DPoint(xv, yv, zv);
-
-            // Convert from 3D to 2D sketch coordinates
-            Standard_Real u, v;
-            ElSLib::Parameters(m_sketchPlane, converted3DPoint, u, v);
-            gp_Pnt2d result(u, v);
-
-            // Apply grid snapping if enabled
-            if (m_canvasOverlay && m_canvasOverlay->isGridVisible() && m_sketchConfig.grid.snapEnabled) {
-                result = m_canvasOverlay->snapToGrid(result);
-            }
-
-            // Apply ortho mode if enabled
-            if (m_sketchConfig.interaction.orthoMode && m_firstPointSet) {
-                result = applyOrthoMode(result);
-            }
-
-            return result;
         }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "OpenCascade error in screenToSketch:" << ex.GetMessageString();
-            return gp_Pnt2d(0, 0);
+
+        // Clear any existing selection
+        clearSelection();
+
+        // Setup sketch configuration
+        m_sketchConfig = TyrexSketchConfig::autocadConfig();
+
+        emit sketchModeEntered();
+        qDebug() << "Sketch mode activated";
+    }
+
+    void TyrexSketchManager::exitSketchMode()
+    {
+        if (!m_isInSketchMode) {
+            return;
+        }
+
+        qDebug() << "=== Exiting Sketch Mode ===";
+
+        m_isInSketchMode = false;
+
+        // Hide control points
+        hideControlPoints();
+
+        // Clear selection
+        clearSelection();
+
+        // Switch viewer back to 3D mode
+        if (m_viewerManager) {
+            m_viewerManager->set3DMode();
+        }
+
+        emit sketchModeExited();
+        qDebug() << "Sketch mode deactivated";
+    }
+
+    bool TyrexSketchManager::isInSketchMode() const
+    {
+        return m_isInSketchMode;
+    }
+
+    void TyrexSketchManager::setInteractionMode(InteractionMode mode)
+    {
+        m_currentMode = mode;
+        m_firstPointSet = false;
+
+        qDebug() << "Interaction mode changed to:" << static_cast<int>(mode);
+    }
+
+    InteractionMode TyrexSketchManager::currentMode() const
+    {
+        return m_currentMode;
+    }
+
+    void TyrexSketchManager::addSketchEntity(std::shared_ptr<TyrexSketchEntity> entity)
+    {
+        if (!entity) {
+            return;
+        }
+
+        m_sketchEntities.push_back(entity);
+        m_entityMap[entity->getId()] = entity;
+
+        // Draw the entity
+        drawSketchEntity(entity);
+
+        qDebug() << "Added sketch entity:" << QString::fromStdString(entity->getId());
+    }
+
+    void TyrexSketchManager::removeSketchEntity(const std::string& entityId)
+    {
+        auto it = m_entityMap.find(entityId);
+        if (it == m_entityMap.end()) {
+            return;
+        }
+
+        auto entity = it->second;
+
+        // Remove from display
+        if (!m_context.IsNull()) {
+            entity->undraw(m_context);
+        }
+
+        // Remove from collections
+        m_entityMap.erase(it);
+        m_sketchEntities.erase(
+            std::remove_if(m_sketchEntities.begin(), m_sketchEntities.end(),
+                [&entityId](const auto& e) { return e->getId() == entityId; }),
+            m_sketchEntities.end()
+        );
+
+        qDebug() << "Removed sketch entity:" << QString::fromStdString(entityId);
+    }
+
+    bool TyrexSketchManager::onMousePress(const QPoint& screenPos)
+    {
+        if (!m_isInSketchMode || m_context.IsNull()) {
+            return false;
+        }
+
+        m_lastMousePos = screenPos;
+
+        // Convert to sketch coordinates
+        gp_Pnt2d sketchPoint = screenToSketch(screenPos);
+
+        // Handle based on current mode
+        switch (m_currentMode) {
+        case InteractionMode::Select:
+            return handleSelectMode(screenPos, sketchPoint);
+
+        case InteractionMode::Line:
+            return handleLineMode(screenPos, sketchPoint);
+
+        case InteractionMode::Circle:
+            return handleCircleMode(screenPos, sketchPoint);
+
+        default:
+            return false;
         }
     }
 
-    gp_Pnt TyrexSketchManager::sketchToWorld(const gp_Pnt2d& sketchPoint) const
+    bool TyrexSketchManager::onMouseMove(const QPoint& screenPos)
     {
-        // Convert 2D sketch coordinates to 3D world coordinates
-        return ElSLib::Value(sketchPoint.X(), sketchPoint.Y(), m_sketchPlane);
+        if (!m_isInSketchMode) {
+            return false;
+        }
+
+        gp_Pnt2d sketchPoint = screenToSketch(screenPos);
+
+        if (m_isDragging) {
+            // Handle dragging
+            if (m_draggedEntity) {
+                // Drag entire entity
+                gp_Vec2d offset(m_dragStartPosition, sketchPoint);
+                m_draggedEntity->moveBy(gp_Pnt2d(offset.X(), offset.Y()));
+                m_draggedEntity->updateShape();
+                redrawSketch();
+            }
+            else if (m_draggedControlPoint.entity) {
+                // Drag control point
+                m_draggedControlPoint.entity->setControlPoint(
+                    m_draggedControlPoint.index, sketchPoint);
+                m_draggedControlPoint.entity->updateShape();
+                redrawSketch();
+            }
+
+            emit entityModified(m_draggedEntity ? m_draggedEntity->getId() :
+                m_draggedControlPoint.entity->getId());
+            return true;
+        }
+
+        // Handle preview for drawing modes
+        if (m_firstPointSet) {
+            switch (m_currentMode) {
+            case InteractionMode::Line:
+                // Update line preview
+                updateLinePreview(sketchPoint);
+                break;
+
+            case InteractionMode::Circle:
+                // Update circle preview
+                updateCirclePreview(sketchPoint);
+                break;
+
+            default:
+                break;
+            }
+        }
+
+        // Highlight entity under cursor in select mode
+        if (m_currentMode == InteractionMode::Select) {
+            auto entity = findEntityAt(screenPos, 10.0);
+            if (entity && !entity->isHighlighted()) {
+                // Clear previous highlights
+                for (auto& e : m_sketchEntities) {
+                    if (e->isHighlighted()) {
+                        e->setHighlighted(false);
+                        drawSketchEntity(e);
+                    }
+                }
+
+                // Highlight new entity
+                entity->setHighlighted(true);
+                drawSketchEntity(entity);
+            }
+            else if (!entity) {
+                // Clear all highlights
+                for (auto& e : m_sketchEntities) {
+                    if (e->isHighlighted()) {
+                        e->setHighlighted(false);
+                        drawSketchEntity(e);
+                    }
+                }
+            }
+        }
+
+        m_lastMousePos = screenPos;
+        return false;
+    }
+
+    bool TyrexSketchManager::onMouseRelease(const QPoint& screenPos)
+    {
+        if (!m_isInSketchMode) {
+            return false;
+        }
+
+        if (m_isDragging) {
+            endDrag();
+            return true;
+        }
+
+        return false;
+    }
+
+    void TyrexSketchManager::clearSelection()
+    {
+        m_selectedEntities.clear();
+        hideControlPoints();
+
+        // Update visual state of all entities
+        for (auto& entity : m_sketchEntities) {
+            entity->setSelected(false);
+            drawSketchEntity(entity);
+        }
+
+        emit selectionCleared();
+    }
+
+    std::vector<std::shared_ptr<TyrexSketchEntity>> TyrexSketchManager::getSelectedEntities() const
+    {
+        return m_selectedEntities;
+    }
+
+    void TyrexSketchManager::setSketchPlane(const gp_Pln& plane)
+    {
+        m_sketchPlane = plane;
+        emit sketchPlaneChanged(plane);
+    }
+
+    const gp_Pln& TyrexSketchManager::sketchPlane() const
+    {
+        return m_sketchPlane;
+    }
+
+    Handle(AIS_InteractiveContext) TyrexSketchManager::context() const
+    {
+        return m_context;
+    }
+
+    TyrexCanvasOverlay* TyrexSketchManager::canvasOverlay() const
+    {
+        return m_canvasOverlay.get();
+    }
+
+    void TyrexSketchManager::redrawSketch()
+    {
+        if (m_context.IsNull()) {
+            return;
+        }
+
+        // Redraw all entities
+        for (auto& entity : m_sketchEntities) {
+            drawSketchEntity(entity);
+        }
+
+        // Update control points
+        if (!m_selectedEntities.empty()) {
+            showControlPoints();
+        }
+
+        // Update canvas overlay
+        if (m_canvasOverlay) {
+            m_canvasOverlay->update();
+        }
+
+        m_context->UpdateCurrentViewer();
+    }
+
+    // Private helper methods
+
+    void TyrexSketchManager::initializeCanvasOverlay()
+    {
+        if (!m_viewerManager || m_viewerManager->view().IsNull()) {
+            return;
+        }
+
+        m_canvasOverlay = std::make_unique<TyrexCanvasOverlay>(
+            m_context, m_viewerManager->view(), nullptr);
+
+        // Configure for sketch mode
+        GridConfig config;
+        config.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
+        config.gridColorMajor = Quantity_Color(0.4, 0.4, 0.4, Quantity_TOC_RGB);
+        config.gridColorMinor = Quantity_Color(0.3, 0.3, 0.3, Quantity_TOC_RGB);
+        config.axisColorX = Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB);
+        config.axisColorY = Quantity_Color(0.0, 1.0, 0.0, Quantity_TOC_RGB);
+        config.style = GridStyle::Lines;
+        config.showAxes = true;
+        config.showOriginMarker = true;
+        config.snapEnabled = true;
+        config.baseSpacing = 10.0;
+
+        m_canvasOverlay->setGridConfig(config);
+        m_canvasOverlay->setGridVisible(true);
+        m_canvasOverlay->setAxisVisible(true);
+    }
+
+    bool TyrexSketchManager::handleSelectMode(const QPoint& screenPos, const gp_Pnt2d& sketchPoint)
+    {
+        // First check for control point selection
+        ControlPoint controlPoint = findControlPointAt(screenPos, 10.0);
+        if (controlPoint.entity) {
+            // Start dragging control point
+            beginDrag(nullptr, controlPoint, sketchPoint);
+            return true;
+        }
+
+        // Check for entity selection
+        auto entity = findEntityAt(screenPos, 10.0);
+        if (entity) {
+            // Select the entity
+            selectEntity(entity);
+
+            // Start dragging the entire entity
+            beginDrag(entity, ControlPoint(), sketchPoint);
+            return true;
+        }
+
+        // If nothing selected, clear selection
+        clearSelection();
+        return false;
+    }
+
+    bool TyrexSketchManager::handleLineMode(const QPoint& screenPos, const gp_Pnt2d& sketchPoint)
+    {
+        if (!m_firstPointSet) {
+            // Set first point
+            m_firstPoint = sketchPoint;
+            m_firstPointSet = true;
+
+            // Create preview line
+            createLinePreview(m_firstPoint);
+
+            emit statusMessage("Click to set end point");
+            return true;
+        }
+        else {
+            // Set second point and create line
+            gp_Pnt2d endPoint = applyOrthoMode(sketchPoint);
+
+            // Create the line entity
+            auto line = std::make_shared<TyrexSketchLineEntity>(
+                "line_" + std::to_string(m_sketchEntities.size()),
+                m_firstPoint,
+                endPoint
+            );
+
+            addSketchEntity(line);
+
+            // Clear preview
+            clearPreview();
+
+            // Reset for next line
+            m_firstPointSet = false;
+
+            emit entityCreated(line->getId());
+            emit statusMessage("Line created");
+            return true;
+        }
+    }
+
+    bool TyrexSketchManager::handleCircleMode(const QPoint& screenPos, const gp_Pnt2d& sketchPoint)
+    {
+        if (!m_firstPointSet) {
+            // Set center point
+            m_firstPoint = sketchPoint;
+            m_firstPointSet = true;
+
+            // Create preview circle
+            createCirclePreview(m_firstPoint);
+
+            emit statusMessage("Click to set radius");
+            return true;
+        }
+        else {
+            // Calculate radius
+            double radius = m_firstPoint.Distance(sketchPoint);
+
+            // Create the circle entity
+            auto circle = std::make_shared<TyrexSketchCircleEntity>(
+                "circle_" + std::to_string(m_sketchEntities.size()),
+                m_firstPoint,
+                radius
+            );
+
+            addSketchEntity(circle);
+
+            // Clear preview
+            clearPreview();
+
+            // Reset for next circle
+            m_firstPointSet = false;
+
+            emit entityCreated(circle->getId());
+            emit statusMessage("Circle created");
+            return true;
+        }
+    }
+
+    void TyrexSketchManager::selectEntity(std::shared_ptr<TyrexSketchEntity> entity)
+    {
+        if (!entity) {
+            return;
+        }
+
+        // Clear previous selection
+        clearSelection();
+
+        // Select new entity
+        entity->setSelected(true);
+        m_selectedEntities.push_back(entity);
+
+        // Show control points
+        showControlPoints();
+
+        // Redraw
+        drawSketchEntity(entity);
+
+        emit entitySelected(entity->getId());
+    }
+
+    std::shared_ptr<TyrexSketchEntity> TyrexSketchManager::findEntityAt(
+        const QPoint& screenPos, double tolerance) const
+    {
+        gp_Pnt2d testPoint = screenToSketch(screenPos);
+
+        for (auto& entity : m_sketchEntities) {
+            if (entity->isNearPoint(testPoint, tolerance)) {
+                return entity;
+            }
+        }
+
+        return nullptr;
+    }
+
+    TyrexSketchManager::ControlPoint TyrexSketchManager::findControlPointAt(
+        const QPoint& screenPos, double tolerance) const
+    {
+        gp_Pnt2d testPoint = screenToSketch(screenPos);
+
+        for (auto& entity : m_selectedEntities) {
+            auto controlPoints = getControlPoints(entity);
+
+            for (const auto& cp : controlPoints) {
+                if (cp.position.Distance(testPoint) <= tolerance) {
+                    return cp;
+                }
+            }
+        }
+
+        return ControlPoint(); // Empty control point
     }
 
     std::vector<TyrexSketchManager::ControlPoint> TyrexSketchManager::getControlPoints(
         std::shared_ptr<TyrexSketchEntity> entity) const
     {
-        std::vector<ControlPoint> controlPoints;
+        std::vector<ControlPoint> points;
 
         if (!entity) {
-            return controlPoints;
+            return points;
         }
 
-        auto points = entity->getControlPoints();
-
-        for (int i = 0; i < static_cast<int>(points.size()); ++i) {
+        auto entityPoints = entity->getControlPoints();
+        for (size_t i = 0; i < entityPoints.size(); ++i) {
             ControlPoint cp;
             cp.entity = entity;
             cp.index = i;
-            cp.position = points[i];
-
-            // Determine control point type based on entity type and index
-            if (entity->getType() == SketchEntityType::Line) {
-                cp.type = ControlPointType::Endpoint;
-            }
-            else if (entity->getType() == SketchEntityType::Circle) {
-                cp.type = (i == 0) ? ControlPointType::Endpoint : ControlPointType::RadiusPoint;
-            }
-
-            controlPoints.push_back(cp);
+            cp.position = entityPoints[i];
+            points.push_back(cp);
         }
 
-        return controlPoints;
+        return points;
     }
 
-    Handle(AIS_InteractiveObject) TyrexSketchManager::createControlPointVisual(const ControlPoint& pointData)
+    void TyrexSketchManager::beginDrag(
+        std::shared_ptr<TyrexSketchEntity> entity,
+        const ControlPoint& controlPoint,
+        const gp_Pnt2d& startPos)
     {
-        if (!pointData.entity) {
-            return Handle(AIS_InteractiveObject)();
+        m_isDragging = true;
+        m_draggedEntity = entity;
+        m_draggedControlPoint = controlPoint;
+        m_dragStartPosition = startPos;
+    }
+
+    void TyrexSketchManager::endDrag()
+    {
+        m_isDragging = false;
+        m_draggedEntity = nullptr;
+        m_draggedControlPoint = ControlPoint();
+    }
+
+    void TyrexSketchManager::showControlPoints()
+    {
+        hideControlPoints(); // Clear existing
+
+        if (m_context.IsNull()) {
+            return;
         }
 
-        try {
-            // Convert 2D point to 3D
-            gp_Pnt worldPoint = sketchToWorld(pointData.position);
+        for (auto& entity : m_selectedEntities) {
+            auto controlPoints = getControlPoints(entity);
 
-            // Create a geometric point
-            Handle(Geom_CartesianPoint) geomPoint = new Geom_CartesianPoint(worldPoint);
-            Handle(AIS_Point) aisPoint = new AIS_Point(geomPoint);
-
-            // Set appearance based on control point type
-            Quantity_Color pointColor = Quantity_NOC_YELLOW;
-            Aspect_TypeOfMarker markerType = Aspect_TOM_O_STAR;
-
-            switch (pointData.type) {
-            case ControlPointType::Endpoint:
-                pointColor = Quantity_NOC_RED;
-                markerType = Aspect_TOM_O_POINT;
-                break;
-            case ControlPointType::Midpoint:
-                pointColor = Quantity_NOC_GREEN;
-                markerType = Aspect_TOM_O_PLUS;
-                break;
-            case ControlPointType::RadiusPoint:
-                pointColor = Quantity_NOC_CYAN1;
-                markerType = Aspect_TOM_O_STAR;
-                break;
+            for (const auto& cp : controlPoints) {
+                Handle(AIS_InteractiveObject) cpVisual = createControlPointVisual(cp);
+                if (!cpVisual.IsNull()) {
+                    m_context->Display(cpVisual, Standard_False);
+                    m_controlPointObjects.push_back(cpVisual);
+                }
             }
+        }
 
-            // Create PointAspect properly
-            Handle(Prs3d_PointAspect) pointAspect = new Prs3d_PointAspect(
-                markerType,
-                pointColor,
-                10.0  // Point size
-            );
+        m_context->UpdateCurrentViewer();
+    }
 
-            // Apply properties
-            Handle(Prs3d_Drawer) drawer = aisPoint->Attributes();
-            if (drawer.IsNull()) {
-                drawer = new Prs3d_Drawer();
-                aisPoint->SetAttributes(drawer);
+    void TyrexSketchManager::hideControlPoints()
+    {
+        if (m_context.IsNull()) {
+            return;
+        }
+
+        for (auto& cpObj : m_controlPointObjects) {
+            if (!cpObj.IsNull()) {
+                m_context->Remove(cpObj, Standard_False);
             }
-            drawer->SetPointAspect(pointAspect);
-            aisPoint->SetToUpdate();
+        }
 
-            return aisPoint;
+        m_controlPointObjects.clear();
+        m_context->UpdateCurrentViewer();
+    }
+
+    Handle(AIS_InteractiveObject) TyrexSketchManager::createControlPointVisual(
+        const ControlPoint& cp) const
+    {
+        if (!cp.entity) {
+            return nullptr;
         }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error creating control point visual:" << ex.GetMessageString();
-            return Handle(AIS_InteractiveObject)();
-        }
-        catch (...) {
-            qWarning() << "Unknown error creating control point visual";
-            return Handle(AIS_InteractiveObject)();
-        }
+
+        // Convert 2D point to 3D
+        gp_Pnt pt3d = ElSLib::Value(cp.position.X(), cp.position.Y(), m_sketchPlane);
+
+        // Create a vertex shape
+        TopoDS_Vertex vertex = BRepBuilderAPI_MakeVertex(pt3d);
+
+        // Create AIS object
+        Handle(AIS_Shape) aisPoint = new AIS_Shape(vertex);
+
+        // Set appearance
+        Handle(Prs3d_PointAspect) pointAspect = new Prs3d_PointAspect(
+            Aspect_TOM_PLUS,
+            Quantity_NOC_YELLOW,
+            5.0
+        );
+
+        aisPoint->Attributes()->SetPointAspect(pointAspect);
+
+        return aisPoint;
     }
 
     void TyrexSketchManager::drawSketchEntity(std::shared_ptr<TyrexSketchEntity> entity)
     {
-        if (!entity || m_context.IsNull()) return;
+        if (!entity || m_context.IsNull()) {
+            return;
+        }
 
-        try {
-            // Apply entity styling based on configuration
-            Handle(AIS_Shape) shape = entity->getAISShape();
-            if (!shape.IsNull()) {
-                // Determine color and width based on entity state
-                Quantity_Color entityColor;
-                Standard_Real lineWidth;
+        entity->draw(m_context);
+    }
 
-                if (entity->isSelected()) {
-                    entityColor = m_sketchConfig.canvas.selectionColor;
-                    lineWidth = m_sketchConfig.entityDisplay.selectedLineWidth;
-                }
-                else if (entity->isHighlighted()) {
-                    entityColor = m_sketchConfig.canvas.highlightColor;
-                    lineWidth = m_sketchConfig.entityDisplay.selectedLineWidth;
-                }
-                else {
-                    entityColor = m_sketchConfig.entityDisplay.defaultLineColor;
-                    lineWidth = m_sketchConfig.entityDisplay.defaultLineWidth;
-                }
+    gp_Pnt2d TyrexSketchManager::screenToSketch(const QPoint& screenPos) const
+    {
+        if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+            // Convert screen coordinates to world coordinates
+            double xv, yv, zv;
+            m_viewerManager->view()->Convert(screenPos.x(), screenPos.y(), xv, yv, zv);
 
-                // Apply color to shape
-                shape->SetColor(entityColor);
+            // Project onto sketch plane
+            gp_Pnt worldPoint(xv, yv, zv);
+            gp_Pnt2d sketchPoint;
+            ElSLib::Parameters(m_sketchPlane, worldPoint, sketchPoint.ChangeCoord().ChangeX(),
+                sketchPoint.ChangeCoord().ChangeY());
 
-                // Create LineAspect properly
-                Handle(Prs3d_LineAspect) lineAspect = new Prs3d_LineAspect(
-                    entityColor, Aspect_TOL_SOLID, lineWidth);
-
-                // Apply properties to shape
-                Handle(Prs3d_Drawer) drawer = shape->Attributes();
-                if (drawer.IsNull()) {
-                    drawer = new Prs3d_Drawer();
-                    shape->SetAttributes(drawer);
-                }
-                drawer->SetLineAspect(lineAspect);
-                shape->SetToUpdate();
+            // Apply grid snap if enabled
+            if (m_canvasOverlay && m_canvasOverlay->getGridConfig().snapEnabled) {
+                double spacing = m_canvasOverlay->getGridConfig().baseSpacing;
+                double x = std::round(sketchPoint.X() / spacing) * spacing;
+                double y = std::round(sketchPoint.Y() / spacing) * spacing;
+                return gp_Pnt2d(x, y);
             }
 
-            entity->draw(m_context, entity->isSelected());
+            return sketchPoint;
         }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error drawing sketch entity:" << ex.GetMessageString();
-        }
-        catch (...) {
-            qWarning() << "Unknown error drawing sketch entity";
-        }
+
+        return gp_Pnt2d(screenPos.x(), screenPos.y());
     }
 
-    bool TyrexSketchManager::onMousePress(const QPoint& screenPos) {
-        // TODO: implement logic
-        return false;
+    gp_Pnt2d TyrexSketchManager::applyOrthoMode(const gp_Pnt2d& point) const
+    {
+        if (!m_sketchConfig.interaction.orthoMode || !m_firstPointSet) {
+            return point;
+        }
+
+        // Calculate angle from first point to current point
+        gp_Vec2d vec(m_firstPoint, point);
+        double angle = std::atan2(vec.Y(), vec.X());
+        double distance = m_firstPoint.Distance(point);
+
+        // Snap to nearest 90 degree increment
+        double snapAngle = std::round(angle / (M_PI / 2)) * (M_PI / 2);
+
+        // Calculate snapped point
+        return gp_Pnt2d(
+            m_firstPoint.X() + distance * std::cos(snapAngle),
+            m_firstPoint.Y() + distance * std::sin(snapAngle)
+        );
     }
 
-    void TyrexSketchManager::removeSketchEntity(const std::string&) {}
+    void TyrexSketchManager::createLinePreview(const gp_Pnt2d& startPoint)
+    {
+        clearPreview();
 
-    bool TyrexSketchManager::onMouseMove(const QPoint&) { return false; }
+        // Create a temporary line for preview
+        m_previewEntity = std::make_shared<TyrexSketchLineEntity>(
+            "preview_line",
+            startPoint,
+            startPoint  // Initially same as start
+        );
 
-    bool TyrexSketchManager::onMouseRelease(const QPoint&) { return false; }
+        // Set preview style
+        m_previewEntity->setLineStyle(Aspect_TOL_DASH);
+        m_previewEntity->setColor(Quantity_Color(0.7, 0.7, 0.7, Quantity_TOC_RGB));
 
-    void TyrexSketchManager::clearSelection() {}
+        // Draw preview
+        drawSketchEntity(m_previewEntity);
+    }
 
-    std::vector<std::shared_ptr<TyrexSketchEntity>> TyrexSketchManager::getSelectedEntities() const { return {}; }
+    void TyrexSketchManager::updateLinePreview(const gp_Pnt2d& endPoint)
+    {
+        if (!m_previewEntity) {
+            return;
+        }
 
-    const gp_Pln& TyrexSketchManager::sketchPlane() const { static gp_Pln dummy; return dummy; }
+        // Update end point
+        gp_Pnt2d snappedEnd = applyOrthoMode(endPoint);
+        m_previewEntity->setControlPoint(1, snappedEnd);
+        m_previewEntity->updateShape();
 
-    Handle(AIS_InteractiveContext) TyrexSketchManager::context() const { return Handle(AIS_InteractiveContext)(); }
+        // Redraw
+        drawSketchEntity(m_previewEntity);
+    }
 
-    gp_Pnt2d TyrexSketchManager::applyOrthoMode(const gp_Pnt2d& p) const { return p; }
+    void TyrexSketchManager::createCirclePreview(const gp_Pnt2d& center)
+    {
+        clearPreview();
 
-    void TyrexSketchManager::enterSketchMode() {}
+        // Create a temporary circle for preview
+        m_previewEntity = std::make_shared<TyrexSketchCircleEntity>(
+            "preview_circle",
+            center,
+            0.1  // Small initial radius
+        );
 
-    void TyrexSketchManager::exitSketchMode() {}
+        // Set preview style
+        m_previewEntity->setLineStyle(Aspect_TOL_DASH);
+        m_previewEntity->setColor(Quantity_Color(0.7, 0.7, 0.7, Quantity_TOC_RGB));
 
-    bool TyrexSketchManager::isInSketchMode() const { return false; }
+        // Draw preview
+        drawSketchEntity(m_previewEntity);
+    }
+
+    void TyrexSketchManager::updateCirclePreview(const gp_Pnt2d& radiusPoint)
+    {
+        if (!m_previewEntity) {
+            return;
+        }
+
+        // Calculate radius
+        double radius = m_firstPoint.Distance(radiusPoint);
+
+        // Update radius
+        auto circleEntity = std::static_pointer_cast<TyrexSketchCircleEntity>(m_previewEntity);
+        circleEntity->setRadius(radius);
+        circleEntity->updateShape();
+
+        // Redraw
+        drawSketchEntity(m_previewEntity);
+    }
+
+    void TyrexSketchManager::clearPreview()
+    {
+        if (m_previewEntity && !m_context.IsNull()) {
+            m_previewEntity->undraw(m_context);
+            m_previewEntity.reset();
+        }
+    }
 
 } // namespace TyrexCAD

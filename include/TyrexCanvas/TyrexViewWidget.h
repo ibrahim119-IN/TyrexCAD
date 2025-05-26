@@ -1,30 +1,26 @@
-﻿/***************************************************************************
- * TyrexViewWidget Integration with Enhanced Grid Overlay System
- *
- * This shows how to integrate TyrexGridOverlayRenderer with the existing
- * TyrexViewWidget to achieve AutoCAD-style grid rendering with multiple styles.
- ***************************************************************************/
-
-#ifndef TYREX_VIEW_WIDGET_H
-#define TYREX_VIEW_WIDGET_H
+﻿#ifndef TYREXVIEWWIDGET_H
+#define TYREXVIEWWIDGET_H
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
+#include <QPoint>
 #include <memory>
-#include "TyrexRendering/TyrexGridOverlayRenderer.h" 
 
- // Forward declarations
-class V3d_View;
-class QEnterEvent; // Forward declare QEnterEvent for enterEvent
+#include "TyrexCanvas/TyrexGridConfig.h"
 
 namespace TyrexCAD {
 
-    // TyrexCAD::GridStyle and TyrexCAD::GridConfig are defined via TyrexGridOverlayRenderer.h -> TyrexCanvasOverlay.h
-
+    // Forward declarations
     class TyrexViewerManager;
-    class TyrexInteractionManager;
+    class TyrexGridOverlayRenderer;
     class TyrexCanvasOverlay;
 
+    /**
+     * @brief Main 3D view widget for TyrexCAD
+     *
+     * This widget combines OpenGL rendering with OpenCascade visualization
+     * to provide a complete CAD viewport with grid overlay support.
+     */
     class TyrexViewWidget : public QOpenGLWidget, protected QOpenGLFunctions
     {
         Q_OBJECT
@@ -33,57 +29,59 @@ namespace TyrexCAD {
         explicit TyrexViewWidget(QWidget* parent = nullptr);
         ~TyrexViewWidget();
 
+        // Accessors
         std::shared_ptr<TyrexViewerManager> viewerManager() const;
-        TyrexInteractionManager* interactionManager() const;
+        std::shared_ptr<TyrexCanvasOverlay> canvasOverlay() const;
 
-        // === Grid control methods ===
+        // Grid control
         void setGridEnabled(bool enabled);
-        bool isGridEnabled() const;
-        void setGridConfig(const GridConfig& config);
-        const GridConfig& getGridConfig() const;
-        void setGridStyle(TyrexCAD::GridStyle style);
-        TyrexCAD::GridStyle getGridStyle() const;
-
-        bool snapToGrid(double worldX, double worldY,
-            double& snappedX, double& snappedY) const;
-        void screenToWorld(const QPoint& screenPos,
-            double& worldX, double& worldY) const;
-        double getCurrentGridSpacing() const;
-        void setCoordinateDisplayEnabled(bool enabled);
-        bool isCoordinateDisplayEnabled() const;
+        void setAxisVisible(bool visible);
+        void setGridStyle(GridStyle style);
+        void setGridSpacing(double spacing);
+        void setSnapToGrid(bool enabled);
         void setSketchModeGrid(bool enabled);
+
+        // Force redraw
+        void update() { QOpenGLWidget::update(); }
 
     signals:
         void viewerInitialized();
-        void gridConfigChanged();
-        void gridSpacingChanged(double spacing);
         void cursorWorldPosition(double x, double y);
+        void gridSpacingChanged(double spacing);
+        void gridConfigChanged(const GridConfig& config);
+        void snapToGridChanged(bool enabled);
 
     protected:
+        // OpenGL events
         void initializeGL() override;
         void paintGL() override;
-        void resizeGL(int w, int h) override;
-        void mousePressEvent(QMouseEvent* e) override;
-        void mouseMoveEvent(QMouseEvent* e) override;
-        void mouseReleaseEvent(QMouseEvent* e) override;
-        void wheelEvent(QWheelEvent* e) override;
+        void resizeGL(int width, int height) override;
+
+        // Mouse events
+        void mousePressEvent(QMouseEvent* event) override;
+        void mouseMoveEvent(QMouseEvent* event) override;
+        void mouseReleaseEvent(QMouseEvent* event) override;
+        void wheelEvent(QWheelEvent* event) override;
+
+        // Widget events
+        void enterEvent(QEnterEvent* event) override;
         void leaveEvent(QEvent* event) override;
 
     private:
-        void initializeManagers();
-        void setupGridRenderer();
         void initializeOverlay();
-        void updateCursorPosition(const QPoint& pos);
 
     private:
+        // Core components
         std::shared_ptr<TyrexViewerManager> m_viewerManager;
-        std::shared_ptr<TyrexCanvasOverlay> m_canvasOverlay;
         std::unique_ptr<TyrexGridOverlayRenderer> m_gridRenderer;
+        std::shared_ptr<TyrexCanvasOverlay> m_canvasOverlay;
+
+        // State
         bool m_gridInitialized;
-        QPoint m_currentCursorPos;
         bool m_cursorInWidget;
+        QPoint m_currentCursorPos;
     };
 
 } // namespace TyrexCAD
 
-#endif // TYREX_VIEW_WIDGET_H
+#endif // TYREXVIEWWIDGET_H
