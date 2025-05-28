@@ -1,8 +1,8 @@
 ﻿/***************************************************************************
- * Copyright (c) 2025 TyrexCAD development team                          *
- * *
- * This file is part of the TyrexCAD CAx development system.             *
- * *
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
  ***************************************************************************/
 
 #ifndef TYREX_MAIN_WINDOW_H
@@ -10,129 +10,144 @@
 
 #include <QMainWindow>
 #include <memory>
-#include <QTimer>
-#include <QLabel>
-#include <QInputDialog>
 
-#include "TyrexCore/TyrexCommandManager.h"
-
-#include <Standard_Handle.hxx>
-#include <Standard_Type.hxx>
-#include <Standard_DefineHandle.hxx>
-
+QT_BEGIN_NAMESPACE
 class QAction;
 class QMenu;
 class QToolBar;
+class QLabel;
 class QActionGroup;
+QT_END_NAMESPACE
 
 namespace TyrexCAD {
+
+    // Forward declarations
     class TyrexViewerManager;
+    class TyrexCommandManager;
     class TyrexModelSpace;
     class TyrexSketchManager;
+    class TyrexUnifiedGridSystem;
+    class TyrexSnapManager;
+    class TyrexLayerManager;
 
+    /**
+     * @brief Main application window for TyrexCAD
+     *
+     * This is the primary window that hosts all UI elements and manages
+     * the overall application state.
+     */
     class TyrexMainWindow : public QMainWindow
     {
         Q_OBJECT
+
     public:
+        /**
+         * @brief Constructor
+         * @param parent Parent widget
+         */
         explicit TyrexMainWindow(QWidget* parent = nullptr);
+
+        /**
+         * @brief Destructor
+         */
         ~TyrexMainWindow();
 
+        /**
+         * @brief Enable or disable debug mode
+         * @param enable True to enable debug mode
+         */
+        void enableDebugMode(bool enable);
+
     private slots:
-        void initialize();
-        void createTestGeometry();
-        void addSampleEntity();
-        void createSampleLine();
-        void startLineCommand();
-        void onCommandFinished();
+        // File menu actions
         void newFile();
         void openFile();
         void saveFile();
         void saveFileAs();
         void about();
+
+        // Edit menu actions
+        // TODO: Add edit actions
+
+        // Draw menu actions
+        void startLineCommand();
+        void createSampleLine();
+        void addSampleEntity();
+
+        // Sketch menu actions
         void toggleSketchMode();
         void enterSketchMode();
         void exitSketchMode();
         void startSketchLineCommand();
         void startSketchCircleCommand();
+
+        // Command handling
+        void onCommandFinished();
+
+        // Sketch handling
         void onSketchEntitySelected(const std::string& entityId);
         void onSketchEntityModified(const std::string& entityId);
+
+        // Test functionality
+        void createTestGeometry();
 
     private:
         void setupUI();
         void createActions();
+        void createAdvancedSketchActions();
+        void createSketchActions();
         void createMenus();
         void createToolbars();
         void createDockWindows();
-        void setupConnections();
-        void initializeConnections();
-        void createSketchActions();
-        void createAdvancedSketchActions();
-        void updateSketchModeUI();
-        void updateSketchStatusBar();
-        void updatePropertyPanel(const std::string& entityId);
-        void clearPropertyPanel();
-        void setDocumentModified(bool modified);
-        void updateStatusBar(const QString& message);
         void setupStatusBar();
+
+        // Initialization methods
+        void initialize();
+        void initializeConnections();
+        void initializeComponentsAfterViewer();
         void initializeModelSpace();
         void initializeCommandManager();
         void initializeSketchManager();
 
-        // ADDED: New methods for improved initialization
-        void initializeComponentsAfterViewer();
-        bool ensureSketchManagerInitialized();
-        bool checkViewerReadiness();
+        // Unified systems initialization
+        void initializeUnifiedSystems();
+        void connectUnifiedSystemSignals();
 
-        // ADDED: Internal method for creating geometry
+        // Helper methods
+        bool checkViewerReadiness();
+        bool ensureSketchManagerInitialized();
+        void setupConnections();
+        void updateStatusBar(const QString& message);
+        void updateSketchStatusBar();
+        void updateSketchModeUI();
+        void updatePropertyPanel(const std::string& entityId);
+        void clearPropertyPanel();
+        void setDocumentModified(bool modified);
         void createGeometryInternal();
 
+        // UI update methods
+        void updateGridUI();
+        void updateSnapUI();
+
     private:
-        // Core components
+        // Core managers
         std::shared_ptr<TyrexViewerManager> m_viewerManager;
         std::unique_ptr<TyrexModelSpace> m_modelSpace;
         TyrexCommandManager* m_commandManager;
-
-        // Sketch system
         std::shared_ptr<TyrexSketchManager> m_sketchManager;
-        bool m_isInSketchMode;
 
-        // ADDED: Initialization tracking
-        bool m_componentsInitialized;
-        int m_initializationAttempts;
-
-        // Debug
-        bool m_debugMode;
-        // Actions
-        QAction* m_newAction;
-        QAction* m_openAction;
-        QAction* m_saveAction;
-        QAction* m_saveAsAction;
-        QAction* m_exitAction;
-        QAction* m_aboutAction;
-        QAction* m_lineAction;
-        QAction* m_directLineAction;
-        QAction* m_testGeometryAction;
-        QAction* m_sketchModeAction;
-        QAction* m_exitSketchAction;
-        QAction* m_sketchLineAction;
-        QAction* m_sketchCircleAction;
-        QAction* m_toggleGridAction;
-        QAction* m_toggleSnapAction;
-        QAction* m_toggleOrthoAction;
-        QActionGroup* m_gridStyleGroup;
-        QAction* m_gridLinesAction;
-        QAction* m_gridDotsAction;
-        QAction* m_gridCrossesAction;
-        QAction* m_gridSpacingAction;
-        QAction* m_toggleCoordinatesAction;
+        // Unified systems
+        std::unique_ptr<TyrexUnifiedGridSystem> m_unifiedGrid;
+        std::unique_ptr<TyrexSnapManager> m_snapManager;
+        std::unique_ptr<TyrexLayerManager> m_layerManager;
 
         // Menus
         QMenu* m_fileMenu;
         QMenu* m_editMenu;
         QMenu* m_viewMenu;
-        QMenu* m_toolsMenu;
         QMenu* m_drawMenu;
         QMenu* m_sketchMenu;
+        QMenu* m_toolsMenu;
         QMenu* m_helpMenu;
 
         // Toolbars
@@ -142,14 +157,54 @@ namespace TyrexCAD {
         QToolBar* m_drawToolBar;
         QToolBar* m_sketchToolBar;
 
+        // File actions
+        QAction* m_newAction;
+        QAction* m_openAction;
+        QAction* m_saveAction;
+        QAction* m_saveAsAction;
+        QAction* m_exitAction;
+
+        // Edit actions
+        // TODO: Add edit actions
+
+        // View actions
+        QAction* m_toggleGridAction;
+        QAction* m_toggleSnapAction;
+        QAction* m_toggleOrthoAction;
+        QAction* m_toggleCoordinatesAction;
+        QAction* m_gridLinesAction;
+        QAction* m_gridDotsAction;
+        QAction* m_gridCrossesAction;
+        QAction* m_gridSpacingAction;
+        QActionGroup* m_gridStyleGroup;
+
+        // Draw actions
+        QAction* m_lineAction;
+        QAction* m_directLineAction;
+
+        // Sketch actions
+        QAction* m_sketchModeAction;
+        QAction* m_exitSketchAction;
+        QAction* m_sketchLineAction;
+        QAction* m_sketchCircleAction;
+
+        // Tools actions
+        QAction* m_testGeometryAction;
+
+        // Help actions
+        QAction* m_aboutAction;
+
         // Status bar widgets
         QLabel* m_coordinateLabel;
         QLabel* m_gridStatusLabel;
 
-        // Debug methods
-        void enableDebugMode(bool enable);
-        bool isDebugMode() const { return m_debugMode; }
+        // State
+        bool m_isInSketchMode;
+        bool m_componentsInitialized;
+        int m_initializationAttempts;
+        bool m_debugMode;
     };
 
 } // namespace TyrexCAD
+
 #endif // TYREX_MAIN_WINDOW_H

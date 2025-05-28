@@ -1,4 +1,4 @@
-/***************************************************************************
+﻿/***************************************************************************
  *   Copyright (c) 2025 TyrexCAD development team                          *
  *                                                                         *
  *   This file is part of the TyrexCAD CAx development system.             *
@@ -10,6 +10,7 @@
 #include "TyrexCore/TyrexLineCommand.h"
 #include "TyrexCanvas/TyrexModelSpace.h"
 #include "TyrexRendering/TyrexViewerManager.h"
+#include "TyrexSnapping/TyrexSnapManager.h"
 #include <QDebug>
 
 namespace TyrexCAD {
@@ -19,6 +20,7 @@ namespace TyrexCAD {
         , m_activeCommand(nullptr)
         , m_modelSpace(nullptr)
         , m_viewerManager(nullptr)
+        , m_snapManager(nullptr)
     {
         qDebug() << "TyrexCommandManager created";
     }
@@ -36,6 +38,11 @@ namespace TyrexCAD {
         // If the new command is valid, start it
         if (m_activeCommand) {
             qDebug() << "Starting command:" << QString::fromStdString(m_activeCommand->name());
+
+            // Set snap manager in command
+            if (m_snapManager) {
+                m_activeCommand->setSnapManager(m_snapManager);
+            }
 
             // Start the command
             m_activeCommand->start();
@@ -132,6 +139,12 @@ namespace TyrexCAD {
     {
         m_viewerManager = viewerManager;
         qDebug() << "ViewerManager set in CommandManager";
+    }
+
+    void TyrexCommandManager::setSnapManager(TyrexSnapManager* snapManager)
+    {
+        m_snapManager = snapManager;
+        qDebug() << "SnapManager set in CommandManager";
     }
 
 } // namespace TyrexCAD

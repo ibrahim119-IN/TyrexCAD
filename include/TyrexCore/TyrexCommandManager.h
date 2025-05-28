@@ -18,6 +18,7 @@ namespace TyrexCAD {
     class TyrexCommand;
     class TyrexModelSpace;
     class TyrexViewerManager;
+    class TyrexSnapManager;
 
     /**
      * @brief Manages active command and routes events in a CAD system
@@ -26,6 +27,7 @@ namespace TyrexCAD {
      * - Maintaining the active command
      * - Routing mouse events to the active command
      * - Managing command lifecycle (start, finish, cancel)
+     * - Managing snap manager integration
      */
     class TyrexCommandManager : public QObject {
         Q_OBJECT
@@ -81,6 +83,24 @@ namespace TyrexCAD {
          */
         bool createAndStartCommand(const std::string& commandName);
 
+        /**
+         * @brief Set model space reference
+         * @param modelSpace Pointer to model space
+         */
+        void setModelSpace(TyrexModelSpace* modelSpace);
+
+        /**
+         * @brief Set viewer manager reference
+         * @param viewerManager Pointer to viewer manager
+         */
+        void setViewerManager(TyrexViewerManager* viewerManager);
+
+        /**
+         * @brief Set snap manager reference
+         * @param snapManager Pointer to snap manager
+         */
+        void setSnapManager(TyrexSnapManager* snapManager);
+
     signals:
         /**
          * @brief Emitted when a command starts
@@ -108,19 +128,7 @@ namespace TyrexCAD {
         // References to other managers (not owned)
         TyrexModelSpace* m_modelSpace;
         TyrexViewerManager* m_viewerManager;
-
-    public:
-        /**
-         * @brief Set model space reference
-         * @param modelSpace Pointer to model space
-         */
-        void setModelSpace(TyrexModelSpace* modelSpace);
-
-        /**
-         * @brief Set viewer manager reference
-         * @param viewerManager Pointer to viewer manager
-         */
-        void setViewerManager(TyrexViewerManager* viewerManager);
+        TyrexSnapManager* m_snapManager;
     };
 
 } // namespace TyrexCAD

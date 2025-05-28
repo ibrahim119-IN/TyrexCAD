@@ -64,7 +64,7 @@ file(GLOB_RECURSE TYREXCAD_HEADERS
 add_executable(TyrexCAD 
     ${TYREXCAD_SOURCES} 
     ${TYREXCAD_HEADERS}
- "include/TyrexSketch/TyrexSketchDisplayHelper.h" "include/TyrexSketch/TyrexSketchConfig.h" "src/TyrexSketch/TyrexSketchConfig.cpp" "include/TyrexRendering/TyrexGridOverlayRenderer.h" "src/TyrexRendering/TyrexGridOverlayRenderer.cpp" "include/TyrexCanvas/TyrexGridConfig.h" "src/TyrexRendering/TyrexRenderingManager.cpp")
+ "include/TyrexSketch/TyrexSketchDisplayHelper.h" "include/TyrexSketch/TyrexSketchConfig.h" "src/TyrexSketch/TyrexSketchConfig.cpp" "include/TyrexRendering/TyrexGridOverlayRenderer.h" "src/TyrexRendering/TyrexGridOverlayRenderer.cpp" "include/TyrexCanvas/TyrexGridConfig.h" "src/TyrexRendering/TyrexRenderingManager.cpp"  "src/TyrexRendering/TyrexUnifiedGridSystem.cpp" "include/TyrexRendering/TyrexUnifiedGridSystem.h")
 
 target_sources(${PROJECT_NAME}
     PRIVATE

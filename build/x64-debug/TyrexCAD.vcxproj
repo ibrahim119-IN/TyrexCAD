@@ -542,6 +542,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexLayers\TyrexLayerManager.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexGridOverlayRenderer.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexRenderingManager.cpp" />
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexUnifiedGridSystem.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexViewerManager.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketch.cpp" />
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchCircleCommand.cpp" />
@@ -591,6 +592,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexLayers\TyrexLayerManager.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexGridOverlayRenderer.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexRenderingManager.h" />
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexUnifiedGridSystem.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexViewerManager.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketch.h" />
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchCircleCommand.h" />

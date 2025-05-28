@@ -1,4 +1,11 @@
-﻿#include "TyrexApp/TyrexMainWindow.h"
+﻿/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#include "TyrexApp/TyrexMainWindow.h"
 #include "TyrexCanvas/TyrexViewWidget.h"
 #include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexInteraction/TyrexInteractionManager.h"
@@ -8,11 +15,14 @@
 #include "TyrexEntities/TyrexLineEntity.h"
 #include "TyrexEntities/TyrexCircleEntity.h"
 #include "TyrexEntities/TyrexEntity.h"
-
 #include "TyrexCore/TyrexLineCommand.h"
 #include "TyrexSketch/TyrexSketchLineCommand.h"
 #include "TyrexSketch/TyrexSketchCircleCommand.h"
 #include "TyrexCanvas/TyrexCanvasOverlay.h"
+#include "TyrexRendering/TyrexUnifiedGridSystem.h"
+#include "TyrexSnapping/TyrexSnapManager.h"
+#include "TyrexLayers/TyrexLayerManager.h"
+#include "TyrexCore/CoordinateConverter.h"
 
 #include <QMenuBar>
 #include <QToolBar>
@@ -181,11 +191,34 @@ namespace TyrexCAD {
             return;
         }
 
-        // Wait a bit more for OpenCascade to stabilize
+        // Wait for OpenCascade to stabilize
         QApplication::processEvents();
         QThread::msleep(100);
 
         try {
+            // Initialize layer manager first
+            if (!m_layerManager) {
+                qDebug() << "Initializing layer manager...";
+                m_layerManager = std::make_unique<TyrexLayerManager>(this);
+                if (!m_layerManager->setupLayers(m_viewerManager->viewer())) {
+                    qCritical() << "Failed to setup layers!";
+                    return;
+                }
+                qDebug() << "Layer manager initialized successfully";
+            }
+
+            // Initialize unified grid system
+            if (!m_unifiedGrid) {
+                qDebug() << "Initializing unified grid system...";
+                m_unifiedGrid = std::make_unique<TyrexUnifiedGridSystem>(this);
+                if (!m_unifiedGrid->initialize(m_viewerManager,
+                    m_layerManager->getLayerId(TyrexLayerManager::GRID_MAJOR))) {
+                    qCritical() << "Failed to initialize unified grid!";
+                    return;
+                }
+                qDebug() << "Unified grid system initialized successfully";
+            }
+
             // Initialize model space
             if (!m_modelSpace) {
                 qDebug() << "Initializing model space...";
@@ -197,6 +230,23 @@ namespace TyrexCAD {
                 qDebug() << "Model space initialized successfully";
             }
 
+            // Initialize snap manager
+            if (!m_snapManager) {
+                qDebug() << "Initializing snap manager...";
+                m_snapManager = std::make_unique<TyrexSnapManager>(this);
+                m_snapManager->setCanvasOverlay(m_unifiedGrid->overlay());
+                m_snapManager->setModelSpace(m_modelSpace.get());
+                m_snapManager->setCoordinateConverter(std::make_unique<CoordinateConverter>());
+
+                // Configure default snap types
+                m_snapManager->setActiveSnapTypes(
+                    TyrexSnapManager::Grid |
+                    TyrexSnapManager::Endpoint |
+                    TyrexSnapManager::Midpoint
+                );
+                qDebug() << "Snap manager initialized successfully";
+            }
+
             // Initialize command manager
             if (!m_commandManager) {
                 qDebug() << "Initializing command manager...";
@@ -205,6 +255,9 @@ namespace TyrexCAD {
                     qCritical() << "Failed to initialize command manager!";
                     return;
                 }
+
+                // Set snap manager in command manager
+                m_commandManager->setSnapManager(m_snapManager.get());
                 qDebug() << "Command manager initialized successfully";
             }
 
@@ -219,13 +272,15 @@ namespace TyrexCAD {
                 qDebug() << "Sketch manager initialized successfully";
             }
 
+            // Connect unified system signals
+            connectUnifiedSystemSignals();
+
             m_componentsInitialized = true;
             qDebug() << "=== All components initialized successfully ===";
 
-            // Force initial update
-            if (auto* vw = qobject_cast<TyrexViewWidget*>(centralWidget())) {
-                vw->refreshGrid();
-            }
+            // Update UI to reflect grid state
+            updateGridUI();
+            updateSnapUI();
 
             updateStatusBar("TyrexCAD initialized successfully");
 
@@ -325,9 +380,8 @@ namespace TyrexCAD {
             }
 
             // Enable grid by default
-            auto* vw = qobject_cast<TyrexViewWidget*>(centralWidget());
-            if (vw) {
-                vw->setGridEnabled(true);
+            if (m_unifiedGrid) {
+                m_unifiedGrid->setGridVisible(true);
                 if (m_toggleGridAction) {
                     m_toggleGridAction->setChecked(true);
                 }
@@ -347,6 +401,58 @@ namespace TyrexCAD {
         catch (...) {
             qCritical() << "Unknown error creating sketch manager";
             m_sketchManager.reset();
+        }
+    }
+
+    void TyrexMainWindow::initializeUnifiedSystems()
+    {
+        // This method is now integrated into initializeComponentsAfterViewer
+        // Kept for backward compatibility if needed
+    }
+
+    void TyrexMainWindow::connectUnifiedSystemSignals()
+    {
+        if (!m_unifiedGrid || !m_snapManager) {
+            return;
+        }
+
+        // Grid system signals
+        connect(m_unifiedGrid.get(), &TyrexUnifiedGridSystem::gridSpacingChanged,
+            this, [this](double spacing) {
+                updateStatusBar(QString("Grid spacing: %1").arg(spacing, 0, 'f', 2));
+            });
+
+        connect(m_unifiedGrid.get(), &TyrexUnifiedGridSystem::gridConfigChanged,
+            this, &TyrexMainWindow::updateSketchStatusBar);
+
+        connect(m_unifiedGrid.get(), &TyrexUnifiedGridSystem::gridVisibilityChanged,
+            this, [this](bool visible) {
+                if (m_toggleGridAction) {
+                    m_toggleGridAction->setChecked(visible);
+                }
+                updateStatusBar(visible ? "Grid enabled" : "Grid disabled");
+            });
+
+        // Snap manager signals
+        connect(m_snapManager.get(), &TyrexSnapManager::snapOccurred,
+            this, [this](const TyrexSnapManager::SnapResult& result) {
+                if (result.snapped) {
+                    updateStatusBar(result.description);
+                }
+            });
+
+        connect(m_snapManager.get(), &TyrexSnapManager::snapTypesChanged,
+            this, [this](TyrexSnapManager::SnapTypes) {
+                updateSnapUI();
+            });
+
+        // Layer manager signals
+        if (m_layerManager) {
+            connect(m_layerManager.get(), &TyrexLayerManager::layerVisibilityChanged,
+                this, [this](TyrexLayerManager::LayerId layerId, bool visible) {
+                    qDebug() << "Layer" << static_cast<int>(layerId)
+                        << "visibility changed to" << visible;
+                });
         }
     }
 
@@ -470,10 +576,8 @@ namespace TyrexCAD {
         m_toggleGridAction->setChecked(true);
         m_toggleGridAction->setShortcut(Qt::Key_F7);
         connect(m_toggleGridAction, &QAction::triggered, this, [this](bool checked) {
-            auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-            if (viewWidget) {
-                viewWidget->setGridEnabled(checked);
-                updateStatusBar(checked ? "Grid enabled" : "Grid disabled");
+            if (m_unifiedGrid) {
+                m_unifiedGrid->setGridVisible(checked);
             }
             });
 
@@ -482,11 +586,13 @@ namespace TyrexCAD {
         m_toggleSnapAction->setChecked(false);
         m_toggleSnapAction->setShortcut(Qt::Key_F9);
         connect(m_toggleSnapAction, &QAction::triggered, this, [this](bool checked) {
-            auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-            if (viewWidget) {
-                viewWidget->setSnapToGrid(checked);
-                updateStatusBar(checked ? "Snap enabled" : "Snap disabled");
+            if (m_snapManager) {
+                m_snapManager->setEnabled(checked);
             }
+            if (m_unifiedGrid) {
+                m_unifiedGrid->setSnapEnabled(checked);
+            }
+            updateStatusBar(checked ? "Snap enabled" : "Snap disabled");
             });
 
         m_toggleOrthoAction = new QAction(tr("Ortho Mode"), this);
@@ -503,7 +609,6 @@ namespace TyrexCAD {
 
         m_gridDotsAction = new QAction(tr("Grid Dots"), this);
         m_gridDotsAction->setCheckable(true);
-        m_gridDotsAction->setChecked(true);
         m_gridStyleGroup->addAction(m_gridDotsAction);
 
         m_gridCrossesAction = new QAction(tr("Grid Crosses"), this);
@@ -511,36 +616,31 @@ namespace TyrexCAD {
         m_gridStyleGroup->addAction(m_gridCrossesAction);
 
         connect(m_gridLinesAction, &QAction::triggered, this, [this]() {
-            auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-            if (viewWidget) {
-                viewWidget->setGridStyle(GridStyle::Lines);
+            if (m_unifiedGrid) {
+                m_unifiedGrid->setGridStyle(GridStyle::Lines);
             }
             });
 
         connect(m_gridDotsAction, &QAction::triggered, this, [this]() {
-            auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-            if (viewWidget) {
-                viewWidget->setGridStyle(GridStyle::Dots);
+            if (m_unifiedGrid) {
+                m_unifiedGrid->setGridStyle(GridStyle::Dots);
             }
             });
 
         connect(m_gridCrossesAction, &QAction::triggered, this, [this]() {
-            auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-            if (viewWidget) {
-                viewWidget->setGridStyle(GridStyle::Crosses);
+            if (m_unifiedGrid) {
+                m_unifiedGrid->setGridStyle(GridStyle::Crosses);
             }
             });
 
         m_gridSpacingAction = new QAction(tr("Grid Spacing..."), this);
         connect(m_gridSpacingAction, &QAction::triggered, this, [this]() {
             bool ok;
+            double currentSpacing = m_unifiedGrid ? m_unifiedGrid->getCurrentGridSpacing() : 10.0;
             double spacing = QInputDialog::getDouble(this, tr("Grid Spacing"),
-                tr("Enter grid spacing:"), 10.0, 1.0, 1000.0, 1, &ok);
-            if (ok) {
-                auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-                if (viewWidget) {
-                    viewWidget->setGridSpacing(spacing);
-                }
+                tr("Enter grid spacing:"), currentSpacing, 1.0, 1000.0, 1, &ok);
+            if (ok && m_unifiedGrid) {
+                m_unifiedGrid->setGridSpacing(spacing);
             }
             });
 
@@ -652,9 +752,8 @@ namespace TyrexCAD {
             spacingSlider, &QSlider::setValue);
         connect(spacingSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, [this](int value) {
-                auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-                if (viewWidget) {
-                    viewWidget->setGridSpacing(static_cast<double>(value));
+                if (m_unifiedGrid) {
+                    m_unifiedGrid->setGridSpacing(static_cast<double>(value));
                 }
             });
 
@@ -669,9 +768,8 @@ namespace TyrexCAD {
 
         connect(styleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int index) {
-                auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-                if (viewWidget) {
-                    viewWidget->setGridStyle(static_cast<GridStyle>(index));
+                if (m_unifiedGrid) {
+                    m_unifiedGrid->setGridStyle(static_cast<GridStyle>(index));
                 }
             });
 
@@ -729,9 +827,8 @@ namespace TyrexCAD {
                 m_gridStatusLabel->setText("Sketch Mode");
             }
 
-            auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-            if (viewWidget && viewWidget->canvasOverlay()) {
-                GridConfig config = viewWidget->canvasOverlay()->getGridConfig();
+            if (m_unifiedGrid) {
+                GridConfig config = m_unifiedGrid->getGridConfig();
                 QString snapStatus = config.snapEnabled ? "ON" : "OFF";
                 updateStatusBar(QString("Sketch Mode - Snap: %1").arg(snapStatus));
             }
@@ -761,17 +858,69 @@ namespace TyrexCAD {
         if (m_drawToolBar) m_drawToolBar->setVisible(!m_isInSketchMode);
         if (m_sketchToolBar) m_sketchToolBar->setVisible(m_isInSketchMode);
 
-        auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-        if (viewWidget) {
-            viewWidget->setSketchModeGrid(m_isInSketchMode);
-
-            if (m_isInSketchMode) {
-                viewWidget->setGridEnabled(true);
-                if (m_toggleGridAction) m_toggleGridAction->setChecked(true);
-            }
+        if (m_isInSketchMode && m_unifiedGrid) {
+            m_unifiedGrid->setGridVisible(true);
+            if (m_toggleGridAction) m_toggleGridAction->setChecked(true);
         }
 
         updateSketchStatusBar();
+    }
+
+    void TyrexMainWindow::updateGridUI()
+    {
+        if (!m_unifiedGrid) {
+            return;
+        }
+
+        // Update grid visibility toggle
+        if (m_toggleGridAction) {
+            m_toggleGridAction->setChecked(m_unifiedGrid->isGridVisible());
+        }
+
+        // Update snap toggle
+        if (m_toggleSnapAction) {
+            m_toggleSnapAction->setChecked(m_unifiedGrid->isSnapEnabled());
+        }
+
+        // Update grid style
+        GridStyle currentStyle = m_unifiedGrid->getGridStyle();
+        switch (currentStyle) {
+        case GridStyle::Lines:
+            if (m_gridLinesAction) m_gridLinesAction->setChecked(true);
+            break;
+        case GridStyle::Dots:
+            if (m_gridDotsAction) m_gridDotsAction->setChecked(true);
+            break;
+        case GridStyle::Crosses:
+            if (m_gridCrossesAction) m_gridCrossesAction->setChecked(true);
+            break;
+        }
+    }
+
+    void TyrexMainWindow::updateSnapUI()
+    {
+        if (!m_snapManager) {
+            return;
+        }
+
+        bool snapEnabled = m_snapManager->isEnabled();
+        if (m_toggleSnapAction) {
+            m_toggleSnapAction->setChecked(snapEnabled);
+        }
+
+        // Update status bar with active snap types
+        auto activeTypes = m_snapManager->getActiveSnapTypes();
+        QStringList typeNames;
+
+        if (activeTypes & TyrexSnapManager::Grid) typeNames << "Grid";
+        if (activeTypes & TyrexSnapManager::Endpoint) typeNames << "Endpoint";
+        if (activeTypes & TyrexSnapManager::Midpoint) typeNames << "Midpoint";
+        if (activeTypes & TyrexSnapManager::Center) typeNames << "Center";
+        if (activeTypes & TyrexSnapManager::Intersection) typeNames << "Intersection";
+
+        if (!typeNames.isEmpty()) {
+            updateStatusBar(QString("Active snaps: %1").arg(typeNames.join(", ")));
+        }
     }
 
     void TyrexMainWindow::newFile()
@@ -961,15 +1110,23 @@ namespace TyrexCAD {
     {
         qDebug() << "=== Starting createTestGeometry ===";
 
+        // Debug unified systems
+        if (m_unifiedGrid) {
+            m_unifiedGrid->debugState();
+        }
+
+        if (m_layerManager) {
+            qDebug() << "Layer manager initialized";
+        }
+
+        if (m_snapManager) {
+            qDebug() << "Snap manager enabled:" << m_snapManager->isEnabled();
+            qDebug() << "Active snap types:" << static_cast<int>(m_snapManager->getActiveSnapTypes());
+        }
+
         // Check system state with debug
         if (m_viewerManager) {
             m_viewerManager->checkGraphicsDriver();
-        }
-
-        // Check grid state
-        auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-        if (viewWidget && viewWidget->canvasOverlay()) {
-            viewWidget->canvasOverlay()->debugGridState();
         }
 
         // Comprehensive component checking
@@ -1090,14 +1247,16 @@ namespace TyrexCAD {
                     qDebug() << "Model space:" << (m_modelSpace ? "OK" : "NULL");
                     qDebug() << "Command manager:" << (m_commandManager ? "OK" : "NULL");
                     qDebug() << "Sketch manager:" << (m_sketchManager ? "OK" : "NULL");
+                    qDebug() << "Unified grid:" << (m_unifiedGrid ? "OK" : "NULL");
+                    qDebug() << "Snap manager:" << (m_snapManager ? "OK" : "NULL");
+                    qDebug() << "Layer manager:" << (m_layerManager ? "OK" : "NULL");
 
                     if (m_viewerManager) {
                         m_viewerManager->checkGraphicsDriver();
                     }
 
-                    auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-                    if (viewWidget) {
-                        viewWidget->debugGridState();
+                    if (m_unifiedGrid) {
+                        m_unifiedGrid->debugState();
                     }
                     });
                 debugMenu->addAction(checkSystemAction);

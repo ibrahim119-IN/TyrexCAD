@@ -88,6 +88,9 @@
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexRenderingManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexUnifiedGridSystem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexViewerManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -244,6 +247,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexRenderingManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexUnifiedGridSystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexViewerManager.h">
