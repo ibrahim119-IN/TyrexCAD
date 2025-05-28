@@ -78,6 +78,11 @@ namespace TyrexCAD {
         void initializeCommandManager();
         void initializeSketchManager();
 
+        // ADDED: New methods for improved initialization
+        void initializeComponentsAfterViewer();
+        bool ensureSketchManagerInitialized();
+        bool checkViewerReadiness();
+
         // ADDED: Internal method for creating geometry
         void createGeometryInternal();
 
@@ -90,6 +95,11 @@ namespace TyrexCAD {
         // Sketch system
         std::shared_ptr<TyrexSketchManager> m_sketchManager;
         bool m_isInSketchMode;
+
+        // ADDED: Initialization tracking
+        bool m_componentsInitialized;
+        int m_initializationAttempts;
+
         // Debug
         bool m_debugMode;
         // Actions

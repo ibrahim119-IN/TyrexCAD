@@ -50,6 +50,8 @@ namespace TyrexCAD {
         : QMainWindow(parent),
         m_commandManager(nullptr),
         m_isInSketchMode(false),
+        m_componentsInitialized(false),
+        m_initializationAttempts(0),
         m_coordinateLabel(nullptr),
         m_gridStatusLabel(nullptr),
         m_fileToolBar(nullptr),
@@ -112,17 +114,113 @@ namespace TyrexCAD {
 
         initializeConnections();
 
+        // Connect to viewer initialized signal
         connect(viewWidget, &TyrexViewWidget::viewerInitialized, this, [this]() {
-            qDebug() << "=== Viewer Initialized ===";
+            qDebug() << "=== Viewer Initialized Signal Received ===";
+            m_initializationAttempts = 0; // Reset attempts counter
+            initializeComponentsAfterViewer();
+            });
 
-            // Wait for OpenCascade to stabilize
-            QApplication::processEvents();
-            QThread::msleep(100);
+        // Also attempt initialization with multiple retries
+        QTimer* initTimer = new QTimer(this);
+        connect(initTimer, &QTimer::timeout, this, [this, initTimer]() {
+            m_initializationAttempts++;
+            qDebug() << "=== Initialization attempt #" << m_initializationAttempts << " ===";
 
-            // Initialize components in correct order
-            initializeModelSpace();
-            initializeCommandManager();
-            initializeSketchManager();
+            if (m_componentsInitialized || m_initializationAttempts > 10) {
+                initTimer->stop();
+                initTimer->deleteLater();
+
+                if (!m_componentsInitialized) {
+                    qCritical() << "Failed to initialize components after 10 attempts!";
+                    QMessageBox::critical(this, "Initialization Error",
+                        "Failed to initialize CAD components. Some features may not work properly.");
+                }
+                return;
+            }
+
+            if (checkViewerReadiness()) {
+                initializeComponentsAfterViewer();
+                if (m_componentsInitialized) {
+                    initTimer->stop();
+                    initTimer->deleteLater();
+                }
+            }
+            });
+
+        initTimer->start(500); // Try every 500ms
+    }
+
+    bool TyrexMainWindow::checkViewerReadiness()
+    {
+        if (!m_viewerManager) {
+            qDebug() << "Viewer manager not available";
+            return false;
+        }
+
+        if (m_viewerManager->context().IsNull()) {
+            qDebug() << "Viewer context is null";
+            return false;
+        }
+
+        if (m_viewerManager->view().IsNull()) {
+            qDebug() << "Viewer view is null";
+            return false;
+        }
+
+        qDebug() << "Viewer is ready";
+        return true;
+    }
+
+    void TyrexMainWindow::initializeComponentsAfterViewer()
+    {
+        qDebug() << "=== Initializing Components After Viewer ===";
+
+        if (!checkViewerReadiness()) {
+            qDebug() << "Viewer not ready, aborting component initialization";
+            return;
+        }
+
+        // Wait a bit more for OpenCascade to stabilize
+        QApplication::processEvents();
+        QThread::msleep(100);
+
+        try {
+            // Initialize model space
+            if (!m_modelSpace) {
+                qDebug() << "Initializing model space...";
+                initializeModelSpace();
+                if (!m_modelSpace) {
+                    qCritical() << "Failed to initialize model space!";
+                    return;
+                }
+                qDebug() << "Model space initialized successfully";
+            }
+
+            // Initialize command manager
+            if (!m_commandManager) {
+                qDebug() << "Initializing command manager...";
+                initializeCommandManager();
+                if (!m_commandManager) {
+                    qCritical() << "Failed to initialize command manager!";
+                    return;
+                }
+                qDebug() << "Command manager initialized successfully";
+            }
+
+            // Initialize sketch manager
+            if (!m_sketchManager) {
+                qDebug() << "Initializing sketch manager...";
+                initializeSketchManager();
+                if (!m_sketchManager) {
+                    qCritical() << "Failed to initialize sketch manager!";
+                    return;
+                }
+                qDebug() << "Sketch manager initialized successfully";
+            }
+
+            m_componentsInitialized = true;
+            qDebug() << "=== All components initialized successfully ===";
 
             // Force initial update
             if (auto* vw = qobject_cast<TyrexViewWidget*>(centralWidget())) {
@@ -130,7 +228,16 @@ namespace TyrexCAD {
             }
 
             updateStatusBar("TyrexCAD initialized successfully");
-            });
+
+        }
+        catch (const std::exception& e) {
+            qCritical() << "Exception during component initialization:" << e.what();
+            m_componentsInitialized = false;
+        }
+        catch (...) {
+            qCritical() << "Unknown exception during component initialization";
+            m_componentsInitialized = false;
+        }
     }
 
     void TyrexMainWindow::initializeModelSpace()
@@ -140,8 +247,18 @@ namespace TyrexCAD {
             return;
         }
 
-        m_modelSpace = std::make_unique<TyrexModelSpace>(m_viewerManager->context());
-        qDebug() << "Model space initialized";
+        try {
+            m_modelSpace = std::make_unique<TyrexModelSpace>(m_viewerManager->context());
+            qDebug() << "Model space created successfully";
+        }
+        catch (const Standard_Failure& e) {
+            qCritical() << "OpenCascade error creating model space:" << e.GetMessageString();
+            m_modelSpace.reset();
+        }
+        catch (const std::exception& e) {
+            qCritical() << "Error creating model space:" << e.what();
+            m_modelSpace.reset();
+        }
     }
 
     void TyrexMainWindow::initializeCommandManager()
@@ -151,25 +268,32 @@ namespace TyrexCAD {
             return;
         }
 
-        auto* interactionManager = new TyrexInteractionManager();
-        interactionManager->setViewerManager(m_viewerManager.get());
-        m_viewerManager->setInteractionManager(interactionManager);
+        try {
+            auto* interactionManager = new TyrexInteractionManager();
+            interactionManager->setViewerManager(m_viewerManager.get());
+            m_viewerManager->setInteractionManager(interactionManager);
 
-        m_commandManager = new TyrexCommandManager(this);
-        m_commandManager->setModelSpace(m_modelSpace.get());
-        m_commandManager->setViewerManager(m_viewerManager.get());
+            m_commandManager = new TyrexCommandManager(this);
+            m_commandManager->setModelSpace(m_modelSpace.get());
+            m_commandManager->setViewerManager(m_viewerManager.get());
 
-        connect(m_commandManager, &TyrexCommandManager::commandStarted,
-            this, [this](const std::string& commandName) {
-                updateStatusBar(QString("Command started: %1").arg(QString::fromStdString(commandName)));
-            });
-        connect(m_commandManager, &TyrexCommandManager::commandFinished,
-            this, &TyrexMainWindow::onCommandFinished);
-        connect(m_commandManager, &TyrexCommandManager::commandCanceled,
-            this, []() { qDebug() << "Command canceled"; });
+            connect(m_commandManager, &TyrexCommandManager::commandStarted,
+                this, [this](const std::string& commandName) {
+                    updateStatusBar(QString("Command started: %1").arg(QString::fromStdString(commandName)));
+                });
+            connect(m_commandManager, &TyrexCommandManager::commandFinished,
+                this, &TyrexMainWindow::onCommandFinished);
+            connect(m_commandManager, &TyrexCommandManager::commandCanceled,
+                this, []() { qDebug() << "Command canceled"; });
 
-        interactionManager->setCommandManager(m_commandManager);
-        qDebug() << "Command manager initialized";
+            interactionManager->setCommandManager(m_commandManager);
+            qDebug() << "Command manager created and configured successfully";
+
+        }
+        catch (const std::exception& e) {
+            qCritical() << "Error creating command manager:" << e.what();
+            m_commandManager = nullptr;
+        }
     }
 
     void TyrexMainWindow::initializeSketchManager()
@@ -179,28 +303,76 @@ namespace TyrexCAD {
             return;
         }
 
-        m_sketchManager = std::make_shared<TyrexSketchManager>(
-            m_viewerManager->context(),
-            m_viewerManager.get(),
-            this
-        );
+        try {
+            qDebug() << "Creating TyrexSketchManager...";
+            m_sketchManager = std::make_shared<TyrexSketchManager>(
+                m_viewerManager->context(),
+                m_viewerManager.get(),
+                this
+            );
 
-        setupConnections();
-
-        if (auto* interactionManager = m_viewerManager->interactionManager()) {
-            interactionManager->setSketchManager(m_sketchManager.get());
-        }
-
-        // Enable grid by default
-        auto* vw = qobject_cast<TyrexViewWidget*>(centralWidget());
-        if (vw) {
-            vw->setGridEnabled(true);
-            if (m_toggleGridAction) {
-                m_toggleGridAction->setChecked(true);
+            if (!m_sketchManager) {
+                qCritical() << "Failed to create TyrexSketchManager!";
+                return;
             }
+
+            qDebug() << "TyrexSketchManager created, setting up connections...";
+            setupConnections();
+
+            if (auto* interactionManager = m_viewerManager->interactionManager()) {
+                interactionManager->setSketchManager(m_sketchManager.get());
+                qDebug() << "Sketch manager set in interaction manager";
+            }
+
+            // Enable grid by default
+            auto* vw = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (vw) {
+                vw->setGridEnabled(true);
+                if (m_toggleGridAction) {
+                    m_toggleGridAction->setChecked(true);
+                }
+            }
+
+            qDebug() << "Sketch manager initialized completely";
+
+        }
+        catch (const Standard_Failure& e) {
+            qCritical() << "OpenCascade error creating sketch manager:" << e.GetMessageString();
+            m_sketchManager.reset();
+        }
+        catch (const std::exception& e) {
+            qCritical() << "Error creating sketch manager:" << e.what();
+            m_sketchManager.reset();
+        }
+        catch (...) {
+            qCritical() << "Unknown error creating sketch manager";
+            m_sketchManager.reset();
+        }
+    }
+
+    bool TyrexMainWindow::ensureSketchManagerInitialized()
+    {
+        if (m_sketchManager) {
+            qDebug() << "Sketch manager already initialized";
+            return true;
         }
 
-        qDebug() << "Sketch manager initialized";
+        qDebug() << "=== Attempting to initialize sketch manager on demand ===";
+
+        if (!checkViewerReadiness()) {
+            qCritical() << "Cannot initialize sketch manager - viewer not ready";
+            return false;
+        }
+
+        initializeSketchManager();
+
+        if (!m_sketchManager) {
+            qCritical() << "Failed to initialize sketch manager on demand";
+            return false;
+        }
+
+        qDebug() << "Sketch manager initialized successfully on demand";
+        return true;
     }
 
     void TyrexMainWindow::initializeConnections()
@@ -235,8 +407,11 @@ namespace TyrexCAD {
     void TyrexMainWindow::setupConnections()
     {
         if (!m_sketchManager) {
+            qDebug() << "Cannot setup connections - sketch manager is null";
             return;
         }
+
+        qDebug() << "Setting up sketch manager connections...";
 
         connect(m_sketchManager.get(), &TyrexSketchManager::sketchModeEntered,
             this, &TyrexMainWindow::updateSketchModeUI);
@@ -248,6 +423,8 @@ namespace TyrexCAD {
             this, &TyrexMainWindow::onSketchEntitySelected);
         connect(m_sketchManager.get(), &TyrexSketchManager::entityModified,
             this, &TyrexMainWindow::onSketchEntityModified);
+
+        qDebug() << "Sketch manager connections established";
     }
 
     void TyrexMainWindow::createActions()
@@ -679,12 +856,20 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::enterSketchMode()
     {
-        if (!m_sketchManager) {
-            qWarning() << "Sketch manager not initialized";
+        qDebug() << "=== TyrexMainWindow::enterSketchMode() ===";
+
+        if (!ensureSketchManagerInitialized()) {
+            qCritical() << "Cannot enter sketch mode - sketch manager initialization failed";
+            QMessageBox::warning(this, "Error",
+                "Cannot enter sketch mode. Sketch manager initialization failed.\n"
+                "Please try restarting the application.");
+
+            // Uncheck the action
+            if (m_sketchModeAction) {
+                m_sketchModeAction->setChecked(false);
+            }
             return;
         }
-
-        qDebug() << "=== TyrexMainWindow::enterSketchMode() ===";
 
         if (m_commandManager && m_commandManager->activeCommand()) {
             m_commandManager->cancelCommand();
@@ -698,6 +883,7 @@ namespace TyrexCAD {
     void TyrexMainWindow::exitSketchMode()
     {
         if (!m_sketchManager) {
+            qDebug() << "No sketch manager available to exit sketch mode";
             return;
         }
 
@@ -714,7 +900,13 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::startSketchLineCommand()
     {
-        if (!m_commandManager || !m_sketchManager) {
+        if (!m_commandManager) {
+            qWarning() << "No command manager available";
+            return;
+        }
+
+        if (!ensureSketchManagerInitialized()) {
+            QMessageBox::warning(this, "Error", "Sketch manager not initialized");
             return;
         }
 
@@ -724,7 +916,13 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::startSketchCircleCommand()
     {
-        if (!m_commandManager || !m_sketchManager) {
+        if (!m_commandManager) {
+            qWarning() << "No command manager available";
+            return;
+        }
+
+        if (!ensureSketchManagerInitialized()) {
+            QMessageBox::warning(this, "Error", "Sketch manager not initialized");
             return;
         }
 
@@ -866,7 +1064,6 @@ namespace TyrexCAD {
         );
         m_modelSpace->addEntity(diag);
     }
-    // بعد دالة createGeometryInternal() وقبل إغلاق namespace
 
     void TyrexMainWindow::enableDebugMode(bool enable)
     {
@@ -889,6 +1086,10 @@ namespace TyrexCAD {
                 QAction* checkSystemAction = new QAction(tr("Check System State"), this);
                 connect(checkSystemAction, &QAction::triggered, this, [this]() {
                     qDebug() << "=== System State Check ===";
+                    qDebug() << "Components initialized:" << m_componentsInitialized;
+                    qDebug() << "Model space:" << (m_modelSpace ? "OK" : "NULL");
+                    qDebug() << "Command manager:" << (m_commandManager ? "OK" : "NULL");
+                    qDebug() << "Sketch manager:" << (m_sketchManager ? "OK" : "NULL");
 
                     if (m_viewerManager) {
                         m_viewerManager->checkGraphicsDriver();
@@ -900,6 +1101,13 @@ namespace TyrexCAD {
                     }
                     });
                 debugMenu->addAction(checkSystemAction);
+
+                QAction* forceInitAction = new QAction(tr("Force Component Initialization"), this);
+                connect(forceInitAction, &QAction::triggered, this, [this]() {
+                    qDebug() << "=== Forcing component initialization ===";
+                    initializeComponentsAfterViewer();
+                    });
+                debugMenu->addAction(forceInitAction);
 
                 QAction* toggleDebugOutput = new QAction(tr("Toggle Debug Output"), this);
                 toggleDebugOutput->setCheckable(true);
@@ -913,4 +1121,3 @@ namespace TyrexCAD {
     }
 
 } // namespace TyrexCAD
-
