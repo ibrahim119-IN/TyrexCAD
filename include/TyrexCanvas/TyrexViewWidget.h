@@ -1,8 +1,7 @@
 ﻿#ifndef TYREXVIEWWIDGET_H
 #define TYREXVIEWWIDGET_H
 
-#include <QOpenGLWidget>
-#include <QOpenGLFunctions>
+#include <QWidget>
 #include <QPoint>
 #include <memory>
 
@@ -10,6 +9,8 @@
 
 QT_BEGIN_NAMESPACE
 class QEnterEvent;
+class QPaintEvent;
+class QResizeEvent;
 QT_END_NAMESPACE
 
 namespace TyrexCAD {
@@ -22,10 +23,9 @@ namespace TyrexCAD {
     /**
      * @brief Main 3D view widget for TyrexCAD
      *
-     * This widget combines OpenGL rendering with OpenCascade visualization
-     * to provide a complete CAD viewport with grid overlay support.
+     * This widget combines OpenCascade visualization with grid overlay support.
      */
-    class TyrexViewWidget : public QOpenGLWidget, protected QOpenGLFunctions
+    class TyrexViewWidget : public QWidget
     {
         Q_OBJECT
 
@@ -50,9 +50,6 @@ namespace TyrexCAD {
         void setUseOpenGLGrid(bool use) { m_useOpenGLGrid = use; }
         bool isUsingOpenGLGrid() const { return m_useOpenGLGrid; }
 
-        // Force redraw
-        void update() { QOpenGLWidget::update(); }
-
     signals:
         void viewerInitialized();
         void cursorWorldPosition(double x, double y);
@@ -61,10 +58,9 @@ namespace TyrexCAD {
         void snapToGridChanged(bool enabled);
 
     protected:
-        // OpenGL events
-        void initializeGL() override;
-        void paintGL() override;
-        void resizeGL(int width, int height) override;
+        // Widget events
+        void paintEvent(QPaintEvent* event) override;
+        void resizeEvent(QResizeEvent* event) override;
 
         // Mouse events
         void mousePressEvent(QMouseEvent* event) override;
@@ -72,7 +68,6 @@ namespace TyrexCAD {
         void mouseReleaseEvent(QMouseEvent* event) override;
         void wheelEvent(QWheelEvent* event) override;
 
-        // Widget events
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         void enterEvent(QEnterEvent* event) override;
 #else
@@ -81,6 +76,7 @@ namespace TyrexCAD {
         void leaveEvent(QEvent* event) override;
 
     private:
+        void initialize();
         void initializeOverlay();
 
     private:
@@ -98,4 +94,4 @@ namespace TyrexCAD {
 
 } // namespace TyrexCAD
 
-#endif // TYREXVIEWWIDGET_H#include "TyrexCanvas/TyrexCanvasOverlay.h"
+#endif // TYREXVIEWWIDGE

@@ -142,14 +142,20 @@ namespace TyrexCAD {
             // Create line entity with all required parameters
             auto lineEntity = std::make_shared<TyrexLineEntity>(
                 "line_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()),
-                "default",                                              // layer name
-                Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_RGB),      // white color
+                "default",
+                Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_RGB),
                 m_firstPoint,
                 m_secondPoint
             );
 
             // Add to model space
             m_modelSpace->addEntity(lineEntity);
+
+            // Force update of the view
+            if (m_viewerManager && !m_viewerManager->view().IsNull()) {
+                m_viewerManager->view()->Redraw();
+                m_viewerManager->view()->Update();
+            }
 
             // Clean up preview
             cleanupPreview();

@@ -3,19 +3,10 @@
 #include "TyrexCore/TyrexInitializer.h"
 
 #include <QApplication>
-#include <QSurfaceFormat>
 #include <QDebug>
 
 int main(int argc, char* argv[])
 {
-    // Set OpenGL format for Qt
-    QSurfaceFormat format;
-    format.setDepthBufferSize(24);
-    format.setStencilBufferSize(8);
-    format.setVersion(3, 3);  // OpenGL 3.3
-    format.setProfile(QSurfaceFormat::CoreProfile);
-    QSurfaceFormat::setDefaultFormat(format);
-
     // Create Qt application
     QApplication app(argc, argv);
     app.setApplicationName("TyrexCAD");

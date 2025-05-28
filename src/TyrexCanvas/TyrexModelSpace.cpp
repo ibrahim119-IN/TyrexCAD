@@ -122,19 +122,31 @@ namespace TyrexCAD {
 
         qDebug() << QString("Drawing %1 entities").arg(m_entities.size());
 
-        // Clear existing display first
+        // Clear display first
         m_context->RemoveAll(Standard_False);
 
         // Draw all entities
         for (const auto& entity : m_entities) {
             if (entity) {
                 entity->draw(m_context, entity->isSelected());
-                qDebug() << QString("Drew entity: %1").arg(QString::fromStdString(entity->getId()));
+
+                // Ensure entity is displayed
+                Handle(AIS_Shape) shape = entity->getAISShape();
+                if (!shape.IsNull() && !m_context->IsDisplayed(shape)) {
+                    m_context->Display(shape, Standard_False);
+                }
             }
         }
 
-        // Update display
+        // Force update of the viewer
         m_context->UpdateCurrentViewer();
+
+        // Get the active view and force redraw
+        Handle(V3d_View) activeView = m_context->CurrentViewer()->ActiveView();
+        if (!activeView.IsNull()) {
+            activeView->Redraw();
+            activeView->Update();
+        }
 
         qDebug() << "Finished drawing all entities";
     }

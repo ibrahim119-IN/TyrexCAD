@@ -1,11 +1,11 @@
 ﻿#include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexInteraction/TyrexInteractionManager.h"
 
-#include <QOpenGLContext>
-#include <QOpenGLWidget>
+#include <QWidget>
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QDebug>
+#include <QApplication>
 
 #include <AIS_DisplayMode.hxx>
 #include <AIS_InteractiveContext.hxx>
@@ -46,7 +46,7 @@ namespace TyrexCAD {
     void TyrexViewerManager::initializeViewer(QWidget* glWidget)
     {
         if (!glWidget) {
-            qCritical() << "Cannot initialize viewer without OpenGL widget";
+            qCritical() << "Cannot initialize viewer without widget";
             return;
         }
 
@@ -62,18 +62,31 @@ namespace TyrexCAD {
             // Create view
             m_view = m_viewer->CreateView();
 
-            // Create window
+            // Enhanced window creation
 #ifdef _WIN32
-            m_window = new WNT_Window((Aspect_Handle)glWidget->winId());
+// Wait until window is visible
+            while (!glWidget->isVisible()) {
+                QApplication::processEvents();
+            }
+
+            // Create window with proper handle
+            HWND hwnd = reinterpret_cast<HWND>(glWidget->winId());
+            m_window = new WNT_Window(hwnd);
 #else
-            // Linux/Mac implementation
+// Linux/Mac implementation
             m_window = new Xw_Window(displayConnection, (Window)glWidget->winId());
 #endif
 
+            // Set window to view
             m_view->SetWindow(m_window);
+
+            // Ensure window is mapped
             if (!m_window->IsMapped()) {
                 m_window->Map();
             }
+
+            // Process events to ensure stability
+            QApplication::processEvents();
 
             // Create interactive context
             m_context = new AIS_InteractiveContext(m_viewer);
@@ -107,6 +120,7 @@ namespace TyrexCAD {
     {
         if (!m_view.IsNull()) {
             m_view->Redraw();
+            m_view->Update();
         }
     }
 
@@ -209,7 +223,7 @@ namespace TyrexCAD {
                 return;
             }
 
-            // Default zoom behavior - FIXED
+            // Default zoom behavior
             zoomAtPoint(event->position().toPoint(), delta > 0 ? 1.1 : 0.9);
 
         }
@@ -228,7 +242,6 @@ namespace TyrexCAD {
             Standard_Integer x = center.x();
             Standard_Integer y = center.y();
 
-            // CRITICAL FIX: Correct zoom implementation
             if (m_is2DMode) {
                 // 2D Mode: Simple scale-based zoom
                 double currentScale = m_view->Scale();

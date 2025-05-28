@@ -88,6 +88,9 @@ namespace TyrexCAD {
             return;
         }
 
+        // انتظار قليل للتأكد من أن النافذة مرئية بالكامل
+        QApplication::processEvents();
+
         m_viewerManager = viewWidget->viewerManager();
         if (!m_viewerManager) {
             qCritical() << "Failed to get viewer manager!";
