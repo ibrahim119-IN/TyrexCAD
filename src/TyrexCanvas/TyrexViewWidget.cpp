@@ -66,12 +66,16 @@ namespace TyrexCAD {
     {
         Q_UNUSED(event);
 
-        if (m_viewerManager) {
+        if (m_viewerManager && m_viewerManager->view() && !m_viewerManager->view().IsNull()) {
+            // Force complete redraw
+            m_viewerManager->view()->MustBeResized();
             m_viewerManager->redraw();
-        }
 
-        // Note: Since we're using WNT_Window directly, OpenCascade handles all rendering
-        // Grid is rendered as part of the OpenCascade scene
+            // Update overlay after main content
+            if (m_canvasOverlay && m_gridInitialized) {
+                m_canvasOverlay->forceUpdate();
+            }
+        }
     }
 
     void TyrexViewWidget::resizeEvent(QResizeEvent* event)
@@ -199,6 +203,7 @@ namespace TyrexCAD {
         m_canvasOverlay->setGridVisible(true);
         m_canvasOverlay->setAxisVisible(true);
 
+        m_gridInitialized = true;
         qDebug() << "Canvas overlay initialized and grid enabled";
     }
 
@@ -221,8 +226,14 @@ namespace TyrexCAD {
     {
         if (m_canvasOverlay) {
             m_canvasOverlay->setGridSpacing(spacing);
+            m_canvasOverlay->forceUpdate(); // Use forceUpdate for immediate response
+
+            // Force complete widget update
+            update();
+
+            // Process events to ensure immediate update
+            QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
         }
-        update();
     }
 
     void TyrexViewWidget::setGridStyle(GridStyle style)

@@ -1,5 +1,6 @@
 ﻿#include "TyrexCanvas/TyrexCanvasOverlay.h"
-#include "TyrexCanvas/TyrexGridConfig.h"  // Add this include
+#include "TyrexCanvas/TyrexGridConfig.h"
+#include "TyrexCore/SafeHandleUtils.h"
 
 #include <AIS_InteractiveContext.hxx>
 #include <V3d_View.hxx>
@@ -17,7 +18,8 @@
 #include <Geom_Circle.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <TopoDS_Edge.hxx>
-#include <cmath>  // For std::fmod
+#include <Graphic3d_ZLayerSettings.hxx>
+#include <cmath>
 
 namespace TyrexCAD {
 
@@ -29,7 +31,7 @@ namespace TyrexCAD {
         m_view(view),
         m_gridVisible(true),
         m_axisVisible(true),
-        m_currentSpacing(10.0) // Default spacing
+        m_currentSpacing(10.0)
     {
         // Initialize with default configuration
         m_config.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
@@ -46,6 +48,18 @@ namespace TyrexCAD {
         m_config.snapEnabled = false;
         m_config.showAxes = true;
         m_config.showOriginMarker = true;
+        m_config.gridZLayerId = -1;
+
+        // Create dedicated layer for grid
+        if (!m_context.IsNull() && !m_context->CurrentViewer().IsNull()) {
+            m_context->CurrentViewer()->AddZLayer(m_config.gridZLayerId);
+
+            // Configure layer settings
+            Graphic3d_ZLayerSettings aSettings;
+            aSettings.SetEnableDepthTest(Standard_False);
+            aSettings.SetEnableDepthWrite(Standard_False);
+            m_context->CurrentViewer()->SetZLayerSettings(m_config.gridZLayerId, aSettings);
+        }
 
         // Create the grid and axes initially
         updateGrid();
@@ -163,8 +177,37 @@ namespace TyrexCAD {
         }
     }
 
+    void TyrexCanvasOverlay::forceUpdate() {
+        SAFE_HANDLE_CHECK_RETURN(m_context, "Context is null in forceUpdate", );
+
+        // Clear and recreate
+        clearOverlay();
+        calculateAdaptiveSpacing();
+
+        if (m_gridVisible) {
+            updateGrid();
+        }
+
+        if (m_axisVisible) {
+            updateAxes();
+        }
+
+        // Force viewer update
+        if (!m_view.IsNull()) {
+            m_view->MustBeResized();
+            m_view->Invalidate();
+            m_view->Redraw();
+
+            if (!m_context->CurrentViewer().IsNull()) {
+                m_context->CurrentViewer()->Redraw();
+            }
+        }
+    }
+
     void TyrexCanvasOverlay::updateGrid() {
-        if (m_context.IsNull() || !m_gridVisible) {
+        SAFE_HANDLE_CHECK_RETURN(m_context, "Context is null in updateGrid", );
+
+        if (!m_gridVisible) {
             return;
         }
 
@@ -206,9 +249,13 @@ namespace TyrexCAD {
                     aisLine->SetWidth(m_config.lineWidthMinor);
                 }
 
-                aisLine->SetZLayer(Graphic3d_ZLayerId_Top);
+                // Set Z-layer
+                aisLine->SetZLayer(m_config.gridZLayerId);
 
-                m_context->Display(aisLine, false);
+                // Display without selection
+                m_context->Display(aisLine, AIS_WireFrame, -1, Standard_False, Standard_False);
+                m_context->Deactivate(aisLine);
+
                 m_gridObjects.push_back(aisLine);
             }
 
@@ -233,9 +280,13 @@ namespace TyrexCAD {
                     aisLine->SetWidth(m_config.lineWidthMinor);
                 }
 
-                aisLine->SetZLayer(Graphic3d_ZLayerId_Top);
+                // Set Z-layer
+                aisLine->SetZLayer(m_config.gridZLayerId);
 
-                m_context->Display(aisLine, false);
+                // Display without selection
+                m_context->Display(aisLine, AIS_WireFrame, -1, Standard_False, Standard_False);
+                m_context->Deactivate(aisLine);
+
                 m_gridObjects.push_back(aisLine);
             }
         }
@@ -258,12 +309,14 @@ namespace TyrexCAD {
                     Handle(AIS_Point) aisPoint = new AIS_Point(point);
 
                     Quantity_Color color = isMajor ? m_config.gridColorMajor : m_config.gridColorMinor;
-                    double size = isMajor ? m_config.dotSize * 1.5 : m_config.dotSize;
 
                     aisPoint->SetColor(color);
                     aisPoint->SetMarker(Aspect_TOM_POINT);
+                    aisPoint->SetZLayer(m_config.gridZLayerId);
 
-                    m_context->Display(aisPoint, false);
+                    m_context->Display(aisPoint, Standard_False);
+                    m_context->Deactivate(aisPoint);
+
                     m_gridObjects.push_back(aisPoint);
 
                     dotCount++;
@@ -294,17 +347,20 @@ namespace TyrexCAD {
                     Handle(AIS_Shape) hShape = new AIS_Shape(edge1);
                     hShape->SetColor(color);
                     hShape->SetWidth(isMajor ? m_config.lineWidthMajor : m_config.lineWidthMinor);
-                    hShape->SetZLayer(Graphic3d_ZLayerId_Top);
+                    hShape->SetZLayer(m_config.gridZLayerId);
 
                     // Create vertical line of the cross
                     TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(gp_Pnt(x, y - size, 0), gp_Pnt(x, y + size, 0));
                     Handle(AIS_Shape) vShape = new AIS_Shape(edge2);
                     vShape->SetColor(color);
                     vShape->SetWidth(isMajor ? m_config.lineWidthMajor : m_config.lineWidthMinor);
-                    vShape->SetZLayer(Graphic3d_ZLayerId_Top);
+                    vShape->SetZLayer(m_config.gridZLayerId);
 
-                    m_context->Display(hShape, false);
-                    m_context->Display(vShape, false);
+                    m_context->Display(hShape, Standard_False);
+                    m_context->Display(vShape, Standard_False);
+                    m_context->Deactivate(hShape);
+                    m_context->Deactivate(vShape);
+
                     m_gridObjects.push_back(hShape);
                     m_gridObjects.push_back(vShape);
 
@@ -315,7 +371,9 @@ namespace TyrexCAD {
     }
 
     void TyrexCanvasOverlay::updateAxes() {
-        if (m_context.IsNull() || !m_axisVisible) {
+        SAFE_HANDLE_CHECK_RETURN(m_context, "Context is null in updateAxes", );
+
+        if (!m_axisVisible) {
             return;
         }
 
@@ -350,21 +408,27 @@ namespace TyrexCAD {
             originMarker->SetWidth(m_config.axisLineWidth);
             originMarker->SetZLayer(Graphic3d_ZLayerId_Topmost);
 
-            m_context->Display(originMarker, false);
+            m_context->Display(originMarker, Standard_False);
+            m_context->Deactivate(originMarker);
             m_axisObjects.push_back(originMarker);
         }
 
-        m_context->Display(aisXAxis, false);
-        m_context->Display(aisYAxis, false);
+        m_context->Display(aisXAxis, Standard_False);
+        m_context->Display(aisYAxis, Standard_False);
+        m_context->Deactivate(aisXAxis);
+        m_context->Deactivate(aisYAxis);
+
         m_axisObjects.push_back(aisXAxis);
         m_axisObjects.push_back(aisYAxis);
     }
 
     void TyrexCanvasOverlay::clearOverlay() {
+        SAFE_HANDLE_CHECK_RETURN(m_context, "Context is null in clearOverlay", );
+
         // Clear grid objects
         for (auto& obj : m_gridObjects) {
             if (!obj.IsNull()) {
-                m_context->Remove(obj, false);
+                m_context->Remove(obj, Standard_False);
             }
         }
         m_gridObjects.clear();
@@ -372,7 +436,7 @@ namespace TyrexCAD {
         // Clear axis objects
         for (auto& obj : m_axisObjects) {
             if (!obj.IsNull()) {
-                m_context->Remove(obj, false);
+                m_context->Remove(obj, Standard_False);
             }
         }
         m_axisObjects.clear();

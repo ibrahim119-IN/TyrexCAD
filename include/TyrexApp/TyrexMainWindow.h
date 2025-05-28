@@ -62,23 +62,21 @@ namespace TyrexCAD {
         void createActions();
         void createMenus();
         void createToolbars();
-        void createDockWindows(); // Add this declaration
+        void createDockWindows();
         void setupConnections();
         void initializeConnections();
-        void initializeSketchSystem();
         void createSketchActions();
         void createAdvancedSketchActions();
-        void createSketchMenus();
-        void createSketchToolbars();
         void updateSketchModeUI();
         void updateSketchStatusBar();
-        void setupSketchModeToolbars();
-        void restoreNormalToolbars();
         void updatePropertyPanel(const std::string& entityId);
         void clearPropertyPanel();
         void setDocumentModified(bool modified);
         void updateStatusBar(const QString& message);
         void setupStatusBar();
+        void initializeModelSpace();
+        void initializeCommandManager();
+        void initializeSketchManager();
 
     private:
         // Core components

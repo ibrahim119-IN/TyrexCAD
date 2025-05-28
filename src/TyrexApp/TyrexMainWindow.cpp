@@ -36,6 +36,14 @@
 #include <QMainWindow>
 #include <QAction>
 #include <QFrame>
+#include <QDebug>
+#include <QThread>
+#include <Standard_Failure.hxx>
+#include <Standard_Transient.hxx>
+#include <gp_Pnt.hxx>
+#include <Quantity_Color.hxx>
+#include <V3d_View.hxx>
+#include <V3d_Viewer.hxx>
 
 namespace TyrexCAD {
 
@@ -88,7 +96,7 @@ namespace TyrexCAD {
             return;
         }
 
-        // انتظار قليل للتأكد من أن النافذة مرئية بالكامل
+        // Wait for window to be fully visible
         QApplication::processEvents();
 
         m_viewerManager = viewWidget->viewerManager();
@@ -100,49 +108,94 @@ namespace TyrexCAD {
         initializeConnections();
 
         connect(viewWidget, &TyrexViewWidget::viewerInitialized, this, [this]() {
-            qDebug() << "Viewer initialized signal received";
+            qDebug() << "=== Viewer Initialized ===";
 
-            m_modelSpace = std::make_unique<TyrexModelSpace>(m_viewerManager->context());
+            // Wait for OpenCascade to stabilize
+            QApplication::processEvents();
+            QThread::msleep(100);
 
-            auto* interactionManager = new TyrexInteractionManager();
-            interactionManager->setViewerManager(m_viewerManager.get());
-            m_viewerManager->setInteractionManager(interactionManager);
+            // Initialize components in correct order
+            initializeModelSpace();
+            initializeCommandManager();
+            initializeSketchManager();
 
-            m_commandManager = new TyrexCommandManager(this);
-            m_commandManager->setModelSpace(m_modelSpace.get());
-            m_commandManager->setViewerManager(m_viewerManager.get());
-
-            connect(m_commandManager, &TyrexCommandManager::commandStarted,
-                this, [this](const std::string& commandName) {
-                    updateStatusBar(QString("Command started: %1").arg(QString::fromStdString(commandName)));
-                });
-            connect(m_commandManager, &TyrexCommandManager::commandFinished,
-                this, &TyrexMainWindow::onCommandFinished);
-            connect(m_commandManager, &TyrexCommandManager::commandCanceled,
-                this, []() { qDebug() << "Command canceled"; });
-
-            interactionManager->setCommandManager(m_commandManager);
-
-            m_sketchManager = std::make_shared<TyrexSketchManager>(
-                m_viewerManager->context(),
-                m_viewerManager.get(),
-                this
-            );
-
-            setupConnections();
-
-            interactionManager->setSketchManager(m_sketchManager.get());
-
-            auto* vw = qobject_cast<TyrexViewWidget*>(centralWidget());
-            if (vw) {
-                vw->setGridEnabled(true);
-                if (m_toggleGridAction) {
-                    m_toggleGridAction->setChecked(true);
-                }
+            // Force initial update
+            if (auto* vw = qobject_cast<TyrexViewWidget*>(centralWidget())) {
+                vw->refreshGrid();
             }
 
             updateStatusBar("TyrexCAD initialized successfully");
             });
+    }
+
+    void TyrexMainWindow::initializeModelSpace()
+    {
+        if (!m_viewerManager || m_viewerManager->context().IsNull()) {
+            qCritical() << "Cannot initialize model space - invalid context";
+            return;
+        }
+
+        m_modelSpace = std::make_unique<TyrexModelSpace>(m_viewerManager->context());
+        qDebug() << "Model space initialized";
+    }
+
+    void TyrexMainWindow::initializeCommandManager()
+    {
+        if (!m_viewerManager || !m_modelSpace) {
+            qCritical() << "Cannot initialize command manager - missing dependencies";
+            return;
+        }
+
+        auto* interactionManager = new TyrexInteractionManager();
+        interactionManager->setViewerManager(m_viewerManager.get());
+        m_viewerManager->setInteractionManager(interactionManager);
+
+        m_commandManager = new TyrexCommandManager(this);
+        m_commandManager->setModelSpace(m_modelSpace.get());
+        m_commandManager->setViewerManager(m_viewerManager.get());
+
+        connect(m_commandManager, &TyrexCommandManager::commandStarted,
+            this, [this](const std::string& commandName) {
+                updateStatusBar(QString("Command started: %1").arg(QString::fromStdString(commandName)));
+            });
+        connect(m_commandManager, &TyrexCommandManager::commandFinished,
+            this, &TyrexMainWindow::onCommandFinished);
+        connect(m_commandManager, &TyrexCommandManager::commandCanceled,
+            this, []() { qDebug() << "Command canceled"; });
+
+        interactionManager->setCommandManager(m_commandManager);
+        qDebug() << "Command manager initialized";
+    }
+
+    void TyrexMainWindow::initializeSketchManager()
+    {
+        if (!m_viewerManager || m_viewerManager->context().IsNull()) {
+            qCritical() << "Cannot initialize sketch manager - invalid context";
+            return;
+        }
+
+        m_sketchManager = std::make_shared<TyrexSketchManager>(
+            m_viewerManager->context(),
+            m_viewerManager.get(),
+            this
+        );
+
+        setupConnections();
+
+        if (auto* interactionManager = m_viewerManager->interactionManager()) {
+            interactionManager->setSketchManager(m_sketchManager.get());
+        }
+
+        // Enable grid by default
+        auto* vw = qobject_cast<TyrexViewWidget*>(centralWidget());
+        if (vw) {
+            vw->setGridEnabled(true);
+            if (m_toggleGridAction) {
+                m_toggleGridAction->setChecked(true);
+            }
+        }
+
+        qDebug() << "Sketch manager initialized";
     }
 
     void TyrexMainWindow::initializeConnections()
@@ -268,6 +321,7 @@ namespace TyrexCAD {
 
         m_gridDotsAction = new QAction(tr("Grid Dots"), this);
         m_gridDotsAction->setCheckable(true);
+        m_gridDotsAction->setChecked(true);
         m_gridStyleGroup->addAction(m_gridDotsAction);
 
         m_gridCrossesAction = new QAction(tr("Grid Crosses"), this);
@@ -702,14 +756,35 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::createTestGeometry()
     {
-        if (!m_modelSpace || !m_viewerManager || m_viewerManager->context().IsNull()) {
-            qCritical() << "Cannot create test geometry - missing components.";
+        // Comprehensive component checking
+        if (!m_viewerManager) {
+            qCritical() << "ViewerManager not initialized";
+            return;
+        }
+
+        auto context = m_viewerManager->context();
+        if (context.IsNull()) {
+            qCritical() << "Context is null";
+            return;
+        }
+
+        if (!m_modelSpace) {
+            qCritical() << "ModelSpace not initialized";
             return;
         }
 
         try {
+            // Clear with proper checking
             m_modelSpace->clear();
 
+            // Ensure context is still valid after clear
+            context = m_viewerManager->context();
+            if (context.IsNull()) {
+                qCritical() << "Context became null after clear";
+                return;
+            }
+
+            // Create test geometry
             Quantity_Color colors[] = {
                 Quantity_NOC_RED,
                 Quantity_NOC_GREEN,
@@ -727,6 +802,7 @@ namespace TyrexCAD {
 
             const char* ids[] = { "line_1", "line_2", "line_3", "line_4" };
 
+            // Create square lines
             for (int i = 0; i < 4; ++i) {
                 auto line = std::make_shared<TyrexLineEntity>(
                     ids[i], "default", colors[i],
@@ -735,29 +811,40 @@ namespace TyrexCAD {
                 m_modelSpace->addEntity(line);
             }
 
+            // Create diagonal
             auto diag = std::make_shared<TyrexLineEntity>(
                 "diag_line", "default", colors[4],
                 points[0], points[2]
             );
             m_modelSpace->addEntity(diag);
 
+            // Display all entities
             m_modelSpace->drawAll();
 
+            // Update view
             if (!m_viewerManager->view().IsNull()) {
                 m_viewerManager->view()->SetProj(V3d_Zpos);
                 m_viewerManager->fitAll();
-
-                auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-                if (viewWidget) {
-                    viewWidget->update();
-                }
             }
 
-            updateStatusBar("Test geometry created.");
+            // Force widget update
+            auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+            if (viewWidget) {
+                viewWidget->update();
+                QApplication::processEvents();
+            }
 
+            updateStatusBar("Test geometry created successfully");
+        }
+        catch (const Standard_Failure& ex) {
+            qCritical() << "OpenCascade exception:" << ex.GetMessageString();
+            QMessageBox::critical(this, "Error",
+                QString("Failed to create geometry: %1").arg(ex.GetMessageString()));
         }
         catch (const std::exception& ex) {
-            qCritical() << "Exception creating test geometry:" << ex.what();
+            qCritical() << "Standard exception:" << ex.what();
+            QMessageBox::critical(this, "Error",
+                QString("Failed to create geometry: %1").arg(ex.what()));
         }
     }
 

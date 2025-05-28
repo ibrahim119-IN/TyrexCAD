@@ -16,7 +16,7 @@
 
  // Include GridConfig definitions
 #include "TyrexCanvas/TyrexGridConfig.h"
-#include "TyrexCanvas/TyrexCanvasOverlay.h"
+
 // OpenCascade includes
 #include <Standard_Handle.hxx>
 #include <AIS_InteractiveObject.hxx>
@@ -31,9 +31,6 @@ class V3d_View;
 class Geom_TrimmedCurve;
 
 namespace TyrexCAD {
-
-    // Forward declaration to avoid redefinition
-    // GridStyle and GridConfig are defined in TyrexGridConfig.h
 
     /**
      * @brief Canvas overlay system for grid, axes, and other 2D elements
@@ -147,6 +144,13 @@ namespace TyrexCAD {
          */
         void redraw();
 
+        /**
+         * @brief Force complete update of overlay
+         * This method forces a complete recreation of the grid and axes
+         * with proper viewer invalidation
+         */
+        void forceUpdate();
+
     signals:
         /**
          * @brief Emitted when grid spacing changes
@@ -183,9 +187,4 @@ namespace TyrexCAD {
 
 } // namespace TyrexCAD
 
-#endif // TYREX_CANVAS_OVERLAY_H// Add forward declaration for TyrexCanvasOverlay in the header file where it is used.  
-namespace TyrexCAD {  
-    class TyrexCanvasOverlay;  
-}
-// Include the full definition of TyrexCanvasOverlay in the source file where it is used.  
-
+#endif // TYREX_CANVAS_OVERLAY_H

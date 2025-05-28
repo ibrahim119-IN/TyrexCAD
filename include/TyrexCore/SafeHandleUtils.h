@@ -40,10 +40,23 @@
     } while(0)
 
    /**
-    * @brief Macro for checking if multiple handles are valid
+    * @brief Macro for checking if handle is valid with custom error message and return
     *
-    * Usage: if (HANDLES_VALID(handle1, handle2, handle3)) { ... }
+    * Usage: SAFE_HANDLE_CHECK_RETURN(myHandle, "Handle is null!", false)
     */
+#define SAFE_HANDLE_CHECK_RETURN(handle, errorMsg, returnValue) \
+    do { \
+        if ((handle).IsNull()) { \
+            qCritical() << errorMsg << "at" << __FUNCTION__ << "line" << __LINE__; \
+            return returnValue; \
+        } \
+    } while(0)
+
+    /**
+     * @brief Macro for checking if multiple handles are valid
+     *
+     * Usage: if (HANDLES_VALID(handle1, handle2, handle3)) { ... }
+     */
 #define HANDLES_VALID(...) \
     ([]{ \
         for (auto& h : {__VA_ARGS__}) { \

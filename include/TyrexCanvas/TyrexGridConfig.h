@@ -51,7 +51,7 @@ namespace TyrexCAD {
         int maxGridLinesV = 200;
         int maxDots = 5000;
         double majorFactor = 5.0;
-        int majorLineInterval = 5;  // Add this line
+        int majorLineInterval = 5;
 
         // Visual settings
         float dotSize = 3.0f;
@@ -62,6 +62,14 @@ namespace TyrexCAD {
         // Coordinate display
         QColor coordinateColor = QColor(255, 255, 255);
         QPoint coordinateOffset = QPoint(10, -10);
+
+        // Layer management
+        int gridZLayerId = -1;  // Z-layer ID for grid objects
+        bool useCustomLayer = true;  // Use custom Z-layer for grid
+
+        // Update settings
+        bool immediateUpdate = true;  // Force immediate updates
+        bool doubleBuffering = true;  // Use double buffering
 
         // Constructors
         GridConfig();
