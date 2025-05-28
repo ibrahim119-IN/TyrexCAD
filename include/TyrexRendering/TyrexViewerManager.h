@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QPoint>
 #include <memory>
+#include <QTimer>
+#include <QElapsedTimer>
 
 #include <Standard_Handle.hxx>
 #include <AIS_InteractiveContext.hxx>
@@ -65,10 +67,21 @@ namespace TyrexCAD {
         bool checkGraphicsDriver();
         void enableOpenCascadeDebug();
 
+        // NEW: آليات محسنة للتحقق من جاهزية المكونات
+        bool isViewReady() const;
+        bool ensureViewReady();
+        bool ensureCameraReady();
+
     signals:
         void viewChanged();
         void entitySelected(const Handle(AIS_InteractiveObject)& entity);
         void entityHighlighted(const Handle(AIS_InteractiveObject)& entity);
+
+    private:
+        // NEW: محاولة تطبيق وضع 2D مع آلية إعادة المحاولة
+        bool attemptSet2DMode();
+        void scheduleSet2DModeRetry();
+        void stopSet2DModeRetry();
 
     private:
         Handle(OpenGl_GraphicDriver) m_graphicDriver;
@@ -81,6 +94,12 @@ namespace TyrexCAD {
 
         bool m_is2DMode;
         QPoint m_lastMousePos;
+
+        // NEW: متغيرات لآلية إعادة المحاولة
+        QTimer* m_set2DModeRetryTimer;
+        int m_set2DModeRetryCount;
+        static constexpr int MAX_RETRY_COUNT = 10;
+        static constexpr int RETRY_INTERVAL_MS = 100;
     };
 
 } // namespace TyrexCAD

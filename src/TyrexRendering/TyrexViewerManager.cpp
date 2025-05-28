@@ -39,16 +39,32 @@ namespace TyrexCAD {
 
     TyrexViewerManager::TyrexViewerManager(QObject* parent)
         : QObject(parent),
-        m_is2DMode(false)
+        m_is2DMode(false),
+        m_set2DModeRetryTimer(nullptr),
+        m_set2DModeRetryCount(0)
     {
         qDebug() << "TyrexViewerManager created";
 
         // Enable OpenCascade debug messages
         enableOpenCascadeDebug();
+
+        // إنشاء مؤقت إعادة المحاولة
+        m_set2DModeRetryTimer = new QTimer(this);
+        m_set2DModeRetryTimer->setInterval(RETRY_INTERVAL_MS);
+        connect(m_set2DModeRetryTimer, &QTimer::timeout, this, [this]() {
+            if (attemptSet2DMode()) {
+                stopSet2DModeRetry();
+            }
+            else if (++m_set2DModeRetryCount >= MAX_RETRY_COUNT) {
+                qCritical() << "Failed to set 2D mode after" << MAX_RETRY_COUNT << "attempts";
+                stopSet2DModeRetry();
+            }
+            });
     }
 
     TyrexViewerManager::~TyrexViewerManager()
     {
+        stopSet2DModeRetry();
         // Cleanup will be handled automatically by Handle
     }
 
@@ -193,6 +209,162 @@ namespace TyrexCAD {
         }
     }
 
+    // NEW: التحقق من جاهزية View
+    bool TyrexViewerManager::isViewReady() const
+    {
+        if (m_view.IsNull()) {
+            return false;
+        }
+
+        if (m_view->Window().IsNull()) {
+            return false;
+        }
+
+        if (!m_view->Window()->IsMapped()) {
+            return false;
+        }
+
+        // التحقق من وجود كاميرا صالحة
+        Handle(Graphic3d_Camera) camera = m_view->Camera();
+        if (camera.IsNull() || camera.get() == nullptr) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // NEW: التأكد من جاهزية View مع محاولة إصلاح المشاكل
+    bool TyrexViewerManager::ensureViewReady()
+    {
+        if (m_view.IsNull()) {
+            qCritical() << "View is null - cannot ensure readiness";
+            return false;
+        }
+
+        // التأكد من وجود نافذة
+        if (m_view->Window().IsNull()) {
+            qCritical() << "View window is null";
+            return false;
+        }
+
+        // التأكد من أن النافذة مُعيّنة
+        if (!m_view->Window()->IsMapped()) {
+            qDebug() << "Mapping view window...";
+            m_view->Window()->Map();
+
+            // الانتظار قليلاً والمعالجة
+            QThread::msleep(50);
+            QApplication::processEvents();
+
+            if (!m_view->Window()->IsMapped()) {
+                qCritical() << "Failed to map window";
+                return false;
+            }
+        }
+
+        return ensureCameraReady();
+    }
+
+    // NEW: التأكد من جاهزية الكاميرا
+    bool TyrexViewerManager::ensureCameraReady()
+    {
+        if (m_view.IsNull()) {
+            return false;
+        }
+
+        try {
+            // محاولة الحصول على الكاميرا
+            Handle(Graphic3d_Camera) camera = m_view->Camera();
+
+            // إذا كانت الكاميرا null، نحاول إنشاء واحدة جديدة
+            if (camera.IsNull() || camera.get() == nullptr) {
+                qDebug() << "Camera is null, attempting to create default camera...";
+
+                // تحديث View و إعادة المحاولة
+                m_view->Redraw();
+                m_view->Update();
+                QApplication::processEvents();
+
+                // محاولة تعيين إسقاط افتراضي لإنشاء كاميرا
+                m_view->SetProj(V3d_Zpos);
+
+                // التحقق مرة أخرى
+                camera = m_view->Camera();
+                if (camera.IsNull()) {
+                    qCritical() << "Failed to create camera";
+                    return false;
+                }
+
+                qDebug() << "Camera created successfully";
+            }
+
+            return true;
+
+        }
+        catch (const Standard_Failure& ex) {
+            qCritical() << "Exception while ensuring camera ready:" << ex.GetMessageString();
+            return false;
+        }
+        catch (...) {
+            qCritical() << "Unknown exception while ensuring camera ready";
+            return false;
+        }
+    }
+
+    // NEW: محاولة تطبيق وضع 2D
+    bool TyrexViewerManager::attemptSet2DMode()
+    {
+        qDebug() << "Attempting to set 2D mode (attempt" << m_set2DModeRetryCount + 1 << ")";
+
+        // التحقق من جاهزية View
+        if (!ensureViewReady()) {
+            qDebug() << "View not ready for 2D mode";
+            return false;
+        }
+
+        try {
+            // الحصول على الكاميرا مع التحقق الكامل
+            Handle(Graphic3d_Camera) camera = m_view->Camera();
+
+            if (camera.IsNull() || camera.get() == nullptr) {
+                qCritical() << "Camera is invalid after ensureViewReady";
+                return false;
+            }
+
+            // تعيين نوع الإسقاط
+            m_is2DMode = true;
+            camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+
+            // تعيين منظر علوي دقيق
+            m_view->SetProj(V3d_Zpos);
+            m_view->SetUp(0, 1, 0);
+            m_view->SetTwist(0);
+
+            // ضبط العرض للوضع 2D
+            m_view->FitAll(0.01, Standard_False);
+            m_view->SetZSize(1000.0);
+
+            // إعادة الرسم
+            m_view->Redraw();
+
+            emit viewChanged();
+            qDebug() << "Successfully switched to 2D mode";
+
+            return true;
+
+        }
+        catch (const Standard_Failure& ex) {
+            qCritical() << "Exception in attemptSet2DMode:" << ex.GetMessageString();
+            m_is2DMode = false;
+            return false;
+        }
+        catch (...) {
+            qCritical() << "Unknown exception in attemptSet2DMode";
+            m_is2DMode = false;
+            return false;
+        }
+    }
+
     void TyrexViewerManager::set2DMode()
     {
         if (m_view.IsNull()) {
@@ -200,68 +372,35 @@ namespace TyrexCAD {
             return;
         }
 
-        try {
-            // Ensure view window is ready
-            if (m_view->Window().IsNull() || !m_view->Window()->IsMapped()) {
-                qWarning() << "View window not ready for 2D mode switch";
+        // إيقاف أي محاولات سابقة
+        stopSet2DModeRetry();
 
-                // Schedule retry
-                QTimer::singleShot(100, this, [this]() {
-                    set2DMode();
-                    });
-                return;
-            }
-
-            // Force complete update before mode change
-            m_view->Redraw();
-            m_view->Update();
-            QApplication::processEvents();
-
-            // Get camera with full checks
-            Handle(Graphic3d_Camera) camera = m_view->Camera();
-
-            // Additional check for handle validity
-            if (camera.IsNull() || camera.get() == nullptr) {
-                qCritical() << "Camera handle is invalid";
-
-                // Try to create new camera by setting projection
-                m_view->SetProj(V3d_Zpos);
-                camera = m_view->Camera();
-
-                if (camera.IsNull()) {
-                    qCritical() << "Failed to create camera";
-                    return;
-                }
-            }
-
-            // Now safe to change projection type
-            m_is2DMode = true;
-            camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
-
-            // Set exact top view
-            m_view->SetProj(V3d_Zpos);
-            m_view->SetUp(0, 1, 0);
-            m_view->SetTwist(0);
-
-            // Fit all and adjust for 2D view
-            m_view->FitAll(0.01, Standard_False);
-
-            // Use reasonable default Z size for 2D mode
-            m_view->SetZSize(1000.0);
-
-            m_view->Redraw();
-            emit viewChanged();
-
-            qDebug() << "Successfully switched to 2D mode";
+        // محاولة مباشرة أولاً
+        if (attemptSet2DMode()) {
+            return;
         }
-        catch (const Standard_Failure& ex) {
-            qCritical() << "Exception in set2DMode:" << ex.GetMessageString();
-            m_is2DMode = false;
+
+        // إذا فشلت، بدء آلية إعادة المحاولة
+        qDebug() << "Starting 2D mode retry mechanism...";
+        m_set2DModeRetryCount = 0;
+        scheduleSet2DModeRetry();
+    }
+
+    // NEW: جدولة إعادة المحاولة
+    void TyrexViewerManager::scheduleSet2DModeRetry()
+    {
+        if (!m_set2DModeRetryTimer->isActive()) {
+            m_set2DModeRetryTimer->start();
         }
-        catch (...) {
-            qCritical() << "Unknown exception in set2DMode";
-            m_is2DMode = false;
+    }
+
+    // NEW: إيقاف إعادة المحاولة
+    void TyrexViewerManager::stopSet2DModeRetry()
+    {
+        if (m_set2DModeRetryTimer->isActive()) {
+            m_set2DModeRetryTimer->stop();
         }
+        m_set2DModeRetryCount = 0;
     }
 
     void TyrexViewerManager::set3DMode()
@@ -269,6 +408,9 @@ namespace TyrexCAD {
         if (m_view.IsNull()) {
             return;
         }
+
+        // إيقاف أي محاولات لوضع 2D
+        stopSet2DModeRetry();
 
         try {
             m_is2DMode = false;

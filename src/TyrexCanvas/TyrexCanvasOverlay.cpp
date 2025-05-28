@@ -21,6 +21,7 @@
 #include <Graphic3d_ZLayerSettings.hxx>
 #include <TColStd_SequenceOfInteger.hxx>
 #include <cmath>
+#include <algorithm>
 
 namespace TyrexCAD {
 
@@ -34,7 +35,10 @@ namespace TyrexCAD {
         m_axisVisible(true),
         m_currentSpacing(10.0),
         m_lastSpacing(-1),
-        m_lastStyle(GridStyle::Lines)
+        m_lastStyle(GridStyle::Lines),
+        m_lastViewScale(-1),
+        m_viewScale(1.0),
+        m_gridNeedsUpdate(true)
     {
         // Initialize with default configuration
         m_config.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
@@ -67,32 +71,46 @@ namespace TyrexCAD {
 
     void TyrexCanvasOverlay::setupProperZLayer() {
         if (!m_context.IsNull() && !m_context->CurrentViewer().IsNull()) {
-            // Get existing Z-layers
-            TColStd_SequenceOfInteger layers;
-            m_context->CurrentViewer()->GetAllZLayers(layers);
+            try {
+                // Get existing Z-layers
+                TColStd_SequenceOfInteger layers;
+                m_context->CurrentViewer()->GetAllZLayers(layers);
 
-            Standard_Integer maxLayer = Graphic3d_ZLayerId_Default;
-            for (int i = 1; i <= layers.Length(); i++) {
-                if (layers.Value(i) > maxLayer &&
-                    layers.Value(i) < Graphic3d_ZLayerId_Topmost) {
-                    maxLayer = layers.Value(i);
+                // البحث عن أعلى layer موجود
+                Standard_Integer maxLayer = Graphic3d_ZLayerId_Default;
+                for (int i = 1; i <= layers.Length(); i++) {
+                    Standard_Integer layerId = layers.Value(i);
+                    // تجنب الطبقات الخاصة
+                    if (layerId > maxLayer &&
+                        layerId < Graphic3d_ZLayerId_Topmost &&
+                        layerId != Graphic3d_ZLayerId_TopOSD) {
+                        maxLayer = layerId;
+                    }
                 }
+
+                // Create new layer above existing ones
+                m_config.gridZLayerId = maxLayer + 1;
+
+                // التحقق من أن الـ ID لا يتعارض مع الطبقات المحجوزة
+                if (m_config.gridZLayerId >= Graphic3d_ZLayerId_TopOSD) {
+                    m_config.gridZLayerId = maxLayer + 1;
+                }
+
+                m_context->CurrentViewer()->AddZLayer(m_config.gridZLayerId);
+
+                // Configure layer for grid
+                Graphic3d_ZLayerSettings aSettings;
+                aSettings.SetEnableDepthTest(Standard_False);
+                aSettings.SetEnableDepthWrite(Standard_False);
+                m_context->CurrentViewer()->SetZLayerSettings(m_config.gridZLayerId, aSettings);
+
+                qDebug() << "Created grid Z-layer with ID:" << m_config.gridZLayerId;
+
             }
-
-            // Create new layer above existing ones
-            m_config.gridZLayerId = maxLayer + 1;
-            m_context->CurrentViewer()->AddZLayer(m_config.gridZLayerId);
-
-            // Configure layer for grid
-            Graphic3d_ZLayerSettings aSettings;
-            aSettings.SetEnableDepthTest(Standard_False);
-            aSettings.SetEnableDepthWrite(Standard_False);
-            // Remove unsupported methods
-            // aSettings.SetLightingEnabled(Standard_False);
-            // aSettings.SetImmediate(Standard_True);
-            m_context->CurrentViewer()->SetZLayerSettings(m_config.gridZLayerId, aSettings);
-
-            qDebug() << "Created grid Z-layer with ID:" << m_config.gridZLayerId;
+            catch (const Standard_Failure& ex) {
+                qCritical() << "Failed to setup Z-layer:" << ex.GetMessageString();
+                m_config.gridZLayerId = Graphic3d_ZLayerId_Default;
+            }
         }
     }
 
@@ -120,7 +138,7 @@ namespace TyrexCAD {
 
     void TyrexCanvasOverlay::setGridConfig(const GridConfig& config) {
         m_config = config;
-        calculateAdaptiveSpacing();
+        m_gridNeedsUpdate = true;
         update();
         emit gridConfigChanged();
     }
@@ -132,6 +150,7 @@ namespace TyrexCAD {
     void TyrexCanvasOverlay::setGridStyle(GridStyle style) {
         if (m_config.style != style) {
             m_config.style = style;
+            m_gridNeedsUpdate = true;
             update();
             emit gridConfigChanged();
         }
@@ -148,7 +167,7 @@ namespace TyrexCAD {
     void TyrexCanvasOverlay::setGridSpacing(double spacing) {
         if (m_config.baseSpacing != spacing) {
             m_config.baseSpacing = spacing;
-            calculateAdaptiveSpacing();
+            m_gridNeedsUpdate = true;
             update();
             emit gridSpacingChanged(m_currentSpacing);
             emit gridConfigChanged();
@@ -183,38 +202,55 @@ namespace TyrexCAD {
     }
 
     void TyrexCanvasOverlay::update() {
-        // PERFORMANCE: Smart update - only update what changed
+        if (!m_view.IsNull()) {
+            m_viewScale = m_view->Scale();
+
+            // التحقق من صحة المقياس
+            if (m_viewScale <= 0 || std::isnan(m_viewScale) || std::isinf(m_viewScale)) {
+                qDebug() << "Invalid view scale detected:" << m_viewScale << ", using default";
+                m_viewScale = 1.0;
+            }
+        }
+
+        // تحديث المستويات المتعددة
+        calculateMultiLevelSpacing();
+
+        // التحقق من الحاجة للتحديث الكامل
         gp_Vec2d currentExtents = getViewExtents();
-        calculateAdaptiveSpacing();
+        bool needsFullUpdate = m_gridNeedsUpdate;
 
-        bool needsFullUpdate = false;
+        if (!needsFullUpdate) {
+            // التحقق من التغييرات الكبيرة
+            if (std::abs(m_viewScale - m_lastViewScale) > VIEW_SCALE_EPSILON) {
+                needsFullUpdate = true;
+            }
 
-        // Check what changed
-        if (m_config.style != m_lastStyle) {
-            needsFullUpdate = true;
-            m_lastStyle = m_config.style;
+            double extentsDiff = std::sqrt(
+                std::pow(currentExtents.X() - m_lastExtents.X(), 2) +
+                std::pow(currentExtents.Y() - m_lastExtents.Y(), 2)
+            );
+
+            // استخدام نسبة مئوية من الحجم الحالي أو قيمة ثابتة
+            double threshold = std::min(currentExtents.Magnitude() * 0.1, 100.0);
+            if (extentsDiff > threshold) {
+                needsFullUpdate = true;
+            }
         }
 
-        if (std::abs(m_currentSpacing - m_lastSpacing) > 0.001) {
-            needsFullUpdate = true;
-            m_lastSpacing = m_currentSpacing;
-        }
-
-        if ((currentExtents - m_lastExtents).Magnitude() > 1.0) {
-            needsFullUpdate = true;
-            m_lastExtents = currentExtents;
-        }
-
-        if (needsFullUpdate || m_gridObjects.empty() || m_axisObjects.empty()) {
+        if (needsFullUpdate || m_gridObjects.empty()) {
             clearOverlay();
 
             if (m_gridVisible) {
-                updateGrid();
+                updateInfiniteGrid();
             }
 
             if (m_axisVisible) {
                 updateAxes();
             }
+
+            m_lastExtents = currentExtents;
+            m_lastViewScale = m_viewScale;
+            m_gridNeedsUpdate = false;
         }
 
         redraw();
@@ -229,19 +265,10 @@ namespace TyrexCAD {
     void TyrexCanvasOverlay::forceUpdate() {
         SAFE_HANDLE_CHECK_RETURN(m_context, "Context is null in forceUpdate", );
 
-        // Clear and recreate
+        m_gridNeedsUpdate = true;
         clearOverlay();
-        calculateAdaptiveSpacing();
+        update();
 
-        if (m_gridVisible) {
-            updateGrid();
-        }
-
-        if (m_axisVisible) {
-            updateAxes();
-        }
-
-        // Force viewer update
         if (!m_view.IsNull()) {
             m_view->MustBeResized();
             m_view->Invalidate();
@@ -253,181 +280,417 @@ namespace TyrexCAD {
         }
     }
 
-    void TyrexCanvasOverlay::updateGrid() {
-        SAFE_HANDLE_CHECK_RETURN(m_context, "Context is null in updateGrid", );
-
-        if (!m_gridVisible) {
+    // NEW: حساب حدود العرض مع هامش إضافي للشبكة اللانهائية
+    void TyrexCanvasOverlay::calculateViewBounds(double& minX, double& maxX,
+        double& minY, double& maxY) const {
+        if (m_view.IsNull()) {
+            minX = -500; maxX = 500;
+            minY = -500; maxY = 500;
             return;
         }
 
-        // PERFORMANCE: Batch operations
+        try {
+            // استخدام طريقة مختلفة بناءً على نوع الكاميرا
+            Handle(Graphic3d_Camera) camera = m_view->Camera();
+            if (!camera.IsNull() && camera->IsOrthographic()) {
+                // في وضع Orthographic (2D)، استخدم حسابات أبسط
+                double scale = m_view->Scale();
+                if (scale <= 0 || scale > 1e6 || std::isnan(scale) || std::isinf(scale)) {
+                    qDebug() << "Invalid scale in orthographic mode:" << scale;
+                    minX = -500; maxX = 500;
+                    minY = -500; maxY = 500;
+                    return;
+                }
+
+                // حجم النافذة
+                Standard_Real winWidth, winHeight;
+                m_view->Size(winWidth, winHeight);
+
+                // حساب النطاق المرئي
+                double halfWidth = winWidth / (2.0 * scale);
+                double halfHeight = winHeight / (2.0 * scale);
+
+                // الحد الأقصى للحجم المعقول
+                const double MAX_HALF_SIZE = 5000.0;
+                halfWidth = std::min(halfWidth, MAX_HALF_SIZE);
+                halfHeight = std::min(halfHeight, MAX_HALF_SIZE);
+
+                // استخدام مركز ثابت في وضع 2D
+                minX = -halfWidth * 1.5;
+                maxX = halfWidth * 1.5;
+                minY = -halfHeight * 1.5;
+                maxY = halfHeight * 1.5;
+            }
+            else {
+                // في وضع Perspective (3D)
+                Standard_Real width, height;
+                m_view->Size(width, height);
+
+                Standard_Real x1, y1, z1, x2, y2, z2;
+                m_view->Convert(0, 0, x1, y1, z1);
+                m_view->Convert(static_cast<Standard_Integer>(width),
+                    static_cast<Standard_Integer>(height), x2, y2, z2);
+
+                // التحقق من صحة القيم
+                if (std::isnan(x1) || std::isnan(y1) || std::isnan(x2) || std::isnan(y2) ||
+                    std::isinf(x1) || std::isinf(y1) || std::isinf(x2) || std::isinf(y2)) {
+                    qDebug() << "Invalid view bounds detected, using defaults";
+                    minX = -500; maxX = 500;
+                    minY = -500; maxY = 500;
+                    return;
+                }
+
+                double viewWidth = std::abs(x2 - x1);
+                double viewHeight = std::abs(y2 - y1);
+
+                const double MAX_VIEW_SIZE = 10000.0;
+                if (viewWidth > MAX_VIEW_SIZE || viewHeight > MAX_VIEW_SIZE) {
+                    qDebug() << "View size too large, clamping to" << MAX_VIEW_SIZE;
+                    viewWidth = std::min(viewWidth, MAX_VIEW_SIZE);
+                    viewHeight = std::min(viewHeight, MAX_VIEW_SIZE);
+                }
+
+                double margin = std::max(viewWidth, viewHeight) * 0.5;
+
+                minX = std::min(x1, x2) - margin;
+                maxX = std::max(x1, x2) + margin;
+                minY = std::min(y1, y2) - margin;
+                maxY = std::max(y1, y2) + margin;
+            }
+
+            // التحقق النهائي من معقولية القيم
+            double totalWidth = maxX - minX;
+            double totalHeight = maxY - minY;
+            const double MAX_TOTAL_SIZE = 20000.0;
+
+            if (totalWidth > MAX_TOTAL_SIZE || totalHeight > MAX_TOTAL_SIZE) {
+                qDebug() << "Total bounds too large, using defaults";
+                minX = -1000; maxX = 1000;
+                minY = -1000; maxY = 1000;
+            }
+
+            m_viewCenter = gp_Vec2d((minX + maxX) / 2, (minY + maxY) / 2);
+
+        }
+        catch (...) {
+            qDebug() << "Exception in calculateViewBounds, using defaults";
+            minX = -500; maxX = 500;
+            minY = -500; maxY = 500;
+        }
+    }
+
+    // NEW: التحقق من وجود خط في مجال الرؤية
+    bool TyrexCanvasOverlay::isLineInViewFrustum(double x1, double y1,
+        double x2, double y2) const {
+        double minX, maxX, minY, maxY;
+        calculateViewBounds(minX, maxX, minY, maxY);
+
+        // فحص بسيط: إذا كان أي من النقاط داخل المجال
+        bool p1Inside = (x1 >= minX && x1 <= maxX && y1 >= minY && y1 <= maxY);
+        bool p2Inside = (x2 >= minX && x2 <= maxX && y2 >= minY && y2 <= maxY);
+
+        return p1Inside || p2Inside;
+    }
+
+    // NEW: تحديث الشبكة اللانهائية
+    void TyrexCanvasOverlay::updateInfiniteGrid() {
+        SAFE_HANDLE_CHECK_RETURN(m_context, "Context is null in updateInfiniteGrid", );
+
+        if (!m_gridVisible || m_gridLevels.empty()) {
+            return;
+        }
+
         m_context->SetAutomaticHilight(Standard_False);
 
-        // Calculate grid bounds based on view extents
-        gp_Vec2d extents = getViewExtents();
-        double width = extents.X() * m_config.gridExtensionFactor;
-        double height = extents.Y() * m_config.gridExtensionFactor;
-
-        double minX = -width / 2;
-        double maxX = width / 2;
-        double minY = -height / 2;
-        double maxY = height / 2;
-
-        // Round grid bounds to multiples of spacing for better alignment
-        minX = std::floor(minX / m_currentSpacing) * m_currentSpacing;
-        maxX = std::ceil(maxX / m_currentSpacing) * m_currentSpacing;
-        maxY = std::ceil(maxY / m_currentSpacing) * m_currentSpacing;
-        minY = std::floor(minY / m_currentSpacing) * m_currentSpacing;
-
-        if (m_config.style == GridStyle::Lines) {
-            // PERFORMANCE: Pre-reserve vector capacity
-            int estimatedLines = static_cast<int>((maxX - minX) / m_currentSpacing +
-                (maxY - minY) / m_currentSpacing + 2);
-            m_gridObjects.reserve(estimatedLines);
-
-            // Create vertical lines
-            for (double x = minX; x <= maxX; x += m_currentSpacing) {
-                bool isMajor = (std::fmod(std::abs(x), m_currentSpacing * m_config.majorLineInterval) < 0.001);
-
-                // Skip if this is where an axis would be and axes are shown
-                if (m_axisVisible && std::abs(x) < 0.001) {
-                    continue;
-                }
-
-                Handle(Geom_Line) line = new Geom_Line(gp_Pnt(x, minY, 0), gp_Dir(0, 1, 0));
-                Handle(AIS_Line) aisLine = new AIS_Line(line);
-
-                if (isMajor) {
-                    aisLine->SetColor(m_config.gridColorMajor);
-                    aisLine->SetWidth(m_config.lineWidthMajor);
-                }
-                else {
-                    aisLine->SetColor(m_config.gridColorMinor);
-                    aisLine->SetWidth(m_config.lineWidthMinor);
-                }
-
-                // Set Z-layer
-                aisLine->SetZLayer(m_config.gridZLayerId);
-
-                // Display without selection
-                m_context->Display(aisLine, AIS_WireFrame, -1, Standard_False, Standard_False);
-                m_context->Deactivate(aisLine);
-
-                m_gridObjects.push_back(aisLine);
-            }
-
-            // Create horizontal lines
-            for (double y = minY; y <= maxY; y += m_currentSpacing) {
-                bool isMajor = (std::fmod(std::abs(y), m_currentSpacing * m_config.majorLineInterval) < 0.001);
-
-                // Skip if this is where an axis would be and axes are shown
-                if (m_axisVisible && std::abs(y) < 0.001) {
-                    continue;
-                }
-
-                Handle(Geom_Line) line = new Geom_Line(gp_Pnt(minX, y, 0), gp_Dir(1, 0, 0));
-                Handle(AIS_Line) aisLine = new AIS_Line(line);
-
-                if (isMajor) {
-                    aisLine->SetColor(m_config.gridColorMajor);
-                    aisLine->SetWidth(m_config.lineWidthMajor);
-                }
-                else {
-                    aisLine->SetColor(m_config.gridColorMinor);
-                    aisLine->SetWidth(m_config.lineWidthMinor);
-                }
-
-                // Set Z-layer
-                aisLine->SetZLayer(m_config.gridZLayerId);
-
-                // Display without selection
-                m_context->Display(aisLine, AIS_WireFrame, -1, Standard_False, Standard_False);
-                m_context->Deactivate(aisLine);
-
-                m_gridObjects.push_back(aisLine);
-            }
-        }
-        else if (m_config.style == GridStyle::Dots) {
-            // Create grid dots
-            int dotCount = 0;
-
-            for (double x = minX; x <= maxX && dotCount < m_config.maxDots; x += m_currentSpacing) {
-                for (double y = minY; y <= maxY && dotCount < m_config.maxDots; y += m_currentSpacing) {
-                    bool isMajorX = (std::fmod(std::abs(x), m_currentSpacing * m_config.majorLineInterval) < 0.001);
-                    bool isMajorY = (std::fmod(std::abs(y), m_currentSpacing * m_config.majorLineInterval) < 0.001);
-                    bool isMajor = isMajorX || isMajorY;
-
-                    // Skip grid point at origin if showing axis
-                    if (m_axisVisible && std::abs(x) < 0.001 && std::abs(y) < 0.001) {
-                        continue;
-                    }
-
-                    Handle(Geom_CartesianPoint) point = new Geom_CartesianPoint(x, y, 0);
-                    Handle(AIS_Point) aisPoint = new AIS_Point(point);
-
-                    Quantity_Color color = isMajor ? m_config.gridColorMajor : m_config.gridColorMinor;
-
-                    aisPoint->SetColor(color);
-                    aisPoint->SetMarker(Aspect_TOM_POINT);
-                    aisPoint->SetZLayer(m_config.gridZLayerId);
-
-                    m_context->Display(aisPoint, Standard_False);
-                    m_context->Deactivate(aisPoint);
-
-                    m_gridObjects.push_back(aisPoint);
-
-                    dotCount++;
-                }
-            }
-        }
-        else if (m_config.style == GridStyle::Crosses) {
-            // Create grid crosses
-            int crossCount = 0;
-            double crossSize = m_config.crossSize / 2.0;
-
-            for (double x = minX; x <= maxX && crossCount < m_config.maxDots; x += m_currentSpacing) {
-                for (double y = minY; y <= maxY && crossCount < m_config.maxDots; y += m_currentSpacing) {
-                    // Skip grid point at origin if showing axis
-                    if (m_axisVisible && std::abs(x) < 0.001 && std::abs(y) < 0.001) {
-                        continue;
-                    }
-
-                    bool isMajorX = (std::fmod(std::abs(x), m_currentSpacing * m_config.majorLineInterval) < 0.001);
-                    bool isMajorY = (std::fmod(std::abs(y), m_currentSpacing * m_config.majorLineInterval) < 0.001);
-                    bool isMajor = isMajorX || isMajorY;
-
-                    Quantity_Color color = isMajor ? m_config.gridColorMajor : m_config.gridColorMinor;
-                    double size = isMajor ? crossSize * 1.5 : crossSize;
-
-                    // Create horizontal line of the cross
-                    TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(gp_Pnt(x - size, y, 0), gp_Pnt(x + size, y, 0));
-                    Handle(AIS_Shape) hShape = new AIS_Shape(edge1);
-                    hShape->SetColor(color);
-                    hShape->SetWidth(isMajor ? m_config.lineWidthMajor : m_config.lineWidthMinor);
-                    hShape->SetZLayer(m_config.gridZLayerId);
-
-                    // Create vertical line of the cross
-                    TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(gp_Pnt(x, y - size, 0), gp_Pnt(x, y + size, 0));
-                    Handle(AIS_Shape) vShape = new AIS_Shape(edge2);
-                    vShape->SetColor(color);
-                    vShape->SetWidth(isMajor ? m_config.lineWidthMajor : m_config.lineWidthMinor);
-                    vShape->SetZLayer(m_config.gridZLayerId);
-
-                    m_context->Display(hShape, Standard_False);
-                    m_context->Display(vShape, Standard_False);
-                    m_context->Deactivate(hShape);
-                    m_context->Deactivate(vShape);
-
-                    m_gridObjects.push_back(hShape);
-                    m_gridObjects.push_back(vShape);
-
-                    crossCount++;
-                }
+        // رسم كل مستوى من مستويات الشبكة
+        for (const auto& level : m_gridLevels) {
+            if (level.visible && level.opacity > 0.01f) {
+                drawGridLevel(level);
             }
         }
 
-        // Restore automatic highlighting
         m_context->SetAutomaticHilight(Standard_True);
+    }
+
+    // NEW: حساب المستويات المتعددة للشبكة
+    void TyrexCanvasOverlay::calculateMultiLevelSpacing() {
+        if (!m_config.adaptiveSpacing || m_view.IsNull()) {
+            m_currentSpacing = m_config.baseSpacing;
+            m_gridLevels.clear();
+            m_gridLevels.push_back({ m_currentSpacing, 1.0f, m_config.lineWidthMajor,
+                                   m_config.gridColorMajor, true, 1 });
+            return;
+        }
+
+        m_gridLevels = generateGridLevels(m_viewScale);
+
+        // تحديث التباعد الحالي بناءً على المستوى الأساسي
+        for (const auto& level : m_gridLevels) {
+            if (level.priority == 1) { // المستوى الأساسي
+                m_currentSpacing = level.spacing;
+                break;
+            }
+        }
+
+        emit gridSpacingChanged(m_currentSpacing);
+    }
+
+    // NEW: توليد مستويات الشبكة بناءً على مقياس العرض
+    std::vector<GridLevel> TyrexCanvasOverlay::generateGridLevels(double viewScale) const {
+        std::vector<GridLevel> levels;
+
+        // التحقق من صحة viewScale
+        if (viewScale <= 0 || std::isnan(viewScale) || std::isinf(viewScale)) {
+            qDebug() << "Invalid view scale:" << viewScale;
+            // إرجاع مستوى افتراضي واحد
+            GridLevel defaultLevel;
+            defaultLevel.spacing = m_config.baseSpacing;
+            defaultLevel.opacity = 1.0f;
+            defaultLevel.lineWidth = m_config.lineWidthMinor;
+            defaultLevel.color = m_config.gridColorMinor;
+            defaultLevel.visible = true;
+            defaultLevel.priority = 1;
+            levels.push_back(defaultLevel);
+            return levels;
+        }
+
+        // حساب التباعد الأمثل
+        double optimalSpacing = calculateOptimalSpacing(viewScale);
+
+        // المستوى الأساسي (100% opacity)
+        GridLevel primary;
+        primary.spacing = optimalSpacing;
+        primary.opacity = 1.0f;
+        primary.lineWidth = m_config.lineWidthMinor;
+        primary.color = m_config.gridColorMinor;
+        primary.visible = true;
+        primary.priority = 1;
+        levels.push_back(primary);
+
+        // المستوى الفرعي (شبكة أدق مع شفافية متغيرة)
+        // فقط إذا كان التباعد معقولاً
+        if (optimalSpacing >= 0.1) { // لا نريد شبكة فرعية دقيقة جداً
+            double subSpacing = optimalSpacing / 10.0;
+            double pixelSpacing = subSpacing * viewScale;
+
+            if (pixelSpacing > m_config.minPixelSpacing * 0.5) {
+                GridLevel sub;
+                sub.spacing = subSpacing;
+                sub.opacity = calculateLevelOpacity(pixelSpacing,
+                    m_config.minPixelSpacing * 0.5,
+                    m_config.minPixelSpacing);
+                sub.lineWidth = m_config.lineWidthMinor * 0.7f;
+                sub.color = m_config.gridColorMinor;
+                sub.visible = sub.opacity > 0.1f;
+                sub.priority = 0;
+                levels.push_back(sub);
+            }
+        }
+
+        // المستوى الرئيسي (خطوط أكثر سمكاً كل 5 أو 10 وحدات)
+        // فقط إذا كان التباعد لن ينتج عدد كبير من الخطوط
+        if (optimalSpacing <= 100.0) { // تجنب المستويات الرئيسية الكبيرة جداً
+            double majorSpacing = optimalSpacing * m_config.majorLineInterval;
+
+            // التحقق من أن المستوى الرئيسي لن ينتج عدد كبير من الخطوط
+            double viewSize = 2000.0 / viewScale; // تقدير حجم العرض
+            int estimatedLines = static_cast<int>(viewSize / majorSpacing);
+
+            if (estimatedLines < 100) { // حد آمن للخطوط الرئيسية
+                GridLevel major;
+                major.spacing = majorSpacing;
+                major.opacity = 1.0f;
+                major.lineWidth = m_config.lineWidthMajor;
+                major.color = m_config.gridColorMajor;
+                major.visible = true;
+                major.priority = 2;
+                levels.push_back(major);
+            }
+        }
+
+        // ترتيب المستويات حسب الأولوية
+        std::sort(levels.begin(), levels.end(),
+            [](const GridLevel& a, const GridLevel& b) {
+                return a.priority < b.priority;
+            });
+
+        return levels;
+    }
+
+    // NEW: حساب التباعد الأمثل بناءً على مقياس العرض
+    double TyrexCanvasOverlay::calculateOptimalSpacing(double viewScale) const {
+        // مصفوفة خطوات التباعد (مشابهة لـ AutoCAD)
+        static const double spacingSteps[] = {
+            0.001, 0.002, 0.005,
+            0.01, 0.02, 0.05,
+            0.1, 0.2, 0.5,
+            1.0, 2.0, 5.0,
+            10.0, 20.0, 50.0,
+            100.0, 200.0, 500.0,
+            1000.0, 2000.0, 5000.0,
+            10000.0
+        };
+
+        // حساب التباعد المثالي بالبكسل
+        double idealSpacing = m_config.minPixelSpacing / viewScale;
+
+        // التحقق من صحة القيمة
+        if (std::isnan(idealSpacing) || std::isinf(idealSpacing) || idealSpacing <= 0) {
+            qDebug() << "Invalid ideal spacing calculated, using default";
+            return m_config.baseSpacing;
+        }
+
+        // البحث عن أقرب قيمة في المصفوفة
+        for (double spacing : spacingSteps) {
+            double pixelSpacing = spacing * viewScale;
+            if (pixelSpacing >= m_config.minPixelSpacing &&
+                pixelSpacing <= m_config.maxPixelSpacing) {
+                return spacing;
+            }
+        }
+
+        // إذا لم نجد قيمة مناسبة، نحسبها ديناميكياً مع حدود آمنة
+        const double MAX_SPACING = 1000.0; // حد أقصى آمن للتباعد
+
+        double power = std::floor(std::log10(idealSpacing));
+        double base = std::pow(10.0, power);
+        double normalized = idealSpacing / base;
+
+        double result;
+        if (normalized <= 2.0) result = base * 2.0;
+        else if (normalized <= 5.0) result = base * 5.0;
+        else result = base * 10.0;
+
+        // تطبيق الحد الأقصى
+        return std::min(result, MAX_SPACING);
+    }
+
+    // NEW: حساب شفافية المستوى بناءً على حجم البكسل
+    float TyrexCanvasOverlay::calculateLevelOpacity(double pixelSpacing,
+        double minSpacing,
+        double maxSpacing) const {
+        if (pixelSpacing <= minSpacing) return 0.0f;
+        if (pixelSpacing >= maxSpacing) return 1.0f;
+
+        // استخدام دالة انتقال سلسة
+        float t = static_cast<float>((pixelSpacing - minSpacing) / (maxSpacing - minSpacing));
+        return smoothstep(0.0f, 1.0f, t);
+    }
+
+    // NEW: دالة انتقال سلسة
+    float TyrexCanvasOverlay::smoothstep(float edge0, float edge1, float x) {
+        float t = std::clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+        return t * t * (3.0f - 2.0f * t);
+    }
+
+    // NEW: رسم مستوى واحد من الشبكة
+    void TyrexCanvasOverlay::drawGridLevel(const GridLevel& level) {
+        double minX, maxX, minY, maxY;
+        calculateViewBounds(minX, maxX, minY, maxY);
+
+        // التحقق من صحة الحدود
+        double viewSize = std::max(maxX - minX, maxY - minY);
+        if (viewSize <= 0 || viewSize > 20000 || std::isnan(viewSize) || std::isinf(viewSize)) {
+            // لا نطبع رسالة خطأ هنا لتجنب spam
+            return;
+        }
+
+        // محاذاة الحدود مع الشبكة
+        minX = std::floor(minX / level.spacing) * level.spacing;
+        maxX = std::ceil(maxX / level.spacing) * level.spacing;
+        minY = std::floor(minY / level.spacing) * level.spacing;
+        maxY = std::ceil(maxY / level.spacing) * level.spacing;
+
+        // حساب عدد الخطوط
+        int numLinesX = static_cast<int>((maxX - minX) / level.spacing) + 1;
+        int numLinesY = static_cast<int>((maxY - minY) / level.spacing) + 1;
+
+        // تحديد عدد الخطوط بشكل أكثر صرامة
+        const int SAFE_MAX_LINES = 200;
+        if (numLinesX > SAFE_MAX_LINES || numLinesY > SAFE_MAX_LINES) {
+            // لا نطبع رسالة خطأ لتجنب spam
+            return;
+        }
+
+        if (numLinesX + numLinesY > MAX_GRID_LINES) {
+            return;
+        }
+
+        // جمع الخطوط للرسم الدفعي
+        std::vector<std::pair<gp_Pnt, gp_Pnt>> lines;
+        lines.reserve(numLinesX + numLinesY);
+
+        // الخطوط العمودية
+        for (double x = minX; x <= maxX; x += level.spacing) {
+            if (m_axisVisible && std::abs(x) < 0.001) continue;
+            lines.emplace_back(gp_Pnt(x, minY, 0), gp_Pnt(x, maxY, 0));
+        }
+
+        // الخطوط الأفقية
+        for (double y = minY; y <= maxY; y += level.spacing) {
+            if (m_axisVisible && std::abs(y) < 0.001) continue;
+            lines.emplace_back(gp_Pnt(minX, y, 0), gp_Pnt(maxX, y, 0));
+        }
+
+        // رسم دفعي للخطوط
+        if (!lines.empty()) {
+            batchCreateGridLines(lines, level);
+        }
+    }
+
+    // NEW: إنشاء خطوط الشبكة بشكل دفعي لتحسين الأداء
+    void TyrexCanvasOverlay::batchCreateGridLines(const std::vector<std::pair<gp_Pnt, gp_Pnt>>& lines,
+        const GridLevel& level) {
+        if (m_context.IsNull() || lines.empty()) return;
+
+        try {
+            // التحقق من صحة Z-layer
+            if (m_config.gridZLayerId < 0) {
+                qDebug() << "Invalid Z-layer ID, recreating...";
+                setupProperZLayer();
+            }
+
+            // إنشاء وعرض الخطوط
+            for (const auto& line : lines) {
+                Handle(Geom_Line) geomLine = new Geom_Line(line.first,
+                    gp_Dir(gp_Vec(line.first, line.second)));
+                Handle(AIS_Line) aisLine = new AIS_Line(geomLine);
+
+                // تطبيق اللون والشفافية
+                aisLine->SetColor(level.color);
+                aisLine->SetWidth(level.lineWidth);
+
+                if (level.opacity < 1.0f) {
+                    aisLine->SetTransparency(1.0 - level.opacity);
+                }
+
+                // تعيين Z-layer بحذر
+                if (m_config.gridZLayerId > 0) {
+                    aisLine->SetZLayer(m_config.gridZLayerId);
+                }
+
+                // عرض بدون تفعيل التحديد مع معالجة الأخطاء
+                try {
+                    m_context->Display(aisLine, AIS_WireFrame, -1, Standard_False, Standard_False);
+                    m_context->Deactivate(aisLine);
+                    m_gridObjects.push_back(aisLine);
+                }
+                catch (const Standard_Failure& ex) {
+                    qDebug() << "Failed to display grid line:" << ex.GetMessageString();
+                }
+            }
+        }
+        catch (const Standard_Failure& ex) {
+            qDebug() << "Exception in batchCreateGridLines:" << ex.GetMessageString();
+        }
+        catch (...) {
+            qDebug() << "Unknown exception in batchCreateGridLines";
+        }
+    }
+
+    void TyrexCanvasOverlay::updateGrid() {
+        // استخدام النظام الجديد
+        updateInfiniteGrid();
     }
 
     void TyrexCanvasOverlay::updateAxes() {
@@ -437,58 +700,84 @@ namespace TyrexCAD {
             return;
         }
 
-        // Calculate axes length based on view extents
-        gp_Vec2d extents = getViewExtents();
-        double width = extents.X() * m_config.gridExtensionFactor;
-        double height = extents.Y() * m_config.gridExtensionFactor;
+        try {
+            // حساب طول المحاور بناءً على حدود العرض
+            double minX, maxX, minY, maxY;
+            calculateViewBounds(minX, maxX, minY, maxY);
 
-        // Create X axis (horizontal)
-        Handle(Geom_Line) xAxis = new Geom_Line(gp_Pnt(-width / 2, 0, 0), gp_Dir(1, 0, 0));
-        Handle(AIS_Line) aisXAxis = new AIS_Line(xAxis);
-        aisXAxis->SetColor(m_config.axisColorX);
-        aisXAxis->SetWidth(m_config.axisLineWidth);
-        aisXAxis->SetZLayer(Graphic3d_ZLayerId_Topmost);
+            // إنشاء المحور X
+            Handle(Geom_Line) xAxis = new Geom_Line(gp_Pnt(minX, 0, 0), gp_Dir(1, 0, 0));
+            Handle(AIS_Line) aisXAxis = new AIS_Line(xAxis);
+            aisXAxis->SetColor(m_config.axisColorX);
+            aisXAxis->SetWidth(m_config.axisLineWidth);
 
-        // Create Y axis (vertical)
-        Handle(Geom_Line) yAxis = new Geom_Line(gp_Pnt(0, -height / 2, 0), gp_Dir(0, 1, 0));
-        Handle(AIS_Line) aisYAxis = new AIS_Line(yAxis);
-        aisYAxis->SetColor(m_config.axisColorY);
-        aisYAxis->SetWidth(m_config.axisLineWidth);
-        aisYAxis->SetZLayer(Graphic3d_ZLayerId_Topmost);
+            // استخدام Z-layer موثوق
+            if (m_config.gridZLayerId > 0) {
+                aisXAxis->SetZLayer(m_config.gridZLayerId);
+            }
+            else {
+                aisXAxis->SetZLayer(Graphic3d_ZLayerId_Default);
+            }
 
-        // Create origin marker
-        if (m_config.showOriginMarker) {
-            double markerSize = m_config.originMarkerSize;
+            // إنشاء المحور Y
+            Handle(Geom_Line) yAxis = new Geom_Line(gp_Pnt(0, minY, 0), gp_Dir(0, 1, 0));
+            Handle(AIS_Line) aisYAxis = new AIS_Line(yAxis);
+            aisYAxis->SetColor(m_config.axisColorY);
+            aisYAxis->SetWidth(m_config.axisLineWidth);
 
-            // Create origin circle
-            Handle(Geom_Circle) circle = new Geom_Circle(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), markerSize / 2.0);
-            TopoDS_Edge edgeCircle = BRepBuilderAPI_MakeEdge(circle);
-            Handle(AIS_Shape) originMarker = new AIS_Shape(edgeCircle);
-            originMarker->SetColor(Quantity_NOC_WHITE);
-            originMarker->SetWidth(m_config.axisLineWidth);
-            originMarker->SetZLayer(Graphic3d_ZLayerId_Topmost);
+            if (m_config.gridZLayerId > 0) {
+                aisYAxis->SetZLayer(m_config.gridZLayerId);
+            }
+            else {
+                aisYAxis->SetZLayer(Graphic3d_ZLayerId_Default);
+            }
 
-            m_context->Display(originMarker, Standard_False);
-            m_context->Deactivate(originMarker);
-            m_axisObjects.push_back(originMarker);
+            // علامة الأصل
+            if (m_config.showOriginMarker) {
+                double markerSize = m_config.originMarkerSize / m_viewScale;
+
+                // تحديد حجم معقول للعلامة
+                markerSize = std::max(0.1, std::min(markerSize, 50.0));
+
+                Handle(Geom_Circle) circle = new Geom_Circle(gp_Ax2(gp_Pnt(0, 0, 0),
+                    gp_Dir(0, 0, 1)), markerSize);
+                TopoDS_Edge edgeCircle = BRepBuilderAPI_MakeEdge(circle);
+                Handle(AIS_Shape) originMarker = new AIS_Shape(edgeCircle);
+                originMarker->SetColor(Quantity_NOC_WHITE);
+                originMarker->SetWidth(m_config.axisLineWidth);
+
+                if (m_config.gridZLayerId > 0) {
+                    originMarker->SetZLayer(m_config.gridZLayerId);
+                }
+                else {
+                    originMarker->SetZLayer(Graphic3d_ZLayerId_Default);
+                }
+
+                m_context->Display(originMarker, Standard_False);
+                m_context->Deactivate(originMarker);
+                m_axisObjects.push_back(originMarker);
+            }
+
+            m_context->Display(aisXAxis, Standard_False);
+            m_context->Display(aisYAxis, Standard_False);
+            m_context->Deactivate(aisXAxis);
+            m_context->Deactivate(aisYAxis);
+
+            m_axisObjects.push_back(aisXAxis);
+            m_axisObjects.push_back(aisYAxis);
+
         }
-
-        m_context->Display(aisXAxis, Standard_False);
-        m_context->Display(aisYAxis, Standard_False);
-        m_context->Deactivate(aisXAxis);
-        m_context->Deactivate(aisYAxis);
-
-        m_axisObjects.push_back(aisXAxis);
-        m_axisObjects.push_back(aisYAxis);
+        catch (const Standard_Failure& ex) {
+            qCritical() << "Exception in updateAxes:" << ex.GetMessageString();
+        }
     }
 
     void TyrexCanvasOverlay::clearOverlay() {
         SAFE_HANDLE_CHECK_RETURN(m_context, "Context is null in clearOverlay", );
 
-        // PERFORMANCE: Batch removal
         m_context->SetAutomaticHilight(Standard_False);
 
-        // Clear grid objects
+        // مسح كائنات الشبكة
         for (auto& obj : m_gridObjects) {
             if (!obj.IsNull()) {
                 m_context->Remove(obj, Standard_False);
@@ -496,7 +785,7 @@ namespace TyrexCAD {
         }
         m_gridObjects.clear();
 
-        // Clear axis objects
+        // مسح كائنات المحاور
         for (auto& obj : m_axisObjects) {
             if (!obj.IsNull()) {
                 m_context->Remove(obj, Standard_False);
@@ -508,78 +797,33 @@ namespace TyrexCAD {
     }
 
     void TyrexCanvasOverlay::calculateAdaptiveSpacing() {
-        if (!m_config.adaptiveSpacing || m_view.IsNull()) {
-            m_currentSpacing = m_config.baseSpacing;
-            return;
-        }
-
-        try {
-            // Get view scale factor
-            double scale = m_view->Scale();
-            double pixelsPerUnit = 1.0 / scale;
-
-            // Calculate ideal spacing based on desired pixel distance
-            double idealSpacing = m_config.minPixelSpacing / pixelsPerUnit;
-
-            // Find appropriate power of 10 for spacing
-            double power10 = 1.0;
-            while (idealSpacing >= power10 * 10) power10 *= 10;
-            while (idealSpacing < power10) power10 /= 10;
-
-            // Choose between 1, 2, or 5 times power of 10
-            double candidates[] = { power10, power10 * 2, power10 * 5, power10 * 10 };
-            double bestDiff = std::numeric_limits<double>::max();
-            double bestSpacing = m_config.baseSpacing;
-
-            for (double candidate : candidates) {
-                double pixelDist = candidate * pixelsPerUnit;
-                if (pixelDist >= m_config.minPixelSpacing && pixelDist <= m_config.maxPixelSpacing) {
-                    double diff = std::abs(idealSpacing - candidate);
-                    if (diff < bestDiff) {
-                        bestDiff = diff;
-                        bestSpacing = candidate;
-                    }
-                }
-            }
-
-            m_currentSpacing = bestSpacing;
-        }
-        catch (...) {
-            // Fallback to base spacing if any error occurs during calculation
-            m_currentSpacing = m_config.baseSpacing;
-        }
-
-        // Emit signal for listeners
-        emit gridSpacingChanged(m_currentSpacing);
+        // يتم استخدام النظام الجديد في calculateMultiLevelSpacing
+        calculateMultiLevelSpacing();
     }
 
     gp_Vec2d TyrexCanvasOverlay::getViewExtents() const {
         if (m_view.IsNull()) {
-            return gp_Vec2d(1000, 1000); // Default fallback size
+            return gp_Vec2d(1000, 1000);
         }
 
         try {
-            double width = 0, height = 0;
+            double minX, maxX, minY, maxY;
+            calculateViewBounds(minX, maxX, minY, maxY);
 
-            // Convert view size to world coordinates
-            Standard_Real viewWidth = 0.0, viewHeight = 0.0;
-            m_view->Size(viewWidth, viewHeight);
+            double width = maxX - minX;
+            double height = maxY - minY;
 
-            // Get world coordinates of viewport corners
-            Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
-            m_view->Convert(0, 0, xmin, ymin, zmin);
-            m_view->Convert(static_cast<Standard_Integer>(viewWidth),
-                static_cast<Standard_Integer>(viewHeight),
-                xmax, ymax, zmax);
-
-            // Calculate size
-            width = std::abs(xmax - xmin);
-            height = std::abs(ymax - ymin);
+            // التحقق من معقولية القيم
+            if (width <= 0 || height <= 0 || width > 100000 || height > 100000 ||
+                std::isnan(width) || std::isnan(height) ||
+                std::isinf(width) || std::isinf(height)) {
+                qDebug() << "Invalid view extents calculated:" << width << "x" << height;
+                return gp_Vec2d(1000, 1000);
+            }
 
             return gp_Vec2d(width, height);
         }
         catch (...) {
-            // Return default size in case of error
             return gp_Vec2d(1000, 1000);
         }
     }
@@ -591,6 +835,16 @@ namespace TyrexCAD {
         qDebug() << "Current spacing:" << m_currentSpacing;
         qDebug() << "Grid objects count:" << m_gridObjects.size();
         qDebug() << "Axis objects count:" << m_axisObjects.size();
+        qDebug() << "Grid levels count:" << m_gridLevels.size();
+
+        for (size_t i = 0; i < m_gridLevels.size(); ++i) {
+            const auto& level = m_gridLevels[i];
+            qDebug() << "  Level" << i << ":"
+                << "spacing=" << level.spacing
+                << "opacity=" << level.opacity
+                << "priority=" << level.priority
+                << "visible=" << level.visible;
+        }
 
         if (!m_context.IsNull()) {
             qDebug() << "Context is valid";
@@ -601,10 +855,6 @@ namespace TyrexCAD {
                 m_context->CurrentViewer()->GetAllZLayers(layers);
                 qDebug() << "Z-Layers count:" << layers.Length();
                 qDebug() << "Grid Z-Layer ID:" << m_config.gridZLayerId;
-
-                for (int i = 1; i <= layers.Length(); i++) {
-                    qDebug() << "  Layer" << i << "ID:" << layers.Value(i);
-                }
             }
         }
         else {
@@ -614,20 +864,14 @@ namespace TyrexCAD {
         if (!m_view.IsNull()) {
             qDebug() << "View scale:" << m_view->Scale();
 
-            Standard_Real width, height;
-            m_view->Size(width, height);
-            qDebug() << "View size:" << width << "x" << height;
-
             gp_Vec2d extents = getViewExtents();
             qDebug() << "View extents:" << extents.X() << "x" << extents.Y();
+
+            qDebug() << "View center:" << m_viewCenter.X() << "," << m_viewCenter.Y();
         }
         else {
             qDebug() << "View is NULL!";
         }
-
-        qDebug() << "Last extents:" << m_lastExtents.X() << "x" << m_lastExtents.Y();
-        qDebug() << "Last spacing:" << m_lastSpacing;
-        qDebug() << "Last style:" << static_cast<int>(m_lastStyle);
     }
 
 } // namespace TyrexCAD
