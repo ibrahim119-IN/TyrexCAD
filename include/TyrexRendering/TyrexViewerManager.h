@@ -61,6 +61,10 @@ namespace TyrexCAD {
         void selectEntityAt(const QPoint& point);
         void highlightEntityAt(const QPoint& point);
 
+        // Debug functions
+        bool checkGraphicsDriver();
+        void enableOpenCascadeDebug();
+
     signals:
         void viewChanged();
         void entitySelected(const Handle(AIS_InteractiveObject)& entity);

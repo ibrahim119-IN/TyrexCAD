@@ -6,6 +6,8 @@
 #include <QWheelEvent>
 #include <QDebug>
 #include <QApplication>
+#include <QThread>
+#include <QTimer>
 
 #include <AIS_DisplayMode.hxx>
 #include <AIS_InteractiveContext.hxx>
@@ -20,6 +22,10 @@
 #include <V3d_View.hxx>
 #include <Graphic3d_Camera.hxx>
 #include <Aspect_Window.hxx>
+#include <Bnd_Box.hxx>
+#include <Message.hxx>
+#include <Message_Messenger.hxx>
+#include <Message_PrinterOStream.hxx>
 
 #ifdef _WIN32
 #include <WNT_Window.hxx>
@@ -36,11 +42,52 @@ namespace TyrexCAD {
         m_is2DMode(false)
     {
         qDebug() << "TyrexViewerManager created";
+
+        // Enable OpenCascade debug messages
+        enableOpenCascadeDebug();
     }
 
     TyrexViewerManager::~TyrexViewerManager()
     {
         // Cleanup will be handled automatically by Handle
+    }
+
+    void TyrexViewerManager::enableOpenCascadeDebug()
+    {
+        // Create printer for messages
+        Handle(Message_PrinterOStream) aPrinter =
+            new Message_PrinterOStream(Message_Info);
+
+        // Add printer to default messenger
+        Message::DefaultMessenger()->AddPrinter(aPrinter);
+
+        qDebug() << "OpenCascade debug messages enabled";
+    }
+
+    bool TyrexViewerManager::checkGraphicsDriver()
+    {
+        qDebug() << "=== Checking Graphics Driver Status ===";
+
+        // Check if driver exists
+        if (m_graphicDriver.IsNull()) {
+            qCritical() << "Graphics driver is NULL!";
+            return false;
+        }
+
+        // Get OpenGL driver info
+        Handle(OpenGl_GraphicDriver) aGlDriver =
+            Handle(OpenGl_GraphicDriver)::DownCast(m_graphicDriver);
+
+        if (!aGlDriver.IsNull()) {
+            qDebug() << "OpenGL Graphics Driver detected";
+            qDebug() << "Driver is valid and initialized";
+        }
+        else {
+            qCritical() << "Failed to cast to OpenGL driver!";
+            return false;
+        }
+
+        return true;
     }
 
     void TyrexViewerManager::initializeViewer(QWidget* glWidget)
@@ -51,11 +98,24 @@ namespace TyrexCAD {
         }
 
         try {
-            // Create OpenCascade viewer
+            // Create display connection with debug info
+            qDebug() << "Creating display connection...";
             Handle(Aspect_DisplayConnection) displayConnection = new Aspect_DisplayConnection();
-            Handle(Graphic3d_GraphicDriver) graphicDriver = new OpenGl_GraphicDriver(displayConnection);
 
-            m_viewer = new V3d_Viewer(graphicDriver);
+            // Create graphics driver with enhanced options
+            qDebug() << "Creating OpenGL graphics driver...";
+            Handle(OpenGl_GraphicDriver) graphicDriver =
+                new OpenGl_GraphicDriver(displayConnection, false);
+
+            m_graphicDriver = graphicDriver;
+
+            // Check driver status
+            if (!checkGraphicsDriver()) {
+                throw Standard_Failure("Graphics driver check failed");
+            }
+
+            // Create viewer
+            m_viewer = new V3d_Viewer(m_graphicDriver);
             m_viewer->SetDefaultLights();
             m_viewer->SetLightOn();
 
@@ -64,7 +124,7 @@ namespace TyrexCAD {
 
             // Enhanced window creation
 #ifdef _WIN32
-// Wait until window is visible
+            // Wait until window is visible
             while (!glWidget->isVisible()) {
                 QApplication::processEvents();
             }
@@ -73,7 +133,7 @@ namespace TyrexCAD {
             HWND hwnd = reinterpret_cast<HWND>(glWidget->winId());
             m_window = new WNT_Window(hwnd);
 #else
-// Linux/Mac implementation
+            // Linux/Mac implementation
             m_window = new Xw_Window(displayConnection, (Window)glWidget->winId());
 #endif
 
@@ -136,35 +196,71 @@ namespace TyrexCAD {
     void TyrexViewerManager::set2DMode()
     {
         if (m_view.IsNull()) {
+            qWarning() << "Cannot set 2D mode - view is null";
             return;
         }
 
         try {
-            m_is2DMode = true;
+            // Ensure view window is ready
+            if (m_view->Window().IsNull() || !m_view->Window()->IsMapped()) {
+                qWarning() << "View window not ready for 2D mode switch";
 
-            // Set orthographic projection
-            Handle(Graphic3d_Camera) camera = m_view->Camera();
-            if (!camera.IsNull()) {
-                camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+                // Schedule retry
+                QTimer::singleShot(100, this, [this]() {
+                    set2DMode();
+                    });
+                return;
             }
 
-            // Set exact top view (looking down Z axis)
+            // Force complete update before mode change
+            m_view->Redraw();
+            m_view->Update();
+            QApplication::processEvents();
+
+            // Get camera with full checks
+            Handle(Graphic3d_Camera) camera = m_view->Camera();
+
+            // Additional check for handle validity
+            if (camera.IsNull() || camera.get() == nullptr) {
+                qCritical() << "Camera handle is invalid";
+
+                // Try to create new camera by setting projection
+                m_view->SetProj(V3d_Zpos);
+                camera = m_view->Camera();
+
+                if (camera.IsNull()) {
+                    qCritical() << "Failed to create camera";
+                    return;
+                }
+            }
+
+            // Now safe to change projection type
+            m_is2DMode = true;
+            camera->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+
+            // Set exact top view
             m_view->SetProj(V3d_Zpos);
             m_view->SetUp(0, 1, 0);
-
-            // Reset any rotation
             m_view->SetTwist(0);
 
-            // Fit all and redraw
-            m_view->FitAll(0.01, Standard_True);
-            m_view->Redraw();
+            // Fit all and adjust for 2D view
+            m_view->FitAll(0.01, Standard_False);
 
-            qDebug() << "Switched to 2D mode";
+            // Use reasonable default Z size for 2D mode
+            m_view->SetZSize(1000.0);
+
+            m_view->Redraw();
             emit viewChanged();
 
+            qDebug() << "Successfully switched to 2D mode";
         }
         catch (const Standard_Failure& ex) {
-            qWarning() << "Error setting 2D mode:" << ex.GetMessageString();
+            qCritical() << "Exception in set2DMode:" << ex.GetMessageString();
+            m_is2DMode = false;
+        }
+        catch (...) {
+            qCritical() << "Unknown exception in set2DMode";
+            m_is2DMode = false;
         }
     }
 

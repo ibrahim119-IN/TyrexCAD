@@ -78,6 +78,9 @@ namespace TyrexCAD {
         void initializeCommandManager();
         void initializeSketchManager();
 
+        // ADDED: Internal method for creating geometry
+        void createGeometryInternal();
+
     private:
         // Core components
         std::shared_ptr<TyrexViewerManager> m_viewerManager;
@@ -87,7 +90,8 @@ namespace TyrexCAD {
         // Sketch system
         std::shared_ptr<TyrexSketchManager> m_sketchManager;
         bool m_isInSketchMode;
-
+        // Debug
+        bool m_debugMode;
         // Actions
         QAction* m_newAction;
         QAction* m_openAction;
@@ -131,6 +135,10 @@ namespace TyrexCAD {
         // Status bar widgets
         QLabel* m_coordinateLabel;
         QLabel* m_gridStatusLabel;
+
+        // Debug methods
+        void enableDebugMode(bool enable);
+        bool isDebugMode() const { return m_debugMode; }
     };
 
 } // namespace TyrexCAD

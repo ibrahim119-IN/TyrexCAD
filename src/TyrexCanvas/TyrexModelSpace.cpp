@@ -153,10 +153,31 @@ namespace TyrexCAD {
 
     void TyrexModelSpace::clear()
     {
-        // Clear visual context if available
-        if (!m_context.IsNull()) {
-            m_context->RemoveAll(Standard_True);
+        if (m_context.IsNull()) {
+            m_entities.clear();
+            return;
         }
+
+        // FIXED: Safe clearing implementation
+        // Save current auto-highlight state
+        Standard_Boolean autoUpdate = m_context->AutomaticHilight();
+        m_context->SetAutomaticHilight(Standard_False);
+
+        // Remove entities one by one safely
+        for (auto it = m_entities.begin(); it != m_entities.end(); ) {
+            auto entity = *it;
+            if (entity) {
+                Handle(AIS_Shape) shape = entity->getAISShape();
+                if (!shape.IsNull() && m_context->IsDisplayed(shape)) {
+                    m_context->Remove(shape, Standard_False);
+                }
+            }
+            it = m_entities.erase(it);
+        }
+
+        // Restore auto-highlight state
+        m_context->SetAutomaticHilight(autoUpdate);
+        m_context->UpdateCurrentViewer();
 
         // Clear entity collection
         m_entities.clear();

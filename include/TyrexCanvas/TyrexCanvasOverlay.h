@@ -151,6 +151,11 @@ namespace TyrexCAD {
          */
         void forceUpdate();
 
+        /**
+         * @brief Debug grid state
+         */
+        void debugGridState() const;
+
     signals:
         /**
          * @brief Emitted when grid spacing changes
@@ -169,6 +174,7 @@ namespace TyrexCAD {
         void clearOverlay();
         void calculateAdaptiveSpacing();
         gp_Vec2d getViewExtents() const;
+        void setupProperZLayer();
 
     private:
         Handle(AIS_InteractiveContext) m_context;
@@ -179,6 +185,11 @@ namespace TyrexCAD {
         bool m_gridVisible;
         bool m_axisVisible;
         double m_currentSpacing;
+
+        // Cache for performance
+        gp_Vec2d m_lastExtents;
+        double m_lastSpacing;
+        GridStyle m_lastStyle;
 
         // Visual objects
         std::vector<Handle(AIS_InteractiveObject)> m_gridObjects;

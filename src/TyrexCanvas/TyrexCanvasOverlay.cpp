@@ -19,6 +19,7 @@
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <TopoDS_Edge.hxx>
 #include <Graphic3d_ZLayerSettings.hxx>
+#include <TColStd_SequenceOfInteger.hxx>
 #include <cmath>
 
 namespace TyrexCAD {
@@ -31,7 +32,9 @@ namespace TyrexCAD {
         m_view(view),
         m_gridVisible(true),
         m_axisVisible(true),
-        m_currentSpacing(10.0)
+        m_currentSpacing(10.0),
+        m_lastSpacing(-1),
+        m_lastStyle(GridStyle::Lines)
     {
         // Initialize with default configuration
         m_config.backgroundColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
@@ -50,16 +53,8 @@ namespace TyrexCAD {
         m_config.showOriginMarker = true;
         m_config.gridZLayerId = -1;
 
-        // Create dedicated layer for grid
-        if (!m_context.IsNull() && !m_context->CurrentViewer().IsNull()) {
-            m_context->CurrentViewer()->AddZLayer(m_config.gridZLayerId);
-
-            // Configure layer settings
-            Graphic3d_ZLayerSettings aSettings;
-            aSettings.SetEnableDepthTest(Standard_False);
-            aSettings.SetEnableDepthWrite(Standard_False);
-            m_context->CurrentViewer()->SetZLayerSettings(m_config.gridZLayerId, aSettings);
-        }
+        // Setup proper Z-layer for grid
+        setupProperZLayer();
 
         // Create the grid and axes initially
         updateGrid();
@@ -68,6 +63,37 @@ namespace TyrexCAD {
 
     TyrexCanvasOverlay::~TyrexCanvasOverlay() {
         clearOverlay();
+    }
+
+    void TyrexCanvasOverlay::setupProperZLayer() {
+        if (!m_context.IsNull() && !m_context->CurrentViewer().IsNull()) {
+            // Get existing Z-layers
+            TColStd_SequenceOfInteger layers;
+            m_context->CurrentViewer()->GetAllZLayers(layers);
+
+            Standard_Integer maxLayer = Graphic3d_ZLayerId_Default;
+            for (int i = 1; i <= layers.Length(); i++) {
+                if (layers.Value(i) > maxLayer &&
+                    layers.Value(i) < Graphic3d_ZLayerId_Topmost) {
+                    maxLayer = layers.Value(i);
+                }
+            }
+
+            // Create new layer above existing ones
+            m_config.gridZLayerId = maxLayer + 1;
+            m_context->CurrentViewer()->AddZLayer(m_config.gridZLayerId);
+
+            // Configure layer for grid
+            Graphic3d_ZLayerSettings aSettings;
+            aSettings.SetEnableDepthTest(Standard_False);
+            aSettings.SetEnableDepthWrite(Standard_False);
+            // Remove unsupported methods
+            // aSettings.SetLightingEnabled(Standard_False);
+            // aSettings.SetImmediate(Standard_True);
+            m_context->CurrentViewer()->SetZLayerSettings(m_config.gridZLayerId, aSettings);
+
+            qDebug() << "Created grid Z-layer with ID:" << m_config.gridZLayerId;
+        }
     }
 
     bool TyrexCanvasOverlay::isGridVisible() const {
@@ -157,15 +183,38 @@ namespace TyrexCAD {
     }
 
     void TyrexCanvasOverlay::update() {
-        clearOverlay();
+        // PERFORMANCE: Smart update - only update what changed
+        gp_Vec2d currentExtents = getViewExtents();
         calculateAdaptiveSpacing();
 
-        if (m_gridVisible) {
-            updateGrid();
+        bool needsFullUpdate = false;
+
+        // Check what changed
+        if (m_config.style != m_lastStyle) {
+            needsFullUpdate = true;
+            m_lastStyle = m_config.style;
         }
 
-        if (m_axisVisible) {
-            updateAxes();
+        if (std::abs(m_currentSpacing - m_lastSpacing) > 0.001) {
+            needsFullUpdate = true;
+            m_lastSpacing = m_currentSpacing;
+        }
+
+        if ((currentExtents - m_lastExtents).Magnitude() > 1.0) {
+            needsFullUpdate = true;
+            m_lastExtents = currentExtents;
+        }
+
+        if (needsFullUpdate || m_gridObjects.empty() || m_axisObjects.empty()) {
+            clearOverlay();
+
+            if (m_gridVisible) {
+                updateGrid();
+            }
+
+            if (m_axisVisible) {
+                updateAxes();
+            }
         }
 
         redraw();
@@ -211,6 +260,9 @@ namespace TyrexCAD {
             return;
         }
 
+        // PERFORMANCE: Batch operations
+        m_context->SetAutomaticHilight(Standard_False);
+
         // Calculate grid bounds based on view extents
         gp_Vec2d extents = getViewExtents();
         double width = extents.X() * m_config.gridExtensionFactor;
@@ -228,6 +280,11 @@ namespace TyrexCAD {
         minY = std::floor(minY / m_currentSpacing) * m_currentSpacing;
 
         if (m_config.style == GridStyle::Lines) {
+            // PERFORMANCE: Pre-reserve vector capacity
+            int estimatedLines = static_cast<int>((maxX - minX) / m_currentSpacing +
+                (maxY - minY) / m_currentSpacing + 2);
+            m_gridObjects.reserve(estimatedLines);
+
             // Create vertical lines
             for (double x = minX; x <= maxX; x += m_currentSpacing) {
                 bool isMajor = (std::fmod(std::abs(x), m_currentSpacing * m_config.majorLineInterval) < 0.001);
@@ -368,6 +425,9 @@ namespace TyrexCAD {
                 }
             }
         }
+
+        // Restore automatic highlighting
+        m_context->SetAutomaticHilight(Standard_True);
     }
 
     void TyrexCanvasOverlay::updateAxes() {
@@ -425,6 +485,9 @@ namespace TyrexCAD {
     void TyrexCanvasOverlay::clearOverlay() {
         SAFE_HANDLE_CHECK_RETURN(m_context, "Context is null in clearOverlay", );
 
+        // PERFORMANCE: Batch removal
+        m_context->SetAutomaticHilight(Standard_False);
+
         // Clear grid objects
         for (auto& obj : m_gridObjects) {
             if (!obj.IsNull()) {
@@ -440,6 +503,8 @@ namespace TyrexCAD {
             }
         }
         m_axisObjects.clear();
+
+        m_context->SetAutomaticHilight(Standard_True);
     }
 
     void TyrexCanvasOverlay::calculateAdaptiveSpacing() {
@@ -517,6 +582,52 @@ namespace TyrexCAD {
             // Return default size in case of error
             return gp_Vec2d(1000, 1000);
         }
+    }
+
+    void TyrexCanvasOverlay::debugGridState() const {
+        qDebug() << "=== Grid Debug Information ===";
+        qDebug() << "Grid visible:" << m_gridVisible;
+        qDebug() << "Axis visible:" << m_axisVisible;
+        qDebug() << "Current spacing:" << m_currentSpacing;
+        qDebug() << "Grid objects count:" << m_gridObjects.size();
+        qDebug() << "Axis objects count:" << m_axisObjects.size();
+
+        if (!m_context.IsNull()) {
+            qDebug() << "Context is valid";
+            qDebug() << "Viewer is null:" << m_context->CurrentViewer().IsNull();
+
+            if (!m_context->CurrentViewer().IsNull()) {
+                TColStd_SequenceOfInteger layers;
+                m_context->CurrentViewer()->GetAllZLayers(layers);
+                qDebug() << "Z-Layers count:" << layers.Length();
+                qDebug() << "Grid Z-Layer ID:" << m_config.gridZLayerId;
+
+                for (int i = 1; i <= layers.Length(); i++) {
+                    qDebug() << "  Layer" << i << "ID:" << layers.Value(i);
+                }
+            }
+        }
+        else {
+            qDebug() << "Context is NULL!";
+        }
+
+        if (!m_view.IsNull()) {
+            qDebug() << "View scale:" << m_view->Scale();
+
+            Standard_Real width, height;
+            m_view->Size(width, height);
+            qDebug() << "View size:" << width << "x" << height;
+
+            gp_Vec2d extents = getViewExtents();
+            qDebug() << "View extents:" << extents.X() << "x" << extents.Y();
+        }
+        else {
+            qDebug() << "View is NULL!";
+        }
+
+        qDebug() << "Last extents:" << m_lastExtents.X() << "x" << m_lastExtents.Y();
+        qDebug() << "Last spacing:" << m_lastSpacing;
+        qDebug() << "Last style:" << static_cast<int>(m_lastStyle);
     }
 
 } // namespace TyrexCAD

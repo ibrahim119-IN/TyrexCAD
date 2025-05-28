@@ -22,6 +22,32 @@ set(OCCT_INSTALL_DIR "D:/OpenCascade/install")
 set(OCCT_INC_DIR "${OCCT_INSTALL_DIR}/inc")
 set(OCCT_LIB_DIR "${OCCT_INSTALL_DIR}/win64/vc14/lib")
 set(OCCT_DLL_DIR "${OCCT_INSTALL_DIR}/win64/vc14/bin")
+# Enable OpenCascade debug mode
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DOCCT_DEBUG)
+    add_definitions(-DDEBUG)
+    add_definitions(-DOCCT_DEBUG_FPE)
+    add_definitions(-DOCCT_DEBUG_CHRONOMETER)
+    
+    # Enable verbose output
+    set(CMAKE_VERBOSE_MAKEFILE ON)
+    
+    # Add debug flags
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DOCCT_DEBUG_FPE")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DOCCT_DEBUG_CHRONOMETER")
+    
+    message(STATUS "OpenCascade debug mode enabled")
+endif()
+
+# For Visual Studio
+if(MSVC)
+    # Enable debug information
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Zi")
+    set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /DEBUG")
+    
+    # Disable optimizations in debug
+    string(REPLACE "/O2" "/Od" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+endif()
 
 # ================== Sources ==================
 file(GLOB_RECURSE TYREXCAD_SOURCES 

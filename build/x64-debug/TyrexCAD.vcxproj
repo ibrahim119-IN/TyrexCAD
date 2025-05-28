@@ -101,13 +101,14 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <SupportJustMyCode></SupportJustMyCode>
+      <SuppressStartupBanner></SuppressStartupBanner>
       <UseFullPaths>false</UseFullPaths>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;QT_WIDGETS_LIB;QT_CORE_LIB;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;OCCT_DEBUG_FPE;OCCT_DEBUG_CHRONOMETER;QT_WIDGETS_LIB;OCCT_DEBUG;DEBUG;QT_CORE_LIB;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;QT_WIDGETS_LIB;QT_CORE_LIB;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;OCCT_DEBUG_FPE;OCCT_DEBUG_CHRONOMETER;QT_WIDGETS_LIB;OCCT_DEBUG;DEBUG;QT_CORE_LIB;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>D:\Projects\TyrexCAD\build\x64-debug;D:\Projects\TyrexCAD;D:\Projects\TyrexCAD\build\x64-debug\TyrexCAD_autogen\include_Debug;D:\Projects\TyrexCAD\include;D:\OpenCascade\install\inc;D:\Tools\vcpkg\installed\x64-windows\include\qt5;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtCore;D:\Tools\vcpkg\installed\x64-windows\tools\qt5\mkspecs\win32-msvc;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtGui;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtWidgets;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtOpenGL;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -189,15 +190,16 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <SupportJustMyCode></SupportJustMyCode>
+      <SuppressStartupBanner></SuppressStartupBanner>
       <UseFullPaths>false</UseFullPaths>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;OCCT_DEBUG;DEBUG;OCCT_DEBUG_FPE;OCCT_DEBUG_CHRONOMETER;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <DebugInformationFormat>
       </DebugInformationFormat>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;OCCT_DEBUG;DEBUG;OCCT_DEBUG_FPE;OCCT_DEBUG_CHRONOMETER;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>D:\Projects\TyrexCAD\build\x64-debug;D:\Projects\TyrexCAD;D:\Projects\TyrexCAD\build\x64-debug\TyrexCAD_autogen\include_Release;D:\Projects\TyrexCAD\include;D:\OpenCascade\install\inc;D:\Tools\vcpkg\installed\x64-windows\include\qt5;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtCore;D:\Tools\vcpkg\installed\x64-windows\tools\qt5\mkspecs\win32-msvc;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtGui;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtWidgets;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtOpenGL;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -279,15 +281,16 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <SupportJustMyCode></SupportJustMyCode>
+      <SuppressStartupBanner></SuppressStartupBanner>
       <UseFullPaths>false</UseFullPaths>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;OCCT_DEBUG;DEBUG;OCCT_DEBUG_FPE;OCCT_DEBUG_CHRONOMETER;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <DebugInformationFormat>
       </DebugInformationFormat>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;OCCT_DEBUG;DEBUG;OCCT_DEBUG_FPE;OCCT_DEBUG_CHRONOMETER;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>D:\Projects\TyrexCAD\build\x64-debug;D:\Projects\TyrexCAD;D:\Projects\TyrexCAD\build\x64-debug\TyrexCAD_autogen\include_MinSizeRel;D:\Projects\TyrexCAD\include;D:\OpenCascade\install\inc;D:\Tools\vcpkg\installed\x64-windows\include\qt5;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtCore;D:\Tools\vcpkg\installed\x64-windows\tools\qt5\mkspecs\win32-msvc;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtGui;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtWidgets;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtOpenGL;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -370,13 +373,14 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <SupportJustMyCode></SupportJustMyCode>
+      <SuppressStartupBanner></SuppressStartupBanner>
       <UseFullPaths>false</UseFullPaths>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;OCCT_DEBUG;DEBUG;OCCT_DEBUG_FPE;OCCT_DEBUG_CHRONOMETER;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;QT_WIDGETS_LIB;OCCT_DEBUG;DEBUG;OCCT_DEBUG_FPE;OCCT_DEBUG_CHRONOMETER;QT_CORE_LIB;QT_NO_DEBUG;QT_GUI_LIB;QT_OPENGL_LIB;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>D:\Projects\TyrexCAD\build\x64-debug;D:\Projects\TyrexCAD;D:\Projects\TyrexCAD\build\x64-debug\TyrexCAD_autogen\include_RelWithDebInfo;D:\Projects\TyrexCAD\include;D:\OpenCascade\install\inc;D:\Tools\vcpkg\installed\x64-windows\include\qt5;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtCore;D:\Tools\vcpkg\installed\x64-windows\tools\qt5\mkspecs\win32-msvc;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtGui;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtWidgets;D:\Tools\vcpkg\installed\x64-windows\include\qt5\QtOpenGL;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>

@@ -1,5 +1,4 @@
-﻿// File: src/TyrexApp/TyrexMainWindow.cpp
-#include "TyrexApp/TyrexMainWindow.h"
+﻿#include "TyrexApp/TyrexMainWindow.h"
 #include "TyrexCanvas/TyrexViewWidget.h"
 #include "TyrexRendering/TyrexViewerManager.h"
 #include "TyrexInteraction/TyrexInteractionManager.h"
@@ -58,7 +57,8 @@ namespace TyrexCAD {
         m_viewToolBar(nullptr),
         m_drawToolBar(nullptr),
         m_sketchToolBar(nullptr),
-        m_gridStyleGroup(nullptr)
+        m_gridStyleGroup(nullptr),
+        m_debugMode(false)
     {
         setWindowTitle("TyrexCAD");
         setGeometry(100, 100, 1200, 800);
@@ -71,6 +71,11 @@ namespace TyrexCAD {
         createToolbars();
         createDockWindows();
         setupStatusBar();
+
+        // Enable debug mode by default in development
+#ifdef DEBUG
+        enableDebugMode(true);
+#endif
 
         QTimer::singleShot(100, this, &TyrexMainWindow::initialize);
     }
@@ -756,96 +761,156 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::createTestGeometry()
     {
-        // Comprehensive component checking
-        if (!m_viewerManager) {
-            qCritical() << "ViewerManager not initialized";
-            return;
+        qDebug() << "=== Starting createTestGeometry ===";
+
+        // Check system state with debug
+        if (m_viewerManager) {
+            m_viewerManager->checkGraphicsDriver();
         }
 
-        auto context = m_viewerManager->context();
-        if (context.IsNull()) {
-            qCritical() << "Context is null";
+        // Check grid state
+        auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+        if (viewWidget && viewWidget->canvasOverlay()) {
+            viewWidget->canvasOverlay()->debugGridState();
+        }
+
+        // Comprehensive component checking
+        if (!m_viewerManager) {
+            QMessageBox::warning(this, "Warning", "Viewer Manager not initialized");
             return;
         }
 
         if (!m_modelSpace) {
-            qCritical() << "ModelSpace not initialized";
+            QMessageBox::warning(this, "Warning", "Model Space not initialized");
+            return;
+        }
+
+        auto context = m_viewerManager->context();
+        auto view = m_viewerManager->view();
+
+        if (context.IsNull() || view.IsNull()) {
+            QMessageBox::critical(this, "Error", "Viewer context is not available");
             return;
         }
 
         try {
-            // Clear with proper checking
+            // Stop automatic updates temporarily
+            context->SetAutomaticHilight(Standard_False);
+
+            // Clear with safe implementation
             m_modelSpace->clear();
 
-            // Ensure context is still valid after clear
-            context = m_viewerManager->context();
-            if (context.IsNull()) {
-                qCritical() << "Context became null after clear";
+            // Verify context is still valid
+            if (m_viewerManager->context().IsNull()) {
+                qCritical() << "Context became null after clear!";
                 return;
             }
 
-            // Create test geometry
-            Quantity_Color colors[] = {
-                Quantity_NOC_RED,
-                Quantity_NOC_GREEN,
-                Quantity_NOC_BLUE,
-                Quantity_NOC_YELLOW,
-                Quantity_NOC_CYAN
-            };
+            // Create test geometry using internal function
+            createGeometryInternal();
 
-            gp_Pnt points[] = {
-                gp_Pnt(-50, -50, 0),
-                gp_Pnt(50, -50, 0),
-                gp_Pnt(50, 50, 0),
-                gp_Pnt(-50, 50, 0)
-            };
+            // Restore automatic highlighting
+            context->SetAutomaticHilight(Standard_True);
 
-            const char* ids[] = { "line_1", "line_2", "line_3", "line_4" };
-
-            // Create square lines
-            for (int i = 0; i < 4; ++i) {
-                auto line = std::make_shared<TyrexLineEntity>(
-                    ids[i], "default", colors[i],
-                    points[i], points[(i + 1) % 4]
-                );
-                m_modelSpace->addEntity(line);
-            }
-
-            // Create diagonal
-            auto diag = std::make_shared<TyrexLineEntity>(
-                "diag_line", "default", colors[4],
-                points[0], points[2]
-            );
-            m_modelSpace->addEntity(diag);
-
-            // Display all entities
+            // Draw all entities
             m_modelSpace->drawAll();
 
             // Update view
-            if (!m_viewerManager->view().IsNull()) {
-                m_viewerManager->view()->SetProj(V3d_Zpos);
-                m_viewerManager->fitAll();
-            }
-
-            // Force widget update
-            auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
-            if (viewWidget) {
-                viewWidget->update();
-                QApplication::processEvents();
+            if (!view.IsNull()) {
+                view->FitAll();
+                view->Redraw();
             }
 
             updateStatusBar("Test geometry created successfully");
+
         }
         catch (const Standard_Failure& ex) {
-            qCritical() << "OpenCascade exception:" << ex.GetMessageString();
             QMessageBox::critical(this, "Error",
                 QString("Failed to create geometry: %1").arg(ex.GetMessageString()));
         }
-        catch (const std::exception& ex) {
-            qCritical() << "Standard exception:" << ex.what();
-            QMessageBox::critical(this, "Error",
-                QString("Failed to create geometry: %1").arg(ex.what()));
+    }
+
+    void TyrexMainWindow::createGeometryInternal()
+    {
+        // Create test geometry
+        Quantity_Color colors[] = {
+            Quantity_NOC_RED,
+            Quantity_NOC_GREEN,
+            Quantity_NOC_BLUE,
+            Quantity_NOC_YELLOW,
+            Quantity_NOC_CYAN
+        };
+
+        gp_Pnt points[] = {
+            gp_Pnt(-50, -50, 0),
+            gp_Pnt(50, -50, 0),
+            gp_Pnt(50, 50, 0),
+            gp_Pnt(-50, 50, 0)
+        };
+
+        const char* ids[] = { "line_1", "line_2", "line_3", "line_4" };
+
+        // Create square lines
+        for (int i = 0; i < 4; ++i) {
+            auto line = std::make_shared<TyrexLineEntity>(
+                ids[i], "default", colors[i],
+                points[i], points[(i + 1) % 4]
+            );
+            m_modelSpace->addEntity(line);
+        }
+
+        // Create diagonal
+        auto diag = std::make_shared<TyrexLineEntity>(
+            "diag_line", "default", colors[4],
+            points[0], points[2]
+        );
+        m_modelSpace->addEntity(diag);
+    }
+    // بعد دالة createGeometryInternal() وقبل إغلاق namespace
+
+    void TyrexMainWindow::enableDebugMode(bool enable)
+    {
+        m_debugMode = enable;
+
+        auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+        if (viewWidget) {
+            viewWidget->enableDebugMode(enable);
+        }
+
+        if (enable) {
+            qDebug() << "=== Debug Mode Enabled ===";
+
+            // Add debug menu if not exists
+            QMenu* debugMenu = menuBar()->findChild<QMenu*>("debugMenu");
+            if (!debugMenu) {
+                debugMenu = menuBar()->addMenu(tr("&Debug"));
+                debugMenu->setObjectName("debugMenu");
+
+                QAction* checkSystemAction = new QAction(tr("Check System State"), this);
+                connect(checkSystemAction, &QAction::triggered, this, [this]() {
+                    qDebug() << "=== System State Check ===";
+
+                    if (m_viewerManager) {
+                        m_viewerManager->checkGraphicsDriver();
+                    }
+
+                    auto* viewWidget = qobject_cast<TyrexViewWidget*>(centralWidget());
+                    if (viewWidget) {
+                        viewWidget->debugGridState();
+                    }
+                    });
+                debugMenu->addAction(checkSystemAction);
+
+                QAction* toggleDebugOutput = new QAction(tr("Toggle Debug Output"), this);
+                toggleDebugOutput->setCheckable(true);
+                toggleDebugOutput->setChecked(true);
+                debugMenu->addAction(toggleDebugOutput);
+            }
+        }
+        else {
+            qDebug() << "=== Debug Mode Disabled ===";
         }
     }
 
 } // namespace TyrexCAD
+

@@ -3,6 +3,8 @@
 
 #include <QWidget>
 #include <QPoint>
+#include <QTimer>
+#include <QElapsedTimer>
 #include <memory>
 
 #include "TyrexCanvas/TyrexGridConfig.h"
@@ -50,6 +52,10 @@ namespace TyrexCAD {
         void setUseOpenGLGrid(bool use) { m_useOpenGLGrid = use; }
         bool isUsingOpenGLGrid() const { return m_useOpenGLGrid; }
 
+        // Debug functions
+        void debugGridState();
+        void enableDebugMode(bool enable) { m_debugMode = enable; }
+
     signals:
         void viewerInitialized();
         void cursorWorldPosition(double x, double y);
@@ -88,10 +94,19 @@ namespace TyrexCAD {
         // State
         bool m_gridInitialized;
         bool m_cursorInWidget;
-        bool m_useOpenGLGrid;  // Choose between OpenGL or OpenCascade grid
+        bool m_useOpenGLGrid;
+        bool m_needsResize;
         QPoint m_currentCursorPos;
+
+        // Update management
+        QTimer* m_updateTimer;
+
+        // Debug
+        bool m_debugMode;
+        int m_paintEventCount;
+        QElapsedTimer m_paintTimer;
     };
 
 } // namespace TyrexCAD
 
-#endif // TYREXVIEWWIDGE
+#endif // TYREXVIEWWIDGET_H
