@@ -6,7 +6,7 @@
  ***************************************************************************/
 
 #include "TyrexCore/TyrexCommandManager.h"
-#include "TyrexCore/TyrexCommand.h"
+#include "TyrexCommands/TyrexCommand.h"
 #include "TyrexCore/TyrexLineCommand.h"
 #include "TyrexCanvas/TyrexModelSpace.h"
 #include "TyrexRendering/TyrexViewerManager.h"

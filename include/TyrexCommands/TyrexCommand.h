@@ -191,7 +191,7 @@ namespace TyrexCAD {
         std::string m_name;                         ///< Command name
         bool m_isStarted;                          ///< Whether command has been started
         bool m_isFinished;                         ///< Whether command is finished
-        TyrexSnapManager* m_snapManager = nullptr; ///< Snap manager reference
+        TyrexSnapManager* m_snapManager;           ///< Snap manager reference
         State m_currentState;                      ///< Current state of the command
         std::vector<gp_Pnt2d> m_inputPoints;      ///< Collected input points
         gp_Pnt2d m_currentPreviewPoint;           ///< Current preview point

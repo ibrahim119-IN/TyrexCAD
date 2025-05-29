@@ -8,7 +8,7 @@
 #ifndef TYREX_LINE_COMMAND_H
 #define TYREX_LINE_COMMAND_H
 
-#include "TyrexCore/TyrexCommand.h"
+#include "TyrexCommands/TyrexCommand.h"
 #include <gp_Pnt.hxx>
 #include <AIS_Shape.hxx>
 

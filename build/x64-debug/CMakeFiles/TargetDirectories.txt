@@ -1,3 +1,4 @@
 D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/TyrexCAD.dir
+D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/INSTALL.dir
 D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/ALL_BUILD.dir
 D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/ZERO_CHECK.dir

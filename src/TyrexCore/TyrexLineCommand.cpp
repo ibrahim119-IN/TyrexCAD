@@ -1,243 +1,286 @@
-#include "TyrexCore/TyrexLineCommand.h"
-#include "TyrexCanvas/TyrexModelSpace.h"
-#include "TyrexRendering/TyrexViewerManager.h"
-#include "TyrexEntities/TyrexLineEntity.h"
+/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#include "TyrexCommands/TyrexCommand.h"
+#include "TyrexSnapping/TyrexSnapManager.h"
 #include "TyrexCore/CoordinateConverter.h"
-#include "TyrexCore/SafeHandleUtils.h"
-
-#include <chrono>
-
-#include <BRepBuilderAPI_MakeEdge.hxx>
-#include <TopoDS_Edge.hxx>
-#include <AIS_Shape.hxx>
-#include <Quantity_Color.hxx>
-#include <AIS_InteractiveContext.hxx>
-#include <V3d_View.hxx>
 #include <QDebug>
+#include <V3d_View.hxx>
+#include <gp_Pnt2d.hxx>
+#include <Standard_Failure.hxx>
+#include <QPoint>
+#include <QString>
+#include <QObject>
+#include <vector>
+#include <string>
 
 namespace TyrexCAD {
 
-    TyrexLineCommand::TyrexLineCommand(TyrexModelSpace* modelSpace, TyrexViewerManager* viewerManager)
-        : TyrexCommand("Line")
-        , m_modelSpace(modelSpace)
-        , m_viewerManager(viewerManager)
-        , m_firstPointSet(false)
+    TyrexCommand::TyrexCommand(const std::string& name, QObject* parent)
+        : QObject(parent)
+        , m_name(name)
+        , m_currentState(IDLE)
+        , m_isStarted(false)
+        , m_isFinished(false)
+        , m_snapManager(nullptr)
     {
-        qDebug() << "TyrexLineCommand created";
     }
 
-    TyrexLineCommand::~TyrexLineCommand()
+    TyrexCommand::~TyrexCommand()
     {
         cleanupPreview();
-        qDebug() << "TyrexLineCommand destroyed";
     }
 
-    void TyrexLineCommand::start()
+    const std::string& TyrexCommand::name() const
+    {
+        return m_name;
+    }
+
+    void TyrexCommand::start()
     {
         m_isStarted = true;
         m_isFinished = false;
-        m_firstPointSet = false;
-        cleanupPreview();
+        m_inputPoints.clear();
 
-        qDebug() << "Line command started - click to set first point";
+        transitionTo(WAITING_FIRST);
+
+        qDebug() << "Command started:" << QString::fromStdString(m_name);
+        emit statusMessage(QString("%1 command: Specify first point").arg(QString::fromStdString(m_name)));
     }
 
-    void TyrexLineCommand::cancel()
+    void TyrexCommand::cancel()
     {
+        qDebug() << "Command canceled:" << QString::fromStdString(m_name);
+
         cleanupPreview();
-        m_firstPointSet = false;
+        transitionTo(CANCELLED);
+
+        m_isStarted = false;
         m_isFinished = true;
 
-        qDebug() << "Line command cancelled";
+        emit statusMessage(QString("%1 command cancelled").arg(QString::fromStdString(m_name)));
     }
 
-    bool TyrexLineCommand::isFinished() const
+    void TyrexCommand::onMousePress(const QPoint& point)
     {
-        return m_isFinished;
-    }
-
-    void TyrexLineCommand::onMousePress(const QPoint& point)
-    {
-        if (!m_modelSpace || !m_viewerManager) {
-            qWarning() << "TyrexLineCommand: Missing model space or viewer manager";
+        if (!m_isStarted || m_isFinished) {
             return;
         }
 
-        Handle(V3d_View) view = m_viewerManager->view();
-        if (view.IsNull()) {
-            qWarning() << "TyrexLineCommand: View is null";
-            return;
-        }
+        // Apply snap if available
+        gp_Pnt2d worldPoint = applySnap(point);
 
-        // Convert screen to world coordinates
-        gp_Pnt worldPoint = CoordinateConverter::screenToWorld3D(point, view);
+        // Handle based on current state
+        switch (m_currentState) {
+        case WAITING_FIRST:
+            m_inputPoints.push_back(worldPoint);
+            transitionTo(WAITING_SECOND);
+            emit statusMessage(QString("%1: Specify second point").arg(QString::fromStdString(m_name)));
+            break;
 
-        if (!m_firstPointSet) {
-            // Set first point
-            m_firstPoint = worldPoint;
-            m_firstPointSet = true;
-            updatePreview(m_firstPoint);
+        case WAITING_SECOND:
+            m_inputPoints.push_back(worldPoint);
+            transitionTo(VALIDATING);
 
-            qDebug() << "First point set at:" << m_firstPoint.X() << m_firstPoint.Y() << m_firstPoint.Z();
-            qDebug() << "Click to set second point";
-        }
-        else {
-            // Set second point and create line
-            m_secondPoint = worldPoint;
-
-            qDebug() << "Second point set at:" << m_secondPoint.X() << m_secondPoint.Y() << m_secondPoint.Z();
-
-            if (createLine()) {
-                m_isFinished = true;
-                qDebug() << "Line created successfully";
+            if (validateInput()) {
+                transitionTo(PROCESSING);
+                if (processCommand()) {
+                    transitionTo(FINISHED);
+                    m_isFinished = true;
+                }
+                else {
+                    cancel();
+                }
             }
             else {
-                qWarning() << "Failed to create line";
-                cancel();
+                emit statusMessage("Invalid input, please try again");
+                m_inputPoints.pop_back();
+                transitionTo(WAITING_SECOND);
             }
+            break;
+
+        case WAITING_THIRD:
+            m_inputPoints.push_back(worldPoint);
+            // Subclasses handle additional points
+            break;
+
+        default:
+            break;
         }
     }
 
-    void TyrexLineCommand::onMouseMove(const QPoint& point)
+    void TyrexCommand::onMouseMove(const QPoint& point)
     {
-        if (!m_firstPointSet) {
+        if (!m_isStarted || m_isFinished) {
             return;
         }
 
-        if (!m_viewerManager) {
-            return;
-        }
+        // Apply snap if available
+        gp_Pnt2d worldPoint = applySnap(point);
+        m_currentPreviewPoint = worldPoint;
 
-        Handle(V3d_View) view = m_viewerManager->view();
-        if (view.IsNull()) {
-            return;
+        // Update preview based on state
+        if (m_currentState == WAITING_SECOND ||
+            m_currentState == WAITING_THIRD ||
+            m_currentState == PREVIEW) {
+            updatePreview(worldPoint);
+            emit previewUpdateRequired();
         }
-
-        // Update preview with current mouse position
-        gp_Pnt currentPoint = CoordinateConverter::screenToWorld3D(point, view);
-        updatePreview(currentPoint);
     }
 
-    void TyrexLineCommand::onMouseRelease(const QPoint& point)
+    void TyrexCommand::onMouseRelease(const QPoint& /*point*/)
     {
-        // No action needed on mouse release for line command
-        Q_UNUSED(point);
+        // Base implementation does nothing
     }
 
-    bool TyrexLineCommand::createLine()
+    void TyrexCommand::onKeyPress(int key, Qt::KeyboardModifiers /*modifiers*/)
     {
-        if (!m_modelSpace) {
-            qWarning() << "Cannot create line - no model space";
-            return false;
+        if (key == Qt::Key_Escape) {
+            cancel();
+        }
+    }
+
+    bool TyrexCommand::isFinished() const
+    {
+        return m_isFinished || m_currentState == FINISHED || m_currentState == CANCELLED;
+    }
+
+    TyrexCommand::State TyrexCommand::currentState() const
+    {
+        return m_currentState;
+    }
+
+    void TyrexCommand::setSnapManager(TyrexSnapManager* snapManager)
+    {
+        m_snapManager = snapManager;
+    }
+
+    void TyrexCommand::transitionTo(State newState)
+    {
+        if (m_currentState == newState) {
+            return;
         }
 
-        // Check if points are different
-        double distance = m_firstPoint.Distance(m_secondPoint);
-        if (distance < 1e-6) {
-            qWarning() << "Cannot create line - points are too close";
-            return false;
-        }
+        State oldState = m_currentState;
 
-        try {
-            // Create line entity with all required parameters
-            auto lineEntity = std::make_shared<TyrexLineEntity>(
-                "line_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()),
-                "default",
-                Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_RGB),
-                m_firstPoint,
-                m_secondPoint
-            );
+        qDebug() << QString("Command %1: %2 -> %3")
+            .arg(QString::fromStdString(m_name))
+            .arg(stateToString(oldState))
+            .arg(stateToString(newState));
 
-            // Add to model space
-            m_modelSpace->addEntity(lineEntity);
+        // Exit old state
+        onExitState(oldState);
 
-            // Force update of the view
-            if (m_viewerManager && !m_viewerManager->view().IsNull()) {
-                m_viewerManager->view()->Redraw();
-                m_viewerManager->view()->Update();
-            }
+        // Update state
+        m_currentState = newState;
 
-            // Clean up preview
+        // Enter new state
+        onEnterState(newState);
+
+        // Emit signal
+        emit stateChanged(oldState, newState);
+    }
+
+    void TyrexCommand::onEnterState(State state)
+    {
+        // Base implementation - subclasses override
+        switch (state) {
+        case PREVIEW:
+            // Start showing preview
+            break;
+
+        case PROCESSING:
+            emit statusMessage(QString("Processing %1...").arg(QString::fromStdString(m_name)));
+            break;
+
+        case FINISHED:
             cleanupPreview();
+            emit statusMessage(QString("%1 completed").arg(QString::fromStdString(m_name)));
+            break;
 
-            return true;
-        }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "OpenCascade error creating line:" << ex.GetMessageString();
-            return false;
-        }
-        catch (const std::exception& ex) {
-            qWarning() << "Error creating line:" << ex.what();
-            return false;
-        }
-        catch (...) {
-            qWarning() << "Unknown error creating line";
-            return false;
+        case CANCELLED:
+            cleanupPreview();
+            break;
+
+        default:
+            break;
         }
     }
 
-    void TyrexLineCommand::updatePreview(const gp_Pnt& currentPoint)
+    void TyrexCommand::onExitState(State state)
     {
-        if (!m_viewerManager) {
-            return;
-        }
-
-        Handle(AIS_InteractiveContext) context = m_viewerManager->context();
-        if (context.IsNull()) {
-            return;
-        }
-
-        try {
-            // Remove existing preview
-            cleanupPreview();
-
-            // Don't create preview if points are the same
-            double distance = m_firstPoint.Distance(currentPoint);
-            if (distance < 1e-6) {
-                return;
-            }
-
-            // Create preview edge
-            BRepBuilderAPI_MakeEdge edgeMaker(m_firstPoint, currentPoint);
-            if (!edgeMaker.IsDone()) {
-                qWarning() << "Failed to create preview edge";
-                return;
-            }
-
-            TopoDS_Edge previewEdge = edgeMaker.Edge();
-            m_previewShape = new AIS_Shape(previewEdge);
-
-            // Set preview appearance
-            SAFE_HANDLE_CALL(m_previewShape, SetColor(Quantity_Color(0.0, 0.8, 0.8, Quantity_TOC_RGB)));
-            SAFE_HANDLE_CALL(m_previewShape, SetWidth(2.0));
-            SAFE_HANDLE_CALL(m_previewShape, SetTransparency(0.3));
-
-            // Display preview
-            context->Display(m_previewShape, Standard_False);
-            context->UpdateCurrentViewer();
-        }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error updating line preview:" << ex.GetMessageString();
-            cleanupPreview();
-        }
-        catch (...) {
-            qWarning() << "Unknown error updating line preview";
+        // Base implementation - subclasses override
+        if (state == PREVIEW) {
             cleanupPreview();
         }
     }
 
-    void TyrexLineCommand::cleanupPreview()
+    bool TyrexCommand::validateInput()
     {
-        if (!m_previewShape.IsNull() && m_viewerManager) {
-            Handle(AIS_InteractiveContext) context = m_viewerManager->context();
-            SAFE_HANDLE_CALL_OR(context, Remove(m_previewShape, Standard_False), {
-                qWarning() << "Cannot remove preview - null context";
-                });
+        // Base implementation - check we have at least 2 points
+        return m_inputPoints.size() >= 2;
+    }
 
-            m_previewShape.Nullify();
+    void TyrexCommand::updatePreview(const gp_Pnt2d& /*currentPoint*/)
+    {
+        // Base implementation does nothing
+        // Subclasses override to update preview
+    }
 
-            SAFE_HANDLE_CALL(context, UpdateCurrentViewer());
+    void TyrexCommand::cleanupPreview()
+    {
+        // Base implementation does nothing
+        // Subclasses can override this to clean up preview objects
+    }
+
+    bool TyrexCommand::processCommand()
+    {
+        // Base implementation does nothing
+        // Subclasses override to process the command
+        qWarning() << "processCommand not implemented for" << QString::fromStdString(m_name);
+        return false;
+    }
+
+    QString TyrexCommand::stateToString(State state)
+    {
+        switch (state) {
+        case IDLE:           return "IDLE";
+        case WAITING_FIRST:  return "WAITING_FIRST";
+        case WAITING_SECOND: return "WAITING_SECOND";
+        case WAITING_THIRD:  return "WAITING_THIRD";
+        case PREVIEW:        return "PREVIEW";
+        case VALIDATING:     return "VALIDATING";
+        case PROCESSING:     return "PROCESSING";
+        case FINISHED:       return "FINISHED";
+        case CANCELLED:      return "CANCELLED";
+        default:             return "UNKNOWN";
         }
+    }
+
+    gp_Pnt2d TyrexCommand::applySnap(const QPoint& screenPos)
+    {
+        if (!m_snapManager || !m_snapManager->isEnabled()) {
+            // No snap - convert directly
+            // TODO: Need view access for proper conversion
+            return gp_Pnt2d(screenPos.x(), screenPos.y());
+        }
+
+        // Use snap manager
+        // TODO: Need view handle
+        Handle(V3d_View) view; // This needs to be provided
+        auto snapResult = m_snapManager->snap(screenPos, view);
+
+        if (snapResult.snapped) {
+            emit statusMessage(snapResult.description);
+            return snapResult.point;
+        }
+
+        // No snap occurred - convert directly
+        return gp_Pnt2d(screenPos.x(), screenPos.y());
     }
 
 } // namespace TyrexCAD

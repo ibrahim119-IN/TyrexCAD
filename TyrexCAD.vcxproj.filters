@@ -2,317 +2,392 @@
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="D:\Projects\TyrexCAD\TyrexCAD_autogen\mocs_compilation_Debug.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Generated Files</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexApp\TyrexMainWindow.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexApp</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexCanvasOverlay.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCanvas</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexCanvasWidget.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCanvas</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexGridConfig.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCanvas</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexModelSpace.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCanvas</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCanvas\TyrexViewWidget.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCanvas</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCommands\LineCommand.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCommands</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCommands\TyrexCommand.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCommands</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCore\TyrexApplication.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCore\TyrexCommand.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCore</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCore\TyrexCommandManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCore</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCore\TyrexEntityManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCore</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCore\TyrexInitializer.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCore</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexCore\TyrexLineCommand.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexCore</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexDatabase\TyrexDrawingDatabase.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexDatabase</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexEntities\TyrexCircleEntity.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexEntities</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexEntities\TyrexEntity.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexEntities</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexEntities\TyrexLineEntity.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexEntities</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexInteraction\TyrexInteractionManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexInteraction</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexInteraction\TyrexLayerBasedFilter.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexInteraction</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexInteraction\TyrexSelectionFilter.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexInteraction</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexInteraction\TyrexSelectionManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexInteraction</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexInteraction\TyrexSelectionObject.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexInteraction</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexInteraction\TyrexTypeBasedFilter.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexInteraction</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexLayers\TyrexLayer.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexLayers</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexLayers\TyrexLayerManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexLayers</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexGridOverlayRenderer.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexRendering</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexRenderingManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexRendering</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexUnifiedGridSystem.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexRendering</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexRendering\TyrexViewerManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexRendering</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketch.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexSketch</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchCircleCommand.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexSketch</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchCircleEntity.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexSketch</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchConfig.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexSketch</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchEntity.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexSketch</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchInteractionHandler.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexSketch</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchLineCommand.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexSketch</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchLineEntity.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexSketch</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSketch\TyrexSketchManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexSketch</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexSnapping\TyrexSnapManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexSnapping</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexUI\ToolbarManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexUI</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexUI\TyrexActionBar.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexUI</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexUtils\Logger.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexUtils</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexUtils\MathUtils.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexUtils</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\TyrexUtils\UUID.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\TyrexUtils</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\src\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\TyrexCAD_autogen\mocs_compilation_Release.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Generated Files</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\TyrexCAD_autogen\mocs_compilation_MinSizeRel.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Generated Files</Filter>
     </ClCompile>
     <ClCompile Include="D:\Projects\TyrexCAD\TyrexCAD_autogen\mocs_compilation_RelWithDebInfo.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Generated Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexApp\TyrexMainWindow.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexApp</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasOverlay.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCanvas</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexCanvasWidget.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCanvas</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexGridConfig.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCanvas</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexModelSpace.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCanvas</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCanvas\TyrexViewWidget.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCanvas</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCommands\LineCommand.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCommands</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCommands\TyrexCommand.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCommands</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\CoordinateConverter.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCore</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\SafeHandleUtils.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCore</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\TyrexApplication.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\TyrexCommand.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCore</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\TyrexCommandManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCore</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\TyrexEntityManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCore</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\TyrexInitializer.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCore</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\TyrexLineCommand.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCore</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\TyrexSelectionMode.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCore</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexCore\UpdateManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexCore</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexDatabase\TyrexDrawingDatabase.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexDatabase</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexEntities\TyrexCircleEntity.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexEntities</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexEntities\TyrexEntity.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexEntities</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexEntities\TyrexLineEntity.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexEntities</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexInteraction\TyrexInteractionManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexInteraction</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexInteraction\TyrexLayerBasedFilter.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexInteraction</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexInteraction\TyrexSelectionFilter.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexInteraction</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexInteraction\TyrexSelectionManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexInteraction</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexInteraction\TyrexSelectionObject.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexInteraction</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexInteraction\TyrexTypeBasedFilter.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexInteraction</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexLayers\TyrexLayer.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexLayers</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexLayers\TyrexLayerManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexLayers</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexGridOverlayRenderer.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexRendering</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexRenderingManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexRendering</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexUnifiedGridSystem.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexRendering</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexRendering\TyrexViewerManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexRendering</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketch.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSketch</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchCircleCommand.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSketch</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchCircleEntity.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSketch</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchConfig.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSketch</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchDisplayHelper.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSketch</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchEntity.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSketch</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchInteractionHandler.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSketch</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchLineCommand.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSketch</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchLineEntity.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSketch</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSketch\TyrexSketchManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSketch</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexSnapping\TyrexSnapManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexSnapping</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexUI\ToolbarManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexUI</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexUI\TyrexActionBar.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexUI</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexUtils\Logger.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexUtils</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexUtils\MathUtils.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexUtils</Filter>
     </ClInclude>
     <ClInclude Include="D:\Projects\TyrexCAD\include\TyrexUtils\UUID.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\TyrexUtils</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="D:\Projects\TyrexCAD\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
+    <Filter Include="Generated Files">
+      <UniqueIdentifier>{10EE803E-3401-389F-B811-C3D655282361}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Header Files">
       <UniqueIdentifier>{F4D35476-1F03-3D17-B362-8AC645EDD006}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\TyrexApp">
+      <UniqueIdentifier>{07BDA6B0-A3C0-3545-BD76-8153A1278792}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexCanvas">
+      <UniqueIdentifier>{E419C9E1-BEC5-34B4-830B-2B4082C1D3F1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexCommands">
+      <UniqueIdentifier>{032F6B36-4C34-3AC3-B589-3D125739FA6C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexCore">
+      <UniqueIdentifier>{A15AA8B6-5208-3501-BF7E-75A597D0D1B1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexDatabase">
+      <UniqueIdentifier>{D326B6F9-5F6D-3300-9DFA-DBE29D8DDF46}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexEntities">
+      <UniqueIdentifier>{2A828868-C3B1-38F8-9B2B-21911753D25C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexInteraction">
+      <UniqueIdentifier>{6C519ACE-EAD0-3D25-B31B-8D2BF9946082}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexLayers">
+      <UniqueIdentifier>{FBE85093-B23F-31E3-89C5-C6937C06EAEF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexRendering">
+      <UniqueIdentifier>{936B7C16-FEF0-3760-9720-F9F4724205FA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexSketch">
+      <UniqueIdentifier>{FAF06CBC-D562-3DAD-849B-C0EC7AEFA302}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexSnapping">
+      <UniqueIdentifier>{2D1D6222-89BF-3AA2-BF7B-5B246AA73FB7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexUI">
+      <UniqueIdentifier>{B474BC34-9D69-3AE5-972B-7ED5BE37F668}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\TyrexUtils">
+      <UniqueIdentifier>{E77E31A6-CF89-323D-A5C4-00B2CFF5D8A6}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files">
       <UniqueIdentifier>{BBD24B89-6F38-36BE-9136-885D51E7A1F8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexApp">
+      <UniqueIdentifier>{84FF3C51-3414-3795-B4E1-B84B1CC27D40}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexCanvas">
+      <UniqueIdentifier>{147BB873-3548-3621-B33B-443548799B2B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexCommands">
+      <UniqueIdentifier>{1518EB2D-EC46-3301-A000-9A9D675022C7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexCore">
+      <UniqueIdentifier>{A90CEA8F-D194-30A3-90EE-459E2DAB0D55}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexDatabase">
+      <UniqueIdentifier>{0B03EE0A-72D5-337D-9A8A-73BFF17C1D0B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexEntities">
+      <UniqueIdentifier>{4A2F7D8C-A058-3928-9ED5-2A470555B10A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexInteraction">
+      <UniqueIdentifier>{E91BA175-10E8-3E14-B02F-C79A328EBC17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexLayers">
+      <UniqueIdentifier>{827B2810-D483-3460-ABD6-8B03938C236C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexRendering">
+      <UniqueIdentifier>{C5E759DB-E7AB-36F5-852B-4B16D5822099}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexSketch">
+      <UniqueIdentifier>{B97353B7-D9F6-3105-BD62-175C267E715F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexSnapping">
+      <UniqueIdentifier>{53A5D44D-4E6D-3D72-B066-F5DC885A947B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexUI">
+      <UniqueIdentifier>{D69DB253-B1DA-3053-AAA4-3AFE7FCDD8E2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\TyrexUtils">
+      <UniqueIdentifier>{475002A2-BA56-3BFC-B0E2-3DEF1E9E9396}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

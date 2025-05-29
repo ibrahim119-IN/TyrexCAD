@@ -9,7 +9,7 @@
 #ifndef TYREX_SKETCH_LINE_COMMAND_H
 #define TYREX_SKETCH_LINE_COMMAND_H
 
-#include "TyrexCore/TyrexCommand.h"
+#include "TyrexCommands/TyrexCommand.h"
 #include <gp_Pnt2d.hxx>
 #include <AIS_Shape.hxx>
 #include <memory>
