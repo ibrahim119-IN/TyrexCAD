@@ -15,16 +15,15 @@
 #include <AIS_Point.hxx>
 #include <gp_Pnt2d.hxx>
 
-
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
 
 namespace TyrexCAD {
 
-    Q_DECLARE_OPERATORS_FOR_FLAGS(TyrexSnapManager::SnapTypes)
+    // Note: Q_DECLARE_OPERATORS_FOR_FLAGS removed here as it's already in the header
 
-        TyrexSnapManager::TyrexSnapManager(QObject* parent)
+    TyrexSnapManager::TyrexSnapManager(QObject* parent)
         : QObject(parent)
         , m_activeSnapTypes(Grid | Endpoint)  // Default snap types
         , m_snapTolerance(10.0)  // 10 pixels default

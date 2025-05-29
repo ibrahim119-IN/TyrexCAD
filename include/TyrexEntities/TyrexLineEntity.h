@@ -85,6 +85,18 @@ namespace TyrexCAD {
          */
         void setEnd(const gp_Pnt& end);
 
+        /**
+         * @brief Get the start point (for snap manager compatibility)
+         * @return The start point
+         */
+        gp_Pnt getStartPoint() const { return m_start; }
+
+        /**
+         * @brief Get the end point (for snap manager compatibility)
+         * @return The end point
+         */
+        gp_Pnt getEndPoint() const { return m_end; }
+
     private:
         gp_Pnt m_start;        ///< The start point of the line
         gp_Pnt m_end;          ///< The end point of the line

@@ -4,6 +4,7 @@
 #include <QObject>
 #include <memory>
 #include "TyrexCanvas/TyrexGridConfig.h"
+#include <gp_Pnt2d.hxx>
 
 // Forward declarations
 class QPoint;

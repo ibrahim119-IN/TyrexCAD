@@ -12,33 +12,33 @@
 #include <vector>
 #include <QPoint>
 #include <QObject>
+#include <Qt>
 #include <gp_Pnt2d.hxx>
 
 namespace TyrexCAD {
 
-    // Forward declarations
+    // Forward declaration
     class TyrexSnapManager;
 
     /**
-     * @brief Base class for all CAD commands with state machine support
+     * @brief Base class for all CAD commands
      */
     class TyrexCommand : public QObject {
         Q_OBJECT
-
     public:
         /**
-         * @brief Command execution states
+         * @brief Command states
          */
         enum State {
-            IDLE,           ///< Command not started
-            WAITING_FIRST,  ///< Waiting for first input
-            WAITING_SECOND, ///< Waiting for second input
-            WAITING_THIRD,  ///< Waiting for third input (for complex commands)
-            PREVIEW,        ///< Showing preview
-            VALIDATING,     ///< Validating input
-            PROCESSING,     ///< Processing the command
-            FINISHED,       ///< Command completed
-            CANCELLED       ///< Command cancelled
+            IDLE,
+            WAITING_FIRST,
+            WAITING_SECOND,
+            WAITING_THIRD,
+            PREVIEW,
+            VALIDATING,
+            PROCESSING,
+            FINISHED,
+            CANCELLED
         };
 
         /**
@@ -70,13 +70,13 @@ namespace TyrexCAD {
         virtual void cancel();
 
         /**
-         * @brief Handle mouse press with snap support
+         * @brief Handle mouse press
          * @param point Mouse position
          */
         virtual void onMousePress(const QPoint& point);
 
         /**
-         * @brief Handle mouse move with snap support
+         * @brief Handle mouse move
          * @param point Mouse position
          */
         virtual void onMouseMove(const QPoint& point);
@@ -88,7 +88,7 @@ namespace TyrexCAD {
         virtual void onMouseRelease(const QPoint& point);
 
         /**
-         * @brief Handle keyboard input
+         * @brief Handle key press
          * @param key Key code
          * @param modifiers Keyboard modifiers
          */
@@ -101,27 +101,20 @@ namespace TyrexCAD {
         virtual bool isFinished() const;
 
         /**
-         * @brief Get current state
-         * @return Current command state
+         * @brief Get current command state
+         * @return Current state
          */
         State currentState() const;
 
         /**
-         * @brief Set snap manager
-         * @param snapManager Snap manager instance
+         * @brief Set snap manager for the command
+         * @param snapManager Pointer to snap manager
          */
-        void setSnapManager(TyrexSnapManager* snapManager);
+        virtual void setSnapManager(TyrexSnapManager* snapManager);
 
     signals:
         /**
-         * @brief Emitted when state changes
-         * @param oldState Previous state
-         * @param newState New state
-         */
-        void stateChanged(State oldState, State newState);
-
-        /**
-         * @brief Emitted to update status bar
+         * @brief Emitted when status message should be displayed
          * @param message Status message
          */
         void statusMessage(const QString& message);
@@ -131,6 +124,13 @@ namespace TyrexCAD {
          */
         void previewUpdateRequired();
 
+        /**
+         * @brief Emitted when state changes
+         * @param oldState Previous state
+         * @param newState New state
+         */
+        void stateChanged(State oldState, State newState);
+
     protected:
         /**
          * @brief Transition to new state
@@ -139,66 +139,64 @@ namespace TyrexCAD {
         void transitionTo(State newState);
 
         /**
-         * @brief Called when entering a new state
-         * @param state New state
+         * @brief Called when entering a state
+         * @param state State being entered
          */
         virtual void onEnterState(State state);
 
         /**
          * @brief Called when exiting a state
-         * @param state Old state
+         * @param state State being exited
          */
         virtual void onExitState(State state);
 
         /**
-         * @brief Validate current input
+         * @brief Validate input points
          * @return True if input is valid
          */
         virtual bool validateInput();
 
         /**
-         * @brief Update preview based on current state
+         * @brief Update preview geometry
          * @param currentPoint Current mouse position
          */
         virtual void updatePreview(const gp_Pnt2d& currentPoint);
 
         /**
-         * @brief Clean up preview objects
+         * @brief Cleans up any preview objects created during the command
          */
         virtual void cleanupPreview();
 
         /**
          * @brief Process the command with validated input
-         * @return True if processing successful
+         * @return True if successful
          */
         virtual bool processCommand();
 
         /**
-         * @brief Get state name for debugging
+         * @brief Convert state to string
          * @param state State to convert
-         * @return State name as string
+         * @return String representation
          */
         static QString stateToString(State state);
 
         /**
-         * @brief Apply snap if enabled
+         * @brief Apply snap to screen position
          * @param screenPos Screen position
          * @return Snapped world position
          */
         gp_Pnt2d applySnap(const QPoint& screenPos);
 
     protected:
-        std::string m_name;              ///< Command name
-        State m_currentState;            ///< Current state
-        bool m_isStarted;                ///< Whether command has been started
-        bool m_isFinished;               ///< Whether command is finished
-        TyrexSnapManager* m_snapManager; ///< Snap manager reference (not owned)
-
-        // Common data storage for commands
-        std::vector<gp_Pnt2d> m_inputPoints;  ///< Collected input points
-        gp_Pnt2d m_currentPreviewPoint;       ///< Current preview position
+        std::string m_name;                         ///< Command name
+        bool m_isStarted;                          ///< Whether command has been started
+        bool m_isFinished;                         ///< Whether command is finished
+        TyrexSnapManager* m_snapManager = nullptr; ///< Snap manager reference
+        State m_currentState;                      ///< Current state of the command
+        std::vector<gp_Pnt2d> m_inputPoints;      ///< Collected input points
+        gp_Pnt2d m_currentPreviewPoint;           ///< Current preview point
     };
 
 } // namespace TyrexCAD
 
-#endif // TYREX_COM
+#endif // TYREX_COMMAND_H

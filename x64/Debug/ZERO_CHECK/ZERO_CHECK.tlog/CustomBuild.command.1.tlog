@@ -1,0 +1,10 @@
+^D:\PROJECTS\TYREXCAD\CMAKEFILES\2ACFB9B3C8191056CFA9575150DB24AD\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SD:/Projects/TyrexCAD -BD:/Projects/TyrexCAD --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file D:/Projects/TyrexCAD/TyrexCAD.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

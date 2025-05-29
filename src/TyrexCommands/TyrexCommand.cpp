@@ -10,6 +10,13 @@
 #include "TyrexCore/CoordinateConverter.h"
 #include <QDebug>
 #include <V3d_View.hxx>
+#include <gp_Pnt2d.hxx>
+#include <Standard_Failure.hxx>
+#include <QPoint>
+#include <QString>
+#include <QObject>
+#include <vector>
+#include <string>
 
 namespace TyrexCAD {
 
@@ -227,7 +234,7 @@ namespace TyrexCAD {
     void TyrexCommand::cleanupPreview()
     {
         // Base implementation does nothing
-        // Subclasses override to clean up preview objects
+        // Subclasses can override this to clean up preview objects
     }
 
     bool TyrexCommand::processCommand()
@@ -276,4 +283,4 @@ namespace TyrexCAD {
         return gp_Pnt2d(screenPos.x(), screenPos.y());
     }
 
-} // namespace TyrexCAD
+} // namespace Tyre

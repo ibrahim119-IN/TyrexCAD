@@ -125,6 +125,14 @@ namespace TyrexCAD {
          */
         size_t getSelectionCount() const;
 
+        /**
+         * @brief Get all entities in the model space
+         * @return Vector of all entities
+         */
+        const std::vector<std::shared_ptr<TyrexEntity>>& getAllEntities() const {
+            return m_entities;
+        }
+
     private:
         std::vector<std::shared_ptr<TyrexEntity>> m_entities;  ///< All entities in model space
         Handle(AIS_InteractiveContext) m_context;              ///< AIS context for rendering

@@ -10,8 +10,12 @@
 
 #include <string>
 #include <QPoint>
+#include <QObject>
 
 namespace TyrexCAD {
+
+    // Forward declarations
+    class TyrexSnapManager;
 
     /**
      * @brief Base class for all CAD commands
@@ -69,10 +73,16 @@ namespace TyrexCAD {
          */
         virtual bool isFinished() const;
 
+        virtual void setSnapManager(TyrexSnapManager* snapManager) {
+            m_snapManager = snapManager;
+        }
+
     protected:
+        TyrexSnapManager* m_snapManager = nullptr;
         std::string m_name;        ///< Command name
         bool m_isStarted;          ///< Whether command has been started
         bool m_isFinished;         ///< Whether command is finished
+        // Remove this line: TyrexCommand(const std::string& name, QObject* parent);
     };
 
 } // namespace TyrexCAD

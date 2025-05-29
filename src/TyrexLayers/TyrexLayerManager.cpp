@@ -7,7 +7,6 @@
 #include <vector>
 #include <string>
 
-
 namespace TyrexCAD {
 
     TyrexLayerManager::TyrexLayerManager(QObject* parent)
@@ -80,14 +79,8 @@ namespace TyrexCAD {
             settings.SetEnableDepthTest(config.enableDepthTest);
             settings.SetEnableDepthWrite(config.enableDepthWrite);
 
-            if (config.enablePolygonOffset) {
-                settings.SetPolygonOffset(Graphic3d_ZLayerSettings::PolygonOffset_Positive,
-                    config.polygonOffsetFactor,
-                    config.polygonOffsetUnits);
-            }
-
-            settings.SetImmediate(config.isImmediate);
-            settings.SetRenderingPriority(config.renderingPriority);
+            // Note: Polygon offset functionality removed for OpenCascade 7.9.0 compatibility
+            // TODO: Find alternative approach for polygon offset if needed
 
             m_viewer->SetZLayerSettings(zOrder, settings);
 
@@ -157,14 +150,7 @@ namespace TyrexCAD {
             settings.SetEnableDepthTest(config.enableDepthTest);
             settings.SetEnableDepthWrite(config.enableDepthWrite);
 
-            if (config.enablePolygonOffset) {
-                settings.SetPolygonOffset(Graphic3d_ZLayerSettings::PolygonOffset_Positive,
-                    config.polygonOffsetFactor,
-                    config.polygonOffsetUnits);
-            }
-
-            settings.SetImmediate(config.isImmediate);
-            settings.SetRenderingPriority(config.renderingPriority);
+            // Note: Polygon offset functionality removed for OpenCascade 7.9.0 compatibility
 
             m_viewer->SetZLayerSettings(actualId, settings);
 
@@ -217,14 +203,7 @@ namespace TyrexCAD {
         settings.SetEnableDepthTest(config.enableDepthTest);
         settings.SetEnableDepthWrite(config.enableDepthWrite);
 
-        if (config.enablePolygonOffset) {
-            settings.SetPolygonOffset(Graphic3d_ZLayerSettings::PolygonOffset_Positive,
-                config.polygonOffsetFactor,
-                config.polygonOffsetUnits);
-        }
-
-        settings.SetImmediate(config.isImmediate);
-        settings.SetRenderingPriority(config.renderingPriority);
+        // Note: Polygon offset functionality removed for OpenCascade 7.9.0 compatibility
     }
 
     std::vector<TyrexLayerManager::LayerId> TyrexLayerManager::getAllLayers() const

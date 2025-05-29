@@ -1,0 +1,214 @@
+/****************************************************************************
+** Meta object code from reading C++ file 'TyrexViewWidget.h'
+**
+** Created by: The Qt Meta Object Compiler version 67 (Qt 5.15.16)
+**
+** WARNING! All changes made in this file will be lost!
+*****************************************************************************/
+
+#include <memory>
+#include "../../../include/TyrexCanvas/TyrexViewWidget.h"
+#include <QtCore/qbytearray.h>
+#include <QtCore/qmetatype.h>
+#if !defined(Q_MOC_OUTPUT_REVISION)
+#error "The header file 'TyrexViewWidget.h' doesn't include <QObject>."
+#elif Q_MOC_OUTPUT_REVISION != 67
+#error "This file was generated using the moc from 5.15.16. It"
+#error "cannot be used with the include files from this version of Qt."
+#error "(The moc has changed too much.)"
+#endif
+
+QT_BEGIN_MOC_NAMESPACE
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
+struct qt_meta_stringdata_TyrexCAD__TyrexViewWidget_t {
+    QByteArrayData data[13];
+    char stringdata0[158];
+};
+#define QT_MOC_LITERAL(idx, ofs, len) \
+    Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
+    qptrdiff(offsetof(qt_meta_stringdata_TyrexCAD__TyrexViewWidget_t, stringdata0) + ofs \
+        - idx * sizeof(QByteArrayData)) \
+    )
+static const qt_meta_stringdata_TyrexCAD__TyrexViewWidget_t qt_meta_stringdata_TyrexCAD__TyrexViewWidget = {
+    {
+QT_MOC_LITERAL(0, 0, 25), // "TyrexCAD::TyrexViewWidget"
+QT_MOC_LITERAL(1, 26, 17), // "viewerInitialized"
+QT_MOC_LITERAL(2, 44, 0), // ""
+QT_MOC_LITERAL(3, 45, 19), // "cursorWorldPosition"
+QT_MOC_LITERAL(4, 65, 1), // "x"
+QT_MOC_LITERAL(5, 67, 1), // "y"
+QT_MOC_LITERAL(6, 69, 18), // "gridSpacingChanged"
+QT_MOC_LITERAL(7, 88, 7), // "spacing"
+QT_MOC_LITERAL(8, 96, 17), // "gridConfigChanged"
+QT_MOC_LITERAL(9, 114, 10), // "GridConfig"
+QT_MOC_LITERAL(10, 125, 6), // "config"
+QT_MOC_LITERAL(11, 132, 17), // "snapToGridChanged"
+QT_MOC_LITERAL(12, 150, 7) // "enabled"
+
+    },
+    "TyrexCAD::TyrexViewWidget\0viewerInitialized\0"
+    "\0cursorWorldPosition\0x\0y\0gridSpacingChanged\0"
+    "spacing\0gridConfigChanged\0GridConfig\0"
+    "config\0snapToGridChanged\0enabled"
+};
+#undef QT_MOC_LITERAL
+
+static const uint qt_meta_data_TyrexCAD__TyrexViewWidget[] = {
+
+ // content:
+       8,       // revision
+       0,       // classname
+       0,    0, // classinfo
+       5,   14, // methods
+       0,    0, // properties
+       0,    0, // enums/sets
+       0,    0, // constructors
+       0,       // flags
+       5,       // signalCount
+
+ // signals: name, argc, parameters, tag, flags
+       1,    0,   39,    2, 0x06 /* Public */,
+       3,    2,   40,    2, 0x06 /* Public */,
+       6,    1,   45,    2, 0x06 /* Public */,
+       8,    1,   48,    2, 0x06 /* Public */,
+      11,    1,   51,    2, 0x06 /* Public */,
+
+ // signals: parameters
+    QMetaType::Void,
+    QMetaType::Void, QMetaType::Double, QMetaType::Double,    4,    5,
+    QMetaType::Void, QMetaType::Double,    7,
+    QMetaType::Void, 0x80000000 | 9,   10,
+    QMetaType::Void, QMetaType::Bool,   12,
+
+       0        // eod
+};
+
+void TyrexCAD::TyrexViewWidget::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        auto *_t = static_cast<TyrexViewWidget *>(_o);
+        (void)_t;
+        switch (_id) {
+        case 0: _t->viewerInitialized(); break;
+        case 1: _t->cursorWorldPosition((*reinterpret_cast< double(*)>(_a[1])),(*reinterpret_cast< double(*)>(_a[2]))); break;
+        case 2: _t->gridSpacingChanged((*reinterpret_cast< double(*)>(_a[1]))); break;
+        case 3: _t->gridConfigChanged((*reinterpret_cast< const GridConfig(*)>(_a[1]))); break;
+        case 4: _t->snapToGridChanged((*reinterpret_cast< bool(*)>(_a[1]))); break;
+        default: ;
+        }
+    } else if (_c == QMetaObject::IndexOfMethod) {
+        int *result = reinterpret_cast<int *>(_a[0]);
+        {
+            using _t = void (TyrexViewWidget::*)();
+            if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&TyrexViewWidget::viewerInitialized)) {
+                *result = 0;
+                return;
+            }
+        }
+        {
+            using _t = void (TyrexViewWidget::*)(double , double );
+            if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&TyrexViewWidget::cursorWorldPosition)) {
+                *result = 1;
+                return;
+            }
+        }
+        {
+            using _t = void (TyrexViewWidget::*)(double );
+            if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&TyrexViewWidget::gridSpacingChanged)) {
+                *result = 2;
+                return;
+            }
+        }
+        {
+            using _t = void (TyrexViewWidget::*)(const GridConfig & );
+            if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&TyrexViewWidget::gridConfigChanged)) {
+                *result = 3;
+                return;
+            }
+        }
+        {
+            using _t = void (TyrexViewWidget::*)(bool );
+            if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&TyrexViewWidget::snapToGridChanged)) {
+                *result = 4;
+                return;
+            }
+        }
+    }
+}
+
+QT_INIT_METAOBJECT const QMetaObject TyrexCAD::TyrexViewWidget::staticMetaObject = { {
+    QMetaObject::SuperData::link<QWidget::staticMetaObject>(),
+    qt_meta_stringdata_TyrexCAD__TyrexViewWidget.data,
+    qt_meta_data_TyrexCAD__TyrexViewWidget,
+    qt_static_metacall,
+    nullptr,
+    nullptr
+} };
+
+
+const QMetaObject *TyrexCAD::TyrexViewWidget::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *TyrexCAD::TyrexViewWidget::qt_metacast(const char *_clname)
+{
+    if (!_clname) return nullptr;
+    if (!strcmp(_clname, qt_meta_stringdata_TyrexCAD__TyrexViewWidget.stringdata0))
+        return static_cast<void*>(this);
+    return QWidget::qt_metacast(_clname);
+}
+
+int TyrexCAD::TyrexViewWidget::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QWidget::qt_metacall(_c, _id, _a);
+    if (_id < 0)
+        return _id;
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        if (_id < 5)
+            qt_static_metacall(this, _c, _id, _a);
+        _id -= 5;
+    } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
+        if (_id < 5)
+            *reinterpret_cast<int*>(_a[0]) = -1;
+        _id -= 5;
+    }
+    return _id;
+}
+
+// SIGNAL 0
+void TyrexCAD::TyrexViewWidget::viewerInitialized()
+{
+    QMetaObject::activate(this, &staticMetaObject, 0, nullptr);
+}
+
+// SIGNAL 1
+void TyrexCAD::TyrexViewWidget::cursorWorldPosition(double _t1, double _t2)
+{
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))) };
+    QMetaObject::activate(this, &staticMetaObject, 1, _a);
+}
+
+// SIGNAL 2
+void TyrexCAD::TyrexViewWidget::gridSpacingChanged(double _t1)
+{
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
+    QMetaObject::activate(this, &staticMetaObject, 2, _a);
+}
+
+// SIGNAL 3
+void TyrexCAD::TyrexViewWidget::gridConfigChanged(const GridConfig & _t1)
+{
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
+    QMetaObject::activate(this, &staticMetaObject, 3, _a);
+}
+
+// SIGNAL 4
+void TyrexCAD::TyrexViewWidget::snapToGridChanged(bool _t1)
+{
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
+    QMetaObject::activate(this, &staticMetaObject, 4, _a);
+}
+QT_WARNING_POP
+QT_END_MOC_NAMESPACE

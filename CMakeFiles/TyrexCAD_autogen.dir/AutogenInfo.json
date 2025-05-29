@@ -1,0 +1,859 @@
+{
+	"AUTOGEN_COMMAND_LINE_LENGTH_MAX" : 32000,
+	"BUILD_DIR" : "D:/Projects/TyrexCAD/TyrexCAD_autogen",
+	"CMAKE_BINARY_DIR" : "D:/Projects/TyrexCAD",
+	"CMAKE_CURRENT_BINARY_DIR" : "D:/Projects/TyrexCAD",
+	"CMAKE_CURRENT_SOURCE_DIR" : "D:/Projects/TyrexCAD",
+	"CMAKE_EXECUTABLE" : "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe",
+	"CMAKE_LIST_FILES" : 
+	[
+		"D:/Projects/TyrexCAD/CMakeLists.txt",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeDetermineSystem.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeSystem.cmake.in",
+		"D:/Projects/TyrexCAD/CMakeFiles/3.31.6-msvc6/CMakeSystem.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeSystemSpecificInitialize.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Platform/Windows-Initialize.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeDetermineCXXCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeDetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Platform/Windows-Determine-CXX.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeDetermineCompilerId.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeCompilerIdDetection.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/ADSP-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/ARMCC-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/ARMClang-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/AppleClang-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Clang-DetermineCompilerInternal.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Borland-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Clang-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Clang-DetermineCompilerInternal.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Compaq-CXX-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Cray-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/CrayClang-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Embarcadero-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Fujitsu-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/FujitsuClang-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/GHS-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/GNU-CXX-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/HP-CXX-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/IAR-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/IBMClang-CXX-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Intel-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/IntelLLVM-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/LCC-CXX-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/MSVC-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/NVHPC-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/NVIDIA-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/OpenWatcom-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/OrangeC-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/PGI-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/PathScale-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/SCO-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/SunPro-CXX-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/TI-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/TIClang-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Tasking-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/VisualAge-CXX-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/IBMCPP-CXX-DetermineVersionInternal.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/Watcom-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/XL-CXX-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/IBMCPP-CXX-DetermineVersionInternal.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/XLClang-CXX-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/zOS-CXX-DetermineCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/IBMCPP-CXX-DetermineVersionInternal.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CompilerId/VS-10.vcxproj.in",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeFindBinUtils.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeCXXCompiler.cmake.in",
+		"D:/Projects/TyrexCAD/CMakeFiles/3.31.6-msvc6/CMakeCXXCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeSystemSpecificInformation.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeGenericSystem.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeInitializeConfigs.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Platform/Windows.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Platform/WindowsPaths.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeCXXInformation.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeLanguageInformation.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/MSVC-CXX.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/MSVC.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Compiler/CMakeCommonCompilerMacros.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Platform/Windows-MSVC-CXX.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Platform/Windows-MSVC.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeDetermineRCCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeRCCompiler.cmake.in",
+		"D:/Projects/TyrexCAD/CMakeFiles/3.31.6-msvc6/CMakeRCCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeRCInformation.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeTestRCCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeCommonLanguageInclude.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeTestCXXCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeTestCompilerCommon.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeDetermineCompilerABI.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Internal/CMakeDetermineLinkerId.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeParseImplicitIncludeInfo.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeParseImplicitLinkInfo.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeParseLibraryArchitecture.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeTestCompilerCommon.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeCXXCompilerABI.cpp",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeDetermineCompilerSupport.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Internal/FeatureTesting.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeCXXCompiler.cmake.in",
+		"D:/Projects/TyrexCAD/CMakeFiles/3.31.6-msvc6/CMakeCXXCompiler.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Internal/CMakeCXXLinkerInformation.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Internal/CMakeCommonLinkerInformation.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Platform/Linker/Windows-MSVC-CXX.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/Platform/Linker/Windows-MSVC.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5/Qt5ConfigVersion.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5/Qt5Config.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5/Qt5ModuleLocation.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core/Qt5CoreConfigVersion.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core/Qt5CoreConfig.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core/Qt5CoreConfigExtras.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core/Qt5CoreConfigExtrasMkspecDir.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core/Qt5CoreMacros.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeParseArguments.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5GuiConfigVersion.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5GuiConfig.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QGifPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QICNSPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QICOPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QJpegPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QMinimalIntegrationPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QOffscreenIntegrationPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QSvgIconPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QSvgPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QTgaPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QTiffPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QTuioTouchPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QWbmpPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QWebpPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QWindowsDirect2DIntegrationPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QWindowsIntegrationPlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5Gui_QXdgDesktopPortalThemePlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui/Qt5GuiConfigExtras.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets/Qt5WidgetsConfigVersion.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets/Qt5WidgetsConfig.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets/Qt5Widgets_QWindowsVistaStylePlugin.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets/Qt5WidgetsConfigExtras.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets/Qt5WidgetsMacros.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeParseArguments.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5OpenGL/Qt5OpenGLConfigVersion.cmake",
+		"D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5OpenGL/Qt5OpenGLConfig.cmake",
+		"D:/Projects/TyrexCAD/src/TyrexApp/TyrexMainWindow.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCanvas/TyrexCanvasOverlay.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCanvas/TyrexCanvasWidget.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCanvas/TyrexGridConfig.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCanvas/TyrexModelSpace.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCanvas/TyrexViewWidget.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCommands/LineCommand.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCommands/TyrexCommand.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCore/TyrexApplication.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCore/TyrexCommand.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCore/TyrexCommandManager.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCore/TyrexEntityManager.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCore/TyrexInitializer.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexCore/TyrexLineCommand.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexDatabase/TyrexDrawingDatabase.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexEntities/TyrexCircleEntity.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexEntities/TyrexEntity.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexEntities/TyrexLineEntity.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexInteractionManager.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexLayerBasedFilter.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexSelectionFilter.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexSelectionManager.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexSelectionObject.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexTypeBasedFilter.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexLayers/TyrexLayer.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexLayers/TyrexLayerManager.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexRendering/TyrexGridOverlayRenderer.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexRendering/TyrexRenderingManager.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexRendering/TyrexUnifiedGridSystem.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexRendering/TyrexViewerManager.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketch.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchCircleCommand.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchCircleEntity.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchConfig.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchEntity.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchInteractionHandler.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchLineCommand.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchLineEntity.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchManager.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexSnapping/TyrexSnapManager.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexUI/ToolbarManager.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexUI/TyrexActionBar.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexUtils/Logger.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexUtils/MathUtils.cpp",
+		"D:/Projects/TyrexCAD/src/TyrexUtils/UUID.cpp",
+		"D:/Projects/TyrexCAD/src/main.cpp",
+		"D:/Projects/TyrexCAD/include/TyrexApp/TyrexMainWindow.h",
+		"D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexCanvasOverlay.h",
+		"D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexCanvasWidget.h",
+		"D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexGridConfig.h",
+		"D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexModelSpace.h",
+		"D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexViewWidget.h",
+		"D:/Projects/TyrexCAD/include/TyrexCommands/LineCommand.h",
+		"D:/Projects/TyrexCAD/include/TyrexCommands/TyrexCommand.h",
+		"D:/Projects/TyrexCAD/include/TyrexCore/CoordinateConverter.h",
+		"D:/Projects/TyrexCAD/include/TyrexCore/SafeHandleUtils.h",
+		"D:/Projects/TyrexCAD/include/TyrexCore/TyrexApplication.h",
+		"D:/Projects/TyrexCAD/include/TyrexCore/TyrexCommand.h",
+		"D:/Projects/TyrexCAD/include/TyrexCore/TyrexCommandManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexCore/TyrexEntityManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexCore/TyrexInitializer.h",
+		"D:/Projects/TyrexCAD/include/TyrexCore/TyrexLineCommand.h",
+		"D:/Projects/TyrexCAD/include/TyrexCore/TyrexSelectionMode.h",
+		"D:/Projects/TyrexCAD/include/TyrexCore/UpdateManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexDatabase/TyrexDrawingDatabase.h",
+		"D:/Projects/TyrexCAD/include/TyrexEntities/TyrexCircleEntity.h",
+		"D:/Projects/TyrexCAD/include/TyrexEntities/TyrexEntity.h",
+		"D:/Projects/TyrexCAD/include/TyrexEntities/TyrexLineEntity.h",
+		"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexInteractionManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexLayerBasedFilter.h",
+		"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexSelectionFilter.h",
+		"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexSelectionManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexSelectionObject.h",
+		"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexTypeBasedFilter.h",
+		"D:/Projects/TyrexCAD/include/TyrexLayers/TyrexLayer.h",
+		"D:/Projects/TyrexCAD/include/TyrexLayers/TyrexLayerManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexRendering/TyrexGridOverlayRenderer.h",
+		"D:/Projects/TyrexCAD/include/TyrexRendering/TyrexRenderingManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexRendering/TyrexUnifiedGridSystem.h",
+		"D:/Projects/TyrexCAD/include/TyrexRendering/TyrexViewerManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketch.h",
+		"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchCircleCommand.h",
+		"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchCircleEntity.h",
+		"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchConfig.h",
+		"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchDisplayHelper.h",
+		"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchEntity.h",
+		"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchInteractionHandler.h",
+		"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchLineCommand.h",
+		"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchLineEntity.h",
+		"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexSnapping/TyrexSnapManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexUI/ToolbarManager.h",
+		"D:/Projects/TyrexCAD/include/TyrexUI/TyrexActionBar.h",
+		"D:/Projects/TyrexCAD/include/TyrexUtils/Logger.h",
+		"D:/Projects/TyrexCAD/include/TyrexUtils/MathUtils.h",
+		"D:/Projects/TyrexCAD/include/TyrexUtils/UUID.h"
+	],
+	"CMAKE_SOURCE_DIR" : "D:/Projects/TyrexCAD",
+	"CROSS_CONFIG" : false,
+	"DEP_FILE" : "",
+	"DEP_FILE_RULE_NAME" : "",
+	"HEADERS" : 
+	[
+		[
+			"D:/Projects/TyrexCAD/include/TyrexApp/TyrexMainWindow.h",
+			"MU",
+			"6NN6KJMFBB/moc_TyrexMainWindow.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexCanvasOverlay.h",
+			"MU",
+			"MQZ7NPL22A/moc_TyrexCanvasOverlay.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexCanvasWidget.h",
+			"MU",
+			"MQZ7NPL22A/moc_TyrexCanvasWidget.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexGridConfig.h",
+			"MU",
+			"MQZ7NPL22A/moc_TyrexGridConfig.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexModelSpace.h",
+			"MU",
+			"MQZ7NPL22A/moc_TyrexModelSpace.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexViewWidget.h",
+			"MU",
+			"MQZ7NPL22A/moc_TyrexViewWidget.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCommands/LineCommand.h",
+			"MU",
+			"TGWXFEG5D4/moc_LineCommand.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCommands/TyrexCommand.h",
+			"MU",
+			"TGWXFEG5D4/moc_TyrexCommand.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCore/CoordinateConverter.h",
+			"MU",
+			"OSXKRFKLVD/moc_CoordinateConverter.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCore/SafeHandleUtils.h",
+			"MU",
+			"OSXKRFKLVD/moc_SafeHandleUtils.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCore/TyrexApplication.h",
+			"MU",
+			"OSXKRFKLVD/moc_TyrexApplication.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCore/TyrexCommand.h",
+			"MU",
+			"OSXKRFKLVD/moc_TyrexCommand.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCore/TyrexCommandManager.h",
+			"MU",
+			"OSXKRFKLVD/moc_TyrexCommandManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCore/TyrexEntityManager.h",
+			"MU",
+			"OSXKRFKLVD/moc_TyrexEntityManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCore/TyrexInitializer.h",
+			"MU",
+			"OSXKRFKLVD/moc_TyrexInitializer.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCore/TyrexLineCommand.h",
+			"MU",
+			"OSXKRFKLVD/moc_TyrexLineCommand.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCore/TyrexSelectionMode.h",
+			"MU",
+			"OSXKRFKLVD/moc_TyrexSelectionMode.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexCore/UpdateManager.h",
+			"MU",
+			"OSXKRFKLVD/moc_UpdateManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexDatabase/TyrexDrawingDatabase.h",
+			"MU",
+			"KRI45ULAGN/moc_TyrexDrawingDatabase.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexEntities/TyrexCircleEntity.h",
+			"MU",
+			"AW256YZ4LP/moc_TyrexCircleEntity.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexEntities/TyrexEntity.h",
+			"MU",
+			"AW256YZ4LP/moc_TyrexEntity.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexEntities/TyrexLineEntity.h",
+			"MU",
+			"AW256YZ4LP/moc_TyrexLineEntity.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexInteractionManager.h",
+			"MU",
+			"FXWI2OXYUI/moc_TyrexInteractionManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexLayerBasedFilter.h",
+			"MU",
+			"FXWI2OXYUI/moc_TyrexLayerBasedFilter.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexSelectionFilter.h",
+			"MU",
+			"FXWI2OXYUI/moc_TyrexSelectionFilter.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexSelectionManager.h",
+			"MU",
+			"FXWI2OXYUI/moc_TyrexSelectionManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexSelectionObject.h",
+			"MU",
+			"FXWI2OXYUI/moc_TyrexSelectionObject.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexInteraction/TyrexTypeBasedFilter.h",
+			"MU",
+			"FXWI2OXYUI/moc_TyrexTypeBasedFilter.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexLayers/TyrexLayer.h",
+			"MU",
+			"A4OPOCLQLE/moc_TyrexLayer.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexLayers/TyrexLayerManager.h",
+			"MU",
+			"A4OPOCLQLE/moc_TyrexLayerManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexRendering/TyrexGridOverlayRenderer.h",
+			"MU",
+			"5LFMJERZ56/moc_TyrexGridOverlayRenderer.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexRendering/TyrexRenderingManager.h",
+			"MU",
+			"5LFMJERZ56/moc_TyrexRenderingManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexRendering/TyrexUnifiedGridSystem.h",
+			"MU",
+			"5LFMJERZ56/moc_TyrexUnifiedGridSystem.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexRendering/TyrexViewerManager.h",
+			"MU",
+			"5LFMJERZ56/moc_TyrexViewerManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketch.h",
+			"MU",
+			"UD4XDSQBNG/moc_TyrexSketch.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchCircleCommand.h",
+			"MU",
+			"UD4XDSQBNG/moc_TyrexSketchCircleCommand.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchCircleEntity.h",
+			"MU",
+			"UD4XDSQBNG/moc_TyrexSketchCircleEntity.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchConfig.h",
+			"MU",
+			"UD4XDSQBNG/moc_TyrexSketchConfig.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchDisplayHelper.h",
+			"MU",
+			"UD4XDSQBNG/moc_TyrexSketchDisplayHelper.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchEntity.h",
+			"MU",
+			"UD4XDSQBNG/moc_TyrexSketchEntity.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchInteractionHandler.h",
+			"MU",
+			"UD4XDSQBNG/moc_TyrexSketchInteractionHandler.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchLineCommand.h",
+			"MU",
+			"UD4XDSQBNG/moc_TyrexSketchLineCommand.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchLineEntity.h",
+			"MU",
+			"UD4XDSQBNG/moc_TyrexSketchLineEntity.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSketch/TyrexSketchManager.h",
+			"MU",
+			"UD4XDSQBNG/moc_TyrexSketchManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexSnapping/TyrexSnapManager.h",
+			"MU",
+			"SDOXPQJJ4P/moc_TyrexSnapManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexUI/ToolbarManager.h",
+			"MU",
+			"AZN3UM27LP/moc_ToolbarManager.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexUI/TyrexActionBar.h",
+			"MU",
+			"AZN3UM27LP/moc_TyrexActionBar.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexUtils/Logger.h",
+			"MU",
+			"PLIYVSCYAT/moc_Logger.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexUtils/MathUtils.h",
+			"MU",
+			"PLIYVSCYAT/moc_MathUtils.cpp",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/include/TyrexUtils/UUID.h",
+			"MU",
+			"PLIYVSCYAT/moc_UUID.cpp",
+			null
+		]
+	],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "D:/Projects/TyrexCAD/TyrexCAD_autogen/include",
+	"INCLUDE_DIR_Debug" : "D:/Projects/TyrexCAD/TyrexCAD_autogen/include_Debug",
+	"INCLUDE_DIR_MinSizeRel" : "D:/Projects/TyrexCAD/TyrexCAD_autogen/include_MinSizeRel",
+	"INCLUDE_DIR_RelWithDebInfo" : "D:/Projects/TyrexCAD/TyrexCAD_autogen/include_RelWithDebInfo",
+	"INCLUDE_DIR_Release" : "D:/Projects/TyrexCAD/TyrexCAD_autogen/include_Release",
+	"MOC_COMPILATION_FILE" : "D:/Projects/TyrexCAD/TyrexCAD_autogen/mocs_compilation.cpp",
+	"MOC_COMPILATION_FILE_Debug" : "D:/Projects/TyrexCAD/TyrexCAD_autogen/mocs_compilation_Debug.cpp",
+	"MOC_COMPILATION_FILE_MinSizeRel" : "D:/Projects/TyrexCAD/TyrexCAD_autogen/mocs_compilation_MinSizeRel.cpp",
+	"MOC_COMPILATION_FILE_RelWithDebInfo" : "D:/Projects/TyrexCAD/TyrexCAD_autogen/mocs_compilation_RelWithDebInfo.cpp",
+	"MOC_COMPILATION_FILE_Release" : "D:/Projects/TyrexCAD/TyrexCAD_autogen/mocs_compilation_Release.cpp",
+	"MOC_DEFINITIONS" : [],
+	"MOC_DEFINITIONS_Debug" : 
+	[
+		"DEBUG",
+		"OCCT_DEBUG",
+		"OCCT_DEBUG_CHRONOMETER",
+		"OCCT_DEBUG_FPE",
+		"QT_CORE_LIB",
+		"QT_GUI_LIB",
+		"QT_OPENGL_LIB",
+		"QT_WIDGETS_LIB",
+		"WIN32"
+	],
+	"MOC_DEFINITIONS_MinSizeRel" : 
+	[
+		"DEBUG",
+		"OCCT_DEBUG",
+		"OCCT_DEBUG_CHRONOMETER",
+		"OCCT_DEBUG_FPE",
+		"QT_CORE_LIB",
+		"QT_GUI_LIB",
+		"QT_NO_DEBUG",
+		"QT_OPENGL_LIB",
+		"QT_WIDGETS_LIB",
+		"WIN32"
+	],
+	"MOC_DEFINITIONS_RelWithDebInfo" : 
+	[
+		"DEBUG",
+		"OCCT_DEBUG",
+		"OCCT_DEBUG_CHRONOMETER",
+		"OCCT_DEBUG_FPE",
+		"QT_CORE_LIB",
+		"QT_GUI_LIB",
+		"QT_NO_DEBUG",
+		"QT_OPENGL_LIB",
+		"QT_WIDGETS_LIB",
+		"WIN32"
+	],
+	"MOC_DEFINITIONS_Release" : 
+	[
+		"DEBUG",
+		"OCCT_DEBUG",
+		"OCCT_DEBUG_CHRONOMETER",
+		"OCCT_DEBUG_FPE",
+		"QT_CORE_LIB",
+		"QT_GUI_LIB",
+		"QT_NO_DEBUG",
+		"QT_OPENGL_LIB",
+		"QT_WIDGETS_LIB",
+		"WIN32"
+	],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : [],
+	"MOC_INCLUDES_Debug" : 
+	[
+		"D:/Projects/TyrexCAD",
+		"D:/Projects/TyrexCAD/include",
+		"D:/OpenCascade/install/inc",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore",
+		"D:/Tools/vcpkg/installed/x64-windows/tools/qt5/mkspecs/win32-msvc",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtGui",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtWidgets",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtOpenGL"
+	],
+	"MOC_INCLUDES_MinSizeRel" : 
+	[
+		"D:/Projects/TyrexCAD",
+		"D:/Projects/TyrexCAD/include",
+		"D:/OpenCascade/install/inc",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore",
+		"D:/Tools/vcpkg/installed/x64-windows/tools/qt5/mkspecs/win32-msvc",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtGui",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtWidgets",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtOpenGL"
+	],
+	"MOC_INCLUDES_RelWithDebInfo" : 
+	[
+		"D:/Projects/TyrexCAD",
+		"D:/Projects/TyrexCAD/include",
+		"D:/OpenCascade/install/inc",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore",
+		"D:/Tools/vcpkg/installed/x64-windows/tools/qt5/mkspecs/win32-msvc",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtGui",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtWidgets",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtOpenGL"
+	],
+	"MOC_INCLUDES_Release" : 
+	[
+		"D:/Projects/TyrexCAD",
+		"D:/Projects/TyrexCAD/include",
+		"D:/OpenCascade/install/inc",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore",
+		"D:/Tools/vcpkg/installed/x64-windows/tools/qt5/mkspecs/win32-msvc",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtGui",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtWidgets",
+		"D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtOpenGL"
+	],
+	"MOC_MACRO_NAMES" : [ "Q_OBJECT", "Q_GADGET", "Q_NAMESPACE", "Q_NAMESPACE_EXPORT" ],
+	"MOC_OPTIONS" : [ "-D_WIN32" ],
+	"MOC_PATH_PREFIX" : false,
+	"MOC_PREDEFS_CMD" : [],
+	"MOC_PREDEFS_FILE" : "",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : [],
+	"MULTI_CONFIG" : true,
+	"PARALLEL" : 8,
+	"PARSE_CACHE_FILE" : "D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD_autogen.dir/ParseCache.txt",
+	"PARSE_CACHE_FILE_Debug" : "D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD_autogen.dir/ParseCache_Debug.txt",
+	"PARSE_CACHE_FILE_MinSizeRel" : "D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD_autogen.dir/ParseCache_MinSizeRel.txt",
+	"PARSE_CACHE_FILE_RelWithDebInfo" : "D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD_autogen.dir/ParseCache_RelWithDebInfo.txt",
+	"PARSE_CACHE_FILE_Release" : "D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD_autogen.dir/ParseCache_Release.txt",
+	"QT_MOC_EXECUTABLE" : "D:/Tools/vcpkg/installed/x64-windows/tools/qt5/bin/moc.exe",
+	"QT_UIC_EXECUTABLE" : "D:/Tools/vcpkg/installed/x64-windows/tools/qt5/bin/uic.exe",
+	"QT_VERSION_MAJOR" : 5,
+	"QT_VERSION_MINOR" : 15,
+	"SETTINGS_FILE" : "D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD_autogen.dir/AutogenUsed.txt",
+	"SETTINGS_FILE_Debug" : "D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD_autogen.dir/AutogenUsed_Debug.txt",
+	"SETTINGS_FILE_MinSizeRel" : "D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD_autogen.dir/AutogenUsed_MinSizeRel.txt",
+	"SETTINGS_FILE_RelWithDebInfo" : "D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD_autogen.dir/AutogenUsed_RelWithDebInfo.txt",
+	"SETTINGS_FILE_Release" : "D:/Projects/TyrexCAD/CMakeFiles/TyrexCAD_autogen.dir/AutogenUsed_Release.txt",
+	"SOURCES" : 
+	[
+		[ "D:/Projects/TyrexCAD/src/TyrexApp/TyrexMainWindow.cpp", "MU", null ],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexCanvas/TyrexCanvasOverlay.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexCanvas/TyrexCanvasWidget.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexCanvas/TyrexGridConfig.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexCanvas/TyrexModelSpace.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexCanvas/TyrexViewWidget.cpp",
+			"MU",
+			null
+		],
+		[ "D:/Projects/TyrexCAD/src/TyrexCommands/LineCommand.cpp", "MU", null ],
+		[ "D:/Projects/TyrexCAD/src/TyrexCommands/TyrexCommand.cpp", "MU", null ],
+		[ "D:/Projects/TyrexCAD/src/TyrexCore/TyrexApplication.cpp", "MU", null ],
+		[ "D:/Projects/TyrexCAD/src/TyrexCore/TyrexCommand.cpp", "MU", null ],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexCore/TyrexCommandManager.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexCore/TyrexEntityManager.cpp",
+			"MU",
+			null
+		],
+		[ "D:/Projects/TyrexCAD/src/TyrexCore/TyrexInitializer.cpp", "MU", null ],
+		[ "D:/Projects/TyrexCAD/src/TyrexCore/TyrexLineCommand.cpp", "MU", null ],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexDatabase/TyrexDrawingDatabase.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexEntities/TyrexCircleEntity.cpp",
+			"MU",
+			null
+		],
+		[ "D:/Projects/TyrexCAD/src/TyrexEntities/TyrexEntity.cpp", "MU", null ],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexEntities/TyrexLineEntity.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexInteractionManager.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexLayerBasedFilter.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexSelectionFilter.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexSelectionManager.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexSelectionObject.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexInteraction/TyrexTypeBasedFilter.cpp",
+			"MU",
+			null
+		],
+		[ "D:/Projects/TyrexCAD/src/TyrexLayers/TyrexLayer.cpp", "MU", null ],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexLayers/TyrexLayerManager.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexRendering/TyrexGridOverlayRenderer.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexRendering/TyrexRenderingManager.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexRendering/TyrexUnifiedGridSystem.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexRendering/TyrexViewerManager.cpp",
+			"MU",
+			null
+		],
+		[ "D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketch.cpp", "MU", null ],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchCircleCommand.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchCircleEntity.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchConfig.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchEntity.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchInteractionHandler.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchLineCommand.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchLineEntity.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexSketch/TyrexSketchManager.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/Projects/TyrexCAD/src/TyrexSnapping/TyrexSnapManager.cpp",
+			"MU",
+			null
+		],
+		[ "D:/Projects/TyrexCAD/src/TyrexUI/ToolbarManager.cpp", "MU", null ],
+		[ "D:/Projects/TyrexCAD/src/TyrexUI/TyrexActionBar.cpp", "MU", null ],
+		[ "D:/Projects/TyrexCAD/src/TyrexUtils/Logger.cpp", "MU", null ],
+		[ "D:/Projects/TyrexCAD/src/TyrexUtils/MathUtils.cpp", "MU", null ],
+		[ "D:/Projects/TyrexCAD/src/TyrexUtils/UUID.cpp", "MU", null ],
+		[ "D:/Projects/TyrexCAD/src/main.cpp", "MU", null ]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : [],
+	"UIC_UI_FILES" : [],
+	"USE_BETTER_GRAPH" : false,
+	"VERBOSITY" : 0
+}

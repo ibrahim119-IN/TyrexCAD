@@ -86,6 +86,12 @@ namespace TyrexCAD {
          */
         void setRadius(Standard_Real radius);
 
+        /**
+         * @brief Get the center point (for snap manager compatibility)
+         * @return The center point
+         */
+        gp_Pnt getCenter() const { return m_center; }
+
     private:
         gp_Pnt m_center;        ///< The center point of the circle
         Standard_Real m_radius;  ///< The radius of the circle
