@@ -76,6 +76,12 @@ namespace TyrexCAD {
         void gridConfigChanged(const GridConfig& config);
         void snapToGridChanged(bool enabled);
 
+        /**
+         * @brief Emitted when OpenGL context is initialized and current
+         * This signal is critical for deferred initialization of OpenGL-dependent components
+         */
+        void glContextInitializedAndCurrent();
+
     protected:
         // Widget events
         void paintEvent(QPaintEvent* event) override;
@@ -97,6 +103,7 @@ namespace TyrexCAD {
     private:
         void initialize();
         void initializeOverlay();
+        void ensureOpenGLContext();
 
         /**
          * @brief Request update with priority
@@ -123,6 +130,7 @@ namespace TyrexCAD {
         bool m_useOpenGLGrid;
         bool m_needsResize;
         bool m_updatePending;
+        bool m_openGLContextReady;
         QPoint m_currentCursorPos;
 
         // Debug and performance tracking

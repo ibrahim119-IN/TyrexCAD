@@ -91,6 +91,12 @@ namespace TyrexCAD {
         // Test functionality
         void createTestGeometry();
 
+        /**
+         * @brief Called when OpenGL context is ready for grid initialization
+         * This is a critical slot for deferred initialization of OpenGL-dependent components
+         */
+        void onOpenGLReadyForGrid();
+
     private:
         void setupUI();
         void createActions();
@@ -203,6 +209,7 @@ namespace TyrexCAD {
         bool m_componentsInitialized;
         int m_initializationAttempts;
         bool m_debugMode;
+        bool m_openGLDependentComponentsInitialized;
     };
 
 } // namespace TyrexCAD

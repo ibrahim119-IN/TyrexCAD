@@ -8,10 +8,11 @@
 #ifndef TYREX_GRID_OVERLAY_RENDERER_H
 #define TYREX_GRID_OVERLAY_RENDERER_H
 
-#include <QOpenGLFunctions_3_3_Core>
-#include <QOpenGLShaderProgram>
-#include <QOpenGLBuffer>
-#include <QOpenGLVertexArrayObject>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+#include <GL/gl.h>
 #include <QColor>
 #include <QFont>
 #include <QPoint>
@@ -35,7 +36,7 @@ namespace TyrexCAD {
      * It receives geometry data from TyrexCanvasOverlay and renders it
      * efficiently using VBOs and modern OpenGL techniques.
      */
-    class TyrexGridOverlayRenderer : protected QOpenGLFunctions_3_3_Core
+    class TyrexGridOverlayRenderer
     {
     public:
         TyrexGridOverlayRenderer();
@@ -108,6 +109,7 @@ namespace TyrexCAD {
         // Utility methods
         void renderCoordinateDisplay(const QPoint& cursorPos);
         void renderText(const QString& text, float x, float y, const QColor& color);
+        void calculateOrthoMatrix(float* matrix);
 
         QColor convertQuantityToQColor(const Quantity_Color& color) const {
             return QColor(
@@ -126,12 +128,12 @@ namespace TyrexCAD {
         bool m_gridEnabled;
         bool m_initialized;
 
-        // OpenGL resources
-        QOpenGLFunctions_3_3_Core* m_glFunctions;
-        std::unique_ptr<QOpenGLShaderProgram> m_shaderProgram;
-        std::unique_ptr<QOpenGLShaderProgram> m_textShaderProgram;
-        std::unique_ptr<QOpenGLBuffer> m_vertexBuffer;
-        std::unique_ptr<QOpenGLVertexArrayObject> m_vao;
+        // OpenGL resources - using raw handles instead of Qt classes
+        GLuint m_shaderProgram;
+        GLuint m_vertexShader;
+        GLuint m_fragmentShader;
+        GLuint m_vao;
+        GLuint m_vbo;
 
         // Additional VBO/VAO for optimization
         GLuint m_gridVBO;

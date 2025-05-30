@@ -17,6 +17,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QApplication>
+#include <QOpenGLContext>
 #include <chrono>
 
 namespace TyrexCAD {
@@ -31,6 +32,7 @@ namespace TyrexCAD {
         , m_paintEventCount(0)
         , m_lastPaintTime(0)
         , m_updatePending(false)
+        , m_openGLContextReady(false)
     {
         // Set widget attributes for OpenCascade
         setAttribute(Qt::WA_OpaquePaintEvent);
@@ -66,20 +68,43 @@ namespace TyrexCAD {
         // Initialize viewer with this widget
         m_viewerManager->initializeViewer(this);
 
-        // Initialize overlay systems
+        // Initialize overlay systems (but NOT the grid renderer yet)
         initializeOverlay();
 
-        // Create grid renderer
-        m_gridRenderer = std::make_unique<TyrexGridOverlayRenderer>();
-        if (m_gridRenderer->initialize()) {
-            m_gridRenderer->setView(m_viewerManager->view());
-            m_gridRenderer->setGridEnabled(true);
+        // Signal that viewer is initialized
+        emit viewerInitialized();
+
+        // Now check if OpenGL context is ready
+        ensureOpenGLContext();
+    }
+
+    void TyrexViewWidget::ensureOpenGLContext()
+    {
+        qDebug() << "=== Checking OpenGL Context Readiness ===";
+
+        // Since we're using WA_PaintOnScreen with OpenCascade, 
+        // we need to check if OCCT's context is ready
+        if (!m_viewerManager || m_viewerManager->view().IsNull()) {
+            qDebug() << "View not ready, scheduling retry...";
+            QTimer::singleShot(100, this, &TyrexViewWidget::ensureOpenGLContext);
+            return;
         }
 
-        m_gridInitialized = true;
+        // For OpenCascade, we need to ensure the window is mapped and ready
+        auto view = m_viewerManager->view();
+        if (view->Window().IsNull() || !view->Window()->IsMapped()) {
+            qDebug() << "OCCT window not mapped yet, scheduling retry...";
+            QTimer::singleShot(100, this, &TyrexViewWidget::ensureOpenGLContext);
+            return;
+        }
 
-        qDebug() << "Canvas overlay initialized and grid enabled";
-        emit viewerInitialized();
+        // CRITICAL: We need to defer grid initialization to paintEvent
+        // where OpenCascade's context will be current
+        qDebug() << "OCCT window is mapped, deferring grid init to first paint...";
+        m_openGLContextReady = true;
+
+        // Don't initialize grid renderer here - wait for paintEvent
+        // when OpenCascade's context is guaranteed to be current
     }
 
     void TyrexViewWidget::initializeOverlay()
@@ -156,12 +181,33 @@ namespace TyrexCAD {
         }
         m_lastPaintTime = currentTime;
 
-        // Redraw OpenCascade view
+        // Redraw OpenCascade view - this makes OCCT's OpenGL context current
         if (m_viewerManager) {
             m_viewerManager->redraw();
         }
 
-        // Draw OpenGL overlay if enabled
+        // Initialize grid renderer after OCCT redraw when its context is current
+        if (m_openGLContextReady && !m_gridInitialized && !m_gridRenderer) {
+            qDebug() << "Initializing grid renderer with OCCT context current...";
+
+            m_gridRenderer = std::make_unique<TyrexGridOverlayRenderer>();
+
+            if (m_gridRenderer->initialize()) {
+                m_gridRenderer->setView(m_viewerManager->view());
+                m_gridRenderer->setGridEnabled(true);
+                m_gridInitialized = true;
+
+                qDebug() << "Grid renderer initialized successfully!";
+                emit glContextInitializedAndCurrent();
+            }
+            else {
+                qCritical() << "Failed to initialize grid renderer!";
+                m_gridRenderer.reset();
+                m_openGLContextReady = false;
+            }
+        }
+
+        // Draw OpenGL overlay if ready - OCCT context is still current
         if (m_useOpenGLGrid && m_gridRenderer && m_canvasOverlay && m_gridInitialized) {
             m_gridRenderer->renderFromOverlay(m_canvasOverlay.get(),
                 width(), height(),
@@ -336,6 +382,7 @@ namespace TyrexCAD {
         qDebug() << "Grid initialized:" << m_gridInitialized;
         qDebug() << "Using OpenGL grid:" << m_useOpenGLGrid;
         qDebug() << "Update pending:" << m_updatePending;
+        qDebug() << "OpenGL context ready:" << m_openGLContextReady;
 
         if (m_canvasOverlay) {
             qDebug() << "Overlay present - Grid visible:" << m_canvasOverlay->isGridVisible();

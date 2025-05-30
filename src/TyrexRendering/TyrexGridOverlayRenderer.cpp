@@ -13,19 +13,21 @@
 #include <QMatrix4x4>
 #include <cmath>
 #include <algorithm>
+#include <OpenGl_glext.h>
+
 
 namespace TyrexCAD {
 
     // Vertex shader with instancing support
     static const char* vertexShaderSource = R"(
-        #version 330 core
-        layout(location = 0) in vec2 position;
-        layout(location = 1) in vec4 color;
+        #version 110
+        attribute vec2 position;
+        attribute vec4 color;
         
         uniform mat4 u_projection;
         uniform mat4 u_view;
         
-        out vec4 v_color;
+        varying vec4 v_color;
         
         void main() {
             gl_Position = u_projection * u_view * vec4(position, 0.0, 1.0);
@@ -35,14 +37,13 @@ namespace TyrexCAD {
 
     // Fragment shader with alpha support
     static const char* fragmentShaderSource = R"(
-        #version 330 core
-        in vec4 v_color;
-        out vec4 fragColor;
+        #version 110
+        varying vec4 v_color;
         
         uniform float u_globalOpacity;
         
         void main() {
-            fragColor = vec4(v_color.rgb, v_color.a * u_globalOpacity);
+            gl_FragColor = vec4(v_color.rgb, v_color.a * u_globalOpacity);
         }
     )";
 
@@ -57,7 +58,11 @@ namespace TyrexCAD {
         , m_gridVBO(0)
         , m_gridVAO(0)
         , m_vboDirty(true)
-        , m_glFunctions(nullptr)
+        , m_shaderProgram(0)
+        , m_vertexShader(0)
+        , m_fragmentShader(0)
+        , m_vao(0)
+        , m_vbo(0)
     {
         m_vertices.reserve(20000);  // Reserve more for complex grids
         m_cachedVertices.reserve(20000);
@@ -72,62 +77,82 @@ namespace TyrexCAD {
 
     bool TyrexGridOverlayRenderer::initialize()
     {
+        qDebug() << "=== TyrexGridOverlayRenderer::initialize() BEGIN ===";
+
         if (m_initialized) {
+            qDebug() << "Already initialized, returning true";
             return true;
         }
 
-        QOpenGLContext* context = QOpenGLContext::currentContext();
-        if (!context || !context->isValid()) {
-            qCritical() << "No valid OpenGL context available";
+        // Check if we have ANY valid GL context (from OpenCascade)
+        const GLubyte* version = glGetString(GL_VERSION);
+        if (!version) {
+            qCritical() << "No OpenGL context available (glGetString returned null)";
             return false;
         }
 
-        m_glFunctions = context->versionFunctions<QOpenGLFunctions_3_3_Core>();
-        if (!m_glFunctions || !m_glFunctions->initializeOpenGLFunctions()) {
-            qCritical() << "Failed to initialize OpenGL 3.3 Core functions";
-            return false;
-        }
+        qDebug() << "OpenGL Version:" << reinterpret_cast<const char*>(version);
 
-        if (!initializeOpenGLFunctions()) {
-            qCritical() << "Failed to initialize base OpenGL functions";
-            return false;
-        }
+        // Don't use any Qt OpenGL classes - OpenCascade manages the context
 
+        // Create shaders
+        qDebug() << "Creating shaders...";
         if (!createShaders()) {
+            qCritical() << "Failed to create shaders";
             return false;
         }
+        qDebug() << "Shaders created successfully";
 
+        // Setup vertex arrays
+        qDebug() << "Setting up vertex arrays...";
         setupVertexArrays();
+        qDebug() << "Vertex arrays setup complete";
 
         m_initialized = true;
-        qDebug() << "Grid renderer initialized successfully";
+        qDebug() << "=== TyrexGridOverlayRenderer::initialize() SUCCESS ===";
         return true;
     }
 
     void TyrexGridOverlayRenderer::cleanup()
     {
-        if (!m_initialized || !m_glFunctions) {
+        if (!m_initialized) {
             return;
         }
 
         makeCurrent();
 
         if (m_gridVBO != 0) {
-            m_glFunctions->glDeleteBuffers(1, &m_gridVBO);
+            glDeleteBuffers(1, &m_gridVBO);
             m_gridVBO = 0;
         }
         if (m_gridVAO != 0) {
-            m_glFunctions->glDeleteVertexArrays(1, &m_gridVAO);
+            glDeleteVertexArrays(1, &m_gridVAO);
             m_gridVAO = 0;
         }
 
-        m_shaderProgram.reset();
-        m_textShaderProgram.reset();
-        m_vertexBuffer.reset();
-        m_vao.reset();
+        if (m_vbo != 0) {
+            glDeleteBuffers(1, &m_vbo);
+            m_vbo = 0;
+        }
+        if (m_vao != 0) {
+            glDeleteVertexArrays(1, &m_vao);
+            m_vao = 0;
+        }
+
+        if (m_shaderProgram != 0) {
+            glDeleteProgram(m_shaderProgram);
+            m_shaderProgram = 0;
+        }
+        if (m_vertexShader != 0) {
+            glDeleteShader(m_vertexShader);
+            m_vertexShader = 0;
+        }
+        if (m_fragmentShader != 0) {
+            glDeleteShader(m_fragmentShader);
+            m_fragmentShader = 0;
+        }
 
         m_initialized = false;
-        m_glFunctions = nullptr;
     }
 
     void TyrexGridOverlayRenderer::renderFromOverlay(TyrexCanvasOverlay* overlay,
@@ -194,8 +219,6 @@ namespace TyrexCAD {
 
     void TyrexGridOverlayRenderer::renderGridLines(TyrexCanvasOverlay* overlay)
     {
-        if (!m_glFunctions) return;
-
         // Get grid lines from overlay
         auto gridLines = overlay->computeGridLines();
         if (gridLines.empty()) return;
@@ -233,8 +256,6 @@ namespace TyrexCAD {
 
     void TyrexGridOverlayRenderer::renderGridPoints(TyrexCanvasOverlay* overlay, bool dots)
     {
-        if (!m_glFunctions) return;
-
         // Get grid points from overlay
         auto gridPoints = overlay->computeGridPoints();
         if (gridPoints.empty()) return;
@@ -259,13 +280,13 @@ namespace TyrexCAD {
             }
 
             // Enable point rendering options
-            m_glFunctions->glEnable(GL_POINT_SMOOTH);
-            m_glFunctions->glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
-            m_glFunctions->glPointSize(m_config.dotSize);
+            glEnable(GL_POINT_SMOOTH);
+            glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
+            glPointSize(m_config.dotSize);
 
             renderVertexData(GL_POINTS, gridPoints.size());
 
-            m_glFunctions->glDisable(GL_POINT_SMOOTH);
+            glDisable(GL_POINT_SMOOTH);
         }
         else {
             // Render as crosses
@@ -301,8 +322,6 @@ namespace TyrexCAD {
 
     void TyrexGridOverlayRenderer::renderAxes(TyrexCanvasOverlay* overlay)
     {
-        if (!m_glFunctions) return;
-
         auto axisLines = overlay->computeAxisLines();
         if (axisLines.empty()) return;
 
@@ -324,14 +343,23 @@ namespace TyrexCAD {
                 });
         }
 
-        m_glFunctions->glLineWidth(m_config.axisLineWidth);
+        glLineWidth(m_config.axisLineWidth);
         renderVertexData(GL_LINES, axisLines.size() * 2);
-        m_glFunctions->glLineWidth(1.0f);
+        glLineWidth(1.0f);
     }
 
     void TyrexGridOverlayRenderer::renderVertexData(GLenum mode, int vertexCount)
     {
-        if (!m_glFunctions || m_vertices.empty() || vertexCount == 0) return;
+        if (m_vertices.empty() || vertexCount == 0) return;
+
+        // Lazy initialization of VAO/VBO to ensure context is current
+        if (!m_vao->isCreated()) {
+            m_vao->create();
+        }
+        if (!m_vertexBuffer->isCreated()) {
+            m_vertexBuffer->create();
+            m_vertexBuffer->setUsagePattern(QOpenGLBuffer::DynamicDraw);
+        }
 
         m_shaderProgram->bind();
         m_vao->bind();
@@ -357,8 +385,8 @@ namespace TyrexCAD {
         m_shaderProgram->setUniformValue("u_view", view);
         m_shaderProgram->setUniformValue("u_globalOpacity", 1.0f);
 
-        // Draw
-        m_glFunctions->glDrawArrays(mode, 0, vertexCount);
+        // Draw using basic OpenGL
+        glDrawArrays(mode, 0, vertexCount);
 
         m_vao->release();
         m_shaderProgram->release();
@@ -424,18 +452,13 @@ namespace TyrexCAD {
 
     void TyrexGridOverlayRenderer::setupVertexArrays()
     {
-        if (!m_glFunctions) return;
-
+        // Don't use Qt's VAO/VBO classes with OpenCascade's context
+        // Just initialize the member variables
         m_vao = std::make_unique<QOpenGLVertexArrayObject>();
-        m_vao->create();
-
         m_vertexBuffer = std::make_unique<QOpenGLBuffer>(QOpenGLBuffer::VertexBuffer);
-        m_vertexBuffer->create();
-        m_vertexBuffer->setUsagePattern(QOpenGLBuffer::DynamicDraw);
 
-        // Create additional VBO/VAO for optimized rendering
-        m_glFunctions->glGenBuffers(1, &m_gridVBO);
-        m_glFunctions->glGenVertexArrays(1, &m_gridVAO);
+        // Don't create them yet - do it lazily when needed
+        // This avoids context issues during initialization
     }
 
     void TyrexGridOverlayRenderer::makeCurrent()

@@ -70,7 +70,8 @@ namespace TyrexCAD {
         m_drawToolBar(nullptr),
         m_sketchToolBar(nullptr),
         m_gridStyleGroup(nullptr),
-        m_debugMode(false)
+        m_debugMode(false),
+        m_openGLDependentComponentsInitialized(false)
     {
         setWindowTitle("TyrexCAD");
         setGeometry(100, 100, 1200, 800);
@@ -130,6 +131,10 @@ namespace TyrexCAD {
             m_initializationAttempts = 0; // Reset attempts counter
             initializeComponentsAfterViewer();
             });
+
+        // CRITICAL: Connect to OpenGL context ready signal for deferred initialization
+        connect(viewWidget, &TyrexViewWidget::glContextInitializedAndCurrent,
+            this, &TyrexMainWindow::onOpenGLReadyForGrid);
 
         // Also attempt initialization with multiple retries
         QTimer* initTimer = new QTimer(this);
@@ -196,7 +201,7 @@ namespace TyrexCAD {
         QThread::msleep(100);
 
         try {
-            // Initialize layer manager first
+            // Initialize layer manager first (NOT OpenGL dependent)
             if (!m_layerManager) {
                 qDebug() << "Initializing layer manager...";
                 m_layerManager = std::make_unique<TyrexLayerManager>(this);
@@ -207,6 +212,74 @@ namespace TyrexCAD {
                 qDebug() << "Layer manager initialized successfully";
             }
 
+            // DEFERRED: Do NOT initialize unified grid system here
+            // It will be initialized in onOpenGLReadyForGrid()
+
+            // Initialize model space (NOT OpenGL dependent)
+            if (!m_modelSpace) {
+                qDebug() << "Initializing model space...";
+                initializeModelSpace();
+                if (!m_modelSpace) {
+                    qCritical() << "Failed to initialize model space!";
+                    return;
+                }
+                qDebug() << "Model space initialized successfully";
+            }
+
+            // Initialize command manager (NOT OpenGL dependent)
+            if (!m_commandManager) {
+                qDebug() << "Initializing command manager...";
+                initializeCommandManager();
+                if (!m_commandManager) {
+                    qCritical() << "Failed to initialize command manager!";
+                    return;
+                }
+                qDebug() << "Command manager initialized successfully";
+            }
+
+            // Initialize sketch manager (NOT OpenGL dependent)
+            if (!m_sketchManager) {
+                qDebug() << "Initializing sketch manager...";
+                initializeSketchManager();
+                if (!m_sketchManager) {
+                    qCritical() << "Failed to initialize sketch manager!";
+                    return;
+                }
+                qDebug() << "Sketch manager initialized successfully";
+            }
+
+            m_componentsInitialized = true;
+            qDebug() << "=== Non-OpenGL components initialized successfully ===";
+            qDebug() << "=== Waiting for OpenGL context to be ready for grid initialization ===";
+
+            updateStatusBar("TyrexCAD initializing...");
+
+        }
+        catch (const std::exception& e) {
+            qCritical() << "Exception during component initialization:" << e.what();
+            m_componentsInitialized = false;
+        }
+        catch (...) {
+            qCritical() << "Unknown exception during component initialization";
+            m_componentsInitialized = false;
+        }
+    }
+
+    void TyrexMainWindow::onOpenGLReadyForGrid()
+    {
+        qDebug() << "=== OpenGL Context Ready - Initializing Grid System ===";
+
+        if (m_openGLDependentComponentsInitialized) {
+            qDebug() << "OpenGL dependent components already initialized";
+            return;
+        }
+
+        if (!m_viewerManager || !m_layerManager) {
+            qCritical() << "Cannot initialize grid - missing dependencies";
+            return;
+        }
+
+        try {
             // Initialize unified grid system
             if (!m_unifiedGrid) {
                 qDebug() << "Initializing unified grid system...";
@@ -219,19 +292,8 @@ namespace TyrexCAD {
                 qDebug() << "Unified grid system initialized successfully";
             }
 
-            // Initialize model space
-            if (!m_modelSpace) {
-                qDebug() << "Initializing model space...";
-                initializeModelSpace();
-                if (!m_modelSpace) {
-                    qCritical() << "Failed to initialize model space!";
-                    return;
-                }
-                qDebug() << "Model space initialized successfully";
-            }
-
-            // Initialize snap manager
-            if (!m_snapManager) {
+            // Initialize snap manager (depends on grid overlay)
+            if (!m_snapManager && m_unifiedGrid) {
                 qDebug() << "Initializing snap manager...";
                 m_snapManager = std::make_unique<TyrexSnapManager>(this);
                 m_snapManager->setCanvasOverlay(m_unifiedGrid->overlay());
@@ -244,54 +306,33 @@ namespace TyrexCAD {
                     TyrexSnapManager::Endpoint |
                     TyrexSnapManager::Midpoint
                 );
-                qDebug() << "Snap manager initialized successfully";
-            }
-
-            // Initialize command manager
-            if (!m_commandManager) {
-                qDebug() << "Initializing command manager...";
-                initializeCommandManager();
-                if (!m_commandManager) {
-                    qCritical() << "Failed to initialize command manager!";
-                    return;
-                }
 
                 // Set snap manager in command manager
-                m_commandManager->setSnapManager(m_snapManager.get());
-                qDebug() << "Command manager initialized successfully";
-            }
-
-            // Initialize sketch manager
-            if (!m_sketchManager) {
-                qDebug() << "Initializing sketch manager...";
-                initializeSketchManager();
-                if (!m_sketchManager) {
-                    qCritical() << "Failed to initialize sketch manager!";
-                    return;
+                if (m_commandManager) {
+                    m_commandManager->setSnapManager(m_snapManager.get());
                 }
-                qDebug() << "Sketch manager initialized successfully";
+
+                qDebug() << "Snap manager initialized successfully";
             }
 
             // Connect unified system signals
             connectUnifiedSystemSignals();
 
-            m_componentsInitialized = true;
-            qDebug() << "=== All components initialized successfully ===";
+            m_openGLDependentComponentsInitialized = true;
 
             // Update UI to reflect grid state
             updateGridUI();
             updateSnapUI();
 
             updateStatusBar("TyrexCAD initialized successfully");
+            qDebug() << "=== All OpenGL-dependent components initialized successfully ===";
 
         }
         catch (const std::exception& e) {
-            qCritical() << "Exception during component initialization:" << e.what();
-            m_componentsInitialized = false;
+            qCritical() << "Exception during OpenGL-dependent component initialization:" << e.what();
         }
         catch (...) {
-            qCritical() << "Unknown exception during component initialization";
-            m_componentsInitialized = false;
+            qCritical() << "Unknown exception during OpenGL-dependent component initialization";
         }
     }
 
@@ -379,14 +420,6 @@ namespace TyrexCAD {
                 qDebug() << "Sketch manager set in interaction manager";
             }
 
-            // Enable grid by default
-            if (m_unifiedGrid) {
-                m_unifiedGrid->setGridVisible(true);
-                if (m_toggleGridAction) {
-                    m_toggleGridAction->setChecked(true);
-                }
-            }
-
             qDebug() << "Sketch manager initialized completely";
 
         }
@@ -406,7 +439,7 @@ namespace TyrexCAD {
 
     void TyrexMainWindow::initializeUnifiedSystems()
     {
-        // This method is now integrated into initializeComponentsAfterViewer
+        // This method is now integrated into onOpenGLReadyForGrid
         // Kept for backward compatibility if needed
     }
 
@@ -453,6 +486,14 @@ namespace TyrexCAD {
                     qDebug() << "Layer" << static_cast<int>(layerId)
                         << "visibility changed to" << visible;
                 });
+        }
+
+        // Enable grid by default
+        if (m_unifiedGrid) {
+            m_unifiedGrid->setGridVisible(true);
+            if (m_toggleGridAction) {
+                m_toggleGridAction->setChecked(true);
+            }
         }
     }
 
@@ -1244,6 +1285,7 @@ namespace TyrexCAD {
                 connect(checkSystemAction, &QAction::triggered, this, [this]() {
                     qDebug() << "=== System State Check ===";
                     qDebug() << "Components initialized:" << m_componentsInitialized;
+                    qDebug() << "OpenGL dependent components initialized:" << m_openGLDependentComponentsInitialized;
                     qDebug() << "Model space:" << (m_modelSpace ? "OK" : "NULL");
                     qDebug() << "Command manager:" << (m_commandManager ? "OK" : "NULL");
                     qDebug() << "Sketch manager:" << (m_sketchManager ? "OK" : "NULL");
@@ -1267,6 +1309,13 @@ namespace TyrexCAD {
                     initializeComponentsAfterViewer();
                     });
                 debugMenu->addAction(forceInitAction);
+
+                QAction* forceOpenGLInitAction = new QAction(tr("Force OpenGL Component Init"), this);
+                connect(forceOpenGLInitAction, &QAction::triggered, this, [this]() {
+                    qDebug() << "=== Forcing OpenGL component initialization ===";
+                    onOpenGLReadyForGrid();
+                    });
+                debugMenu->addAction(forceOpenGLInitAction);
 
                 QAction* toggleDebugOutput = new QAction(tr("Toggle Debug Output"), this);
                 toggleDebugOutput->setCheckable(true);
