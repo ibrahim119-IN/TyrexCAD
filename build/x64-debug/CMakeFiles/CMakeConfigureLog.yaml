@@ -24,7 +24,7 @@ events:
       The output was:
       0
       MSBuild version 17.14.8+a7a4d5af0 for .NET Framework
-      Build started 5/30/2025 3:00:29 AM.
+      Build started 5/30/2025 3:02:33 AM.
       
       Project "D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\3.31.6-msvc6\\CompilerIdCXX\\CompilerIdCXX.vcxproj" on node 1 (default targets).
       PrepareForBuild:
@@ -62,7 +62,7 @@ events:
           0 Warning(s)
           0 Error(s)
       
-      Time Elapsed 00:00:00.69
+      Time Elapsed 00:00:00.68
       
       
       Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.exe"
@@ -81,8 +81,8 @@ events:
     checks:
       - "Detecting CXX compiler ABI info"
     directories:
-      source: "D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/CMakeScratch/TryCompile-mrmwsb"
-      binary: "D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/CMakeScratch/TryCompile-mrmwsb"
+      source: "D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/CMakeScratch/TryCompile-vptx7l"
+      binary: "D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/CMakeScratch/TryCompile-vptx7l"
     cmakeVariables:
       CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
@@ -96,40 +96,40 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/CMakeScratch/TryCompile-mrmwsb'
+        Change Dir: 'D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/CMakeScratch/TryCompile-vptx7l'
         
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_7ee31.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_ab05f.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
         MSBuild version 17.14.8+a7a4d5af0 for .NET Framework
-        Build started 5/30/2025 3:00:30 AM.
+        Build started 5/30/2025 3:02:34 AM.
         
-        Project "D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\CMakeScratch\\TryCompile-mrmwsb\\cmTC_7ee31.vcxproj" on node 1 (default targets).
+        Project "D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\CMakeScratch\\TryCompile-vptx7l\\cmTC_ab05f.vcxproj" on node 1 (default targets).
         PrepareForBuild:
-          Creating directory "cmTC_7ee31.dir\\Debug\\".
+          Creating directory "cmTC_ab05f.dir\\Debug\\".
           Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-          Creating directory "D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\CMakeScratch\\TryCompile-mrmwsb\\Debug\\".
-          Creating directory "cmTC_7ee31.dir\\Debug\\cmTC_7ee31.tlog\\".
+          Creating directory "D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\CMakeScratch\\TryCompile-vptx7l\\Debug\\".
+          Creating directory "cmTC_ab05f.dir\\Debug\\cmTC_ab05f.tlog\\".
         InitializeBuildStatus:
-          Creating "cmTC_7ee31.dir\\Debug\\cmTC_7ee31.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-          Touching "cmTC_7ee31.dir\\Debug\\cmTC_7ee31.tlog\\unsuccessfulbuild".
+          Creating "cmTC_ab05f.dir\\Debug\\cmTC_ab05f.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_ab05f.dir\\Debug\\cmTC_ab05f.tlog\\unsuccessfulbuild".
         ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++20 /Fo"cmTC_7ee31.dir\\Debug\\\\" /Fd"cmTC_7ee31.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TP /errorReport:queue "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\share\\cmake-3.31\\Modules\\CMakeCXXCompilerABI.cpp"
+          C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++20 /Fo"cmTC_ab05f.dir\\Debug\\\\" /Fd"cmTC_ab05f.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TP /errorReport:queue "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\share\\cmake-3.31\\Modules\\CMakeCXXCompilerABI.cpp"
           Microsoft (R) C/C++ Optimizing Compiler Version 19.44.35207.1 for x64
           Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++20 /Fo"cmTC_7ee31.dir\\Debug\\\\" /Fd"cmTC_7ee31.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TP /errorReport:queue "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\share\\cmake-3.31\\Modules\\CMakeCXXCompilerABI.cpp"
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++20 /Fo"cmTC_ab05f.dir\\Debug\\\\" /Fd"cmTC_ab05f.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TP /errorReport:queue "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\share\\cmake-3.31\\Modules\\CMakeCXXCompilerABI.cpp"
           CMakeCXXCompilerABI.cpp
         Link:
-          C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\CMakeScratch\\TryCompile-mrmwsb\\Debug\\cmTC_7ee31.exe" /INCREMENTAL /ILK:"cmTC_7ee31.dir\\Debug\\cmTC_7ee31.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/CMakeScratch/TryCompile-mrmwsb/Debug/cmTC_7ee31.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/CMakeScratch/TryCompile-mrmwsb/Debug/cmTC_7ee31.lib" /MACHINE:X64  /machine:x64 cmTC_7ee31.dir\\Debug\\CMakeCXXCompilerABI.obj
-          cmTC_7ee31.vcxproj -> D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\CMakeScratch\\TryCompile-mrmwsb\\Debug\\cmTC_7ee31.exe
+          C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\CMakeScratch\\TryCompile-vptx7l\\Debug\\cmTC_ab05f.exe" /INCREMENTAL /ILK:"cmTC_ab05f.dir\\Debug\\cmTC_ab05f.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/CMakeScratch/TryCompile-vptx7l/Debug/cmTC_ab05f.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"D:/Projects/TyrexCAD/build/x64-debug/CMakeFiles/CMakeScratch/TryCompile-vptx7l/Debug/cmTC_ab05f.lib" /MACHINE:X64  /machine:x64 cmTC_ab05f.dir\\Debug\\CMakeCXXCompilerABI.obj
+          cmTC_ab05f.vcxproj -> D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\CMakeScratch\\TryCompile-vptx7l\\Debug\\cmTC_ab05f.exe
         FinalizeBuildStatus:
-          Deleting file "cmTC_7ee31.dir\\Debug\\cmTC_7ee31.tlog\\unsuccessfulbuild".
-          Touching "cmTC_7ee31.dir\\Debug\\cmTC_7ee31.tlog\\cmTC_7ee31.lastbuildstate".
-        Done Building Project "D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\CMakeScratch\\TryCompile-mrmwsb\\cmTC_7ee31.vcxproj" (default targets).
+          Deleting file "cmTC_ab05f.dir\\Debug\\cmTC_ab05f.tlog\\unsuccessfulbuild".
+          Touching "cmTC_ab05f.dir\\Debug\\cmTC_ab05f.tlog\\cmTC_ab05f.lastbuildstate".
+        Done Building Project "D:\\Projects\\TyrexCAD\\build\\x64-debug\\CMakeFiles\\CMakeScratch\\TryCompile-vptx7l\\cmTC_ab05f.vcxproj" (default targets).
         
         Build succeeded.
             0 Warning(s)
             0 Error(s)
         
-        Time Elapsed 00:00:00.59
+        Time Elapsed 00:00:00.56
         
       exitCode: 0
   -

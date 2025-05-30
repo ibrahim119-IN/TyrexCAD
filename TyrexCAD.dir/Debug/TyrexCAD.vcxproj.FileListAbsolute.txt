@@ -1,0 +1,2 @@
+D:\Projects\TyrexCAD\Debug\freetype.dll
+D:\Projects\TyrexCAD\TyrexCAD.dir\Debug\TyrexCAD.vcxproj.Up2Date

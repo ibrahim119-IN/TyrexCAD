@@ -54,6 +54,18 @@ if(MSVC)
 endif()
 
 # ================== Qt Integration (via vcpkg) ==================
+# Set up vcpkg paths if not already set
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+    set(CMAKE_TOOLCHAIN_FILE "D:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
+endif()
+
+# Add vcpkg installed directory to CMAKE_PREFIX_PATH
+set(CMAKE_PREFIX_PATH "D:/Tools/vcpkg/installed/x64-windows" ${CMAKE_PREFIX_PATH})
+
+# Set Qt5 directory explicitly
+set(Qt5_DIR "D:/Tools/vcpkg/installed/x64-windows/share/qt5" CACHE PATH "Qt5 directory")
+
+# Find Qt5
 find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
 
 # ================== Sources ==================
