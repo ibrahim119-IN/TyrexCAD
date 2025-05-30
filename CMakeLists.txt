@@ -54,46 +54,58 @@ if(MSVC)
 endif()
 
 # ================== Qt Integration (via vcpkg) ==================
-set(CMAKE_PREFIX_PATH "D:/Tools/vcpkg/installed/x64-windows")
-set(Qt5_DIR "D:/Tools/vcpkg/installed/x64-windows/share/qt5-base")
 find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
 
 # ================== Sources ==================
-# Automatically find all source and header files
-file(GLOB_RECURSE TYREXCAD_SOURCES 
+# Automatically find all source files
+file(GLOB_RECURSE ALL_SOURCES 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
 )
-file(GLOB_RECURSE TYREXCAD_HEADERS 
+
+# Automatically find all header files
+file(GLOB_RECURSE ALL_HEADERS 
     ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
 )
 
-# Remove duplicate entries if any
-list(REMOVE_DUPLICATES TYREXCAD_SOURCES)
-list(REMOVE_DUPLICATES TYREXCAD_HEADERS)
+# Remove the duplicate TyrexCommand files from TyrexCore
+set(FILES_TO_EXCLUDE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/TyrexCore/TyrexCommand.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/TyrexCore/TyrexCommand.h"
+)
 
-# Handle duplicate TyrexCommand.cpp if it exists in multiple locations
-set(TYREXCOMMAND_IN_COMMANDS "${CMAKE_CURRENT_SOURCE_DIR}/src/TyrexCommands/TyrexCommand.cpp")
-set(TYREXCOMMAND_IN_CORE "${CMAKE_CURRENT_SOURCE_DIR}/src/TyrexCore/TyrexCommand.cpp")
+foreach(file_to_exclude ${FILES_TO_EXCLUDE})
+    list(REMOVE_ITEM ALL_SOURCES ${file_to_exclude})
+    list(REMOVE_ITEM ALL_HEADERS ${file_to_exclude})
+    if(EXISTS ${file_to_exclude})
+        message(WARNING "Excluding duplicate file: ${file_to_exclude}")
+    endif()
+endforeach()
 
-if(EXISTS ${TYREXCOMMAND_IN_COMMANDS} AND EXISTS ${TYREXCOMMAND_IN_CORE})
-    message(WARNING "Found TyrexCommand.cpp in both TyrexCommands and TyrexCore directories!")
-    message(WARNING "Removing ${TYREXCOMMAND_IN_CORE} from build to avoid duplicate symbols")
-    list(REMOVE_ITEM TYREXCAD_SOURCES ${TYREXCOMMAND_IN_CORE})
-endif()
+# Remove duplicates
+list(REMOVE_DUPLICATES ALL_SOURCES)
+list(REMOVE_DUPLICATES ALL_HEADERS)
 
-# Count files for reporting
-list(LENGTH TYREXCAD_SOURCES SOURCE_COUNT)
-list(LENGTH TYREXCAD_HEADERS HEADER_COUNT)
+# Debug: Print all source files
+message(STATUS "Source files found:")
+foreach(source ${ALL_SOURCES})
+    get_filename_component(source_name ${source} NAME)
+    message(STATUS "  - ${source_name}")
+endforeach()
+
+# Count files
+list(LENGTH ALL_SOURCES SOURCE_COUNT)
+list(LENGTH ALL_HEADERS HEADER_COUNT)
+message(STATUS "Total: ${SOURCE_COUNT} source files, ${HEADER_COUNT} header files")
 
 # Create executable
-add_executable(TyrexCAD 
-    ${TYREXCAD_SOURCES} 
-    ${TYREXCAD_HEADERS}
+add_executable(${PROJECT_NAME} 
+    ${ALL_SOURCES} 
+    ${ALL_HEADERS}
 )
 
 # Qt definitions
-target_compile_definitions(TyrexCAD PRIVATE 
+target_compile_definitions(${PROJECT_NAME} PRIVATE 
     QT_WIDGETS_LIB
     QT_CORE_LIB
     QT_GUI_LIB
@@ -101,7 +113,7 @@ target_compile_definitions(TyrexCAD PRIVATE
 )
 
 # ================== Include Directories ==================
-target_include_directories(TyrexCAD PRIVATE
+target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${OCCT_INC_DIR}
@@ -109,12 +121,12 @@ target_include_directories(TyrexCAD PRIVATE
 )
 
 # ================== Library Directories ==================
-target_link_directories(TyrexCAD PRIVATE
+target_link_directories(${PROJECT_NAME} PRIVATE
     ${OCCT_LIB_DIR}
 )
 
 # ================== Linking ==================
-target_link_libraries(TyrexCAD PRIVATE
+target_link_libraries(${PROJECT_NAME} PRIVATE
     # Qt Libraries
     Qt5::Core
     Qt5::Gui
@@ -149,33 +161,31 @@ target_link_libraries(TyrexCAD PRIVATE
 )
 
 # ================== Source Groups for IDE ==================
-# This organizes files nicely in Visual Studio
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Source Files" FILES ${TYREXCAD_SOURCES})
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include PREFIX "Header Files" FILES ${TYREXCAD_HEADERS})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Source Files" FILES ${ALL_SOURCES})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include PREFIX "Header Files" FILES ${ALL_HEADERS})
 source_group("Generated Files" REGULAR_EXPRESSION ".*_autogen/.*")
 
 # ================== DLL Copy ==================
-add_custom_command(TARGET TyrexCAD POST_BUILD
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenCascade DLLs..."
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${OCCT_DLL_DIR}" "$<TARGET_FILE_DIR:TyrexCAD>"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${OCCT_DLL_DIR}" "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
 )
 
 # Copy FreeType DLL if it exists
 if(EXISTS "D:/OpenCascade/freetype-install/bin/freetype.dll")
-    add_custom_command(TARGET TyrexCAD POST_BUILD
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different 
             "D:/OpenCascade/freetype-install/bin/freetype.dll" 
-            "$<TARGET_FILE_DIR:TyrexCAD>"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
     )
 endif()
 
 # ================== Force CMake to reconfigure on new files ==================
-# This helps detect new files without manual reconfiguration
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${TYREXCAD_SOURCES} ${TYREXCAD_HEADERS})
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ALL_SOURCES} ${ALL_HEADERS})
 
 # Set MOC options for Windows
 if(WIN32)
-    set_property(TARGET TyrexCAD PROPERTY AUTOMOC_MOC_OPTIONS "-D_WIN32")
+    set_property(TARGET ${PROJECT_NAME} PROPERTY AUTOMOC_MOC_OPTIONS "-D_WIN32")
 endif()
 
 # ================== Debug Info ==================
@@ -185,20 +195,9 @@ message(STATUS "Qt5_DIR: ${Qt5_DIR}")
 message(STATUS "OpenCascade Include: ${OCCT_INC_DIR}")
 message(STATUS "OpenCascade Libs: ${OCCT_LIB_DIR}")
 message(STATUS "OpenCascade DLLs: ${OCCT_DLL_DIR}")
-message(STATUS "Found ${SOURCE_COUNT} source files")
-message(STATUS "Found ${HEADER_COUNT} header files")
 
-# Print source files in debug mode
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message(STATUS "Source files:")
-    foreach(source ${TYREXCAD_SOURCES})
-        get_filename_component(source_name ${source} NAME)
-        message(STATUS "  - ${source_name}")
-    endforeach()
-endif()
-
-# ================== Installation (Optional) ==================
-install(TARGETS TyrexCAD
+# ================== Installation ==================
+install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib

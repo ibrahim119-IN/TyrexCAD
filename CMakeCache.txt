@@ -17,16 +17,13 @@
 //Path to a program.
 CMAKE_AR:FILEPATH=C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/lib.exe
 
-//No help, variable specified on the command line.
+//Build type
 CMAKE_BUILD_TYPE:STRING=Debug
 
 //Semicolon separated list of supported configuration types, only
 // supports Debug, Release, MinSizeRel, and RelWithDebInfo, anything
 // else will be ignored.
 CMAKE_CONFIGURATION_TYPES:STRING=Debug;Release;MinSizeRel;RelWithDebInfo
-
-//No help, variable specified on the command line.
-CMAKE_CXX_COMPILER:STRING=cl.exe
 
 //Flags used by the CXX compiler during all build types.
 CMAKE_CXX_FLAGS:STRING=/DWIN32 /D_WINDOWS /EHsc
@@ -43,14 +40,8 @@ CMAKE_CXX_FLAGS_RELEASE:STRING=/O2 /Ob2 /DNDEBUG
 //Flags used by the CXX compiler during RELWITHDEBINFO builds.
 CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O2 /Ob1 /DNDEBUG
 
-//No help, variable specified on the command line.
-CMAKE_CXX_STANDARD:STRING=20
-
 //Libraries linked by default with all C++ applications.
 CMAKE_CXX_STANDARD_LIBRARIES:STRING=kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib
-
-//No help, variable specified on the command line.
-CMAKE_C_COMPILER:STRING=cl.exe
 
 //Flags used by the linker during all build types.
 CMAKE_EXE_LINKER_FLAGS:STRING=/machine:x64
@@ -67,14 +58,11 @@ CMAKE_EXE_LINKER_FLAGS_RELEASE:STRING=/INCREMENTAL:NO
 //Flags used by the linker during RELWITHDEBINFO builds.
 CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO:STRING=/debug /INCREMENTAL
 
-//No help, variable specified on the command line.
-CMAKE_EXPORT_COMPILE_COMMANDS:STRING=YES
-
 //Value Computed by CMake.
 CMAKE_FIND_PACKAGE_REDIRECTS_DIR:STATIC=D:/Projects/TyrexCAD/CMakeFiles/pkgRedirects
 
-//No help, variable specified on the command line.
-CMAKE_INSTALL_PREFIX:PATH=D:/Projects/TyrexCAD/install/x64-debug
+//Install path prefix, prepended onto install directories.
+CMAKE_INSTALL_PREFIX:PATH=C:/Program Files (x86)/TyrexCAD
 
 //Path to a program.
 CMAKE_LINKER:FILEPATH=C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/link.exe
@@ -176,29 +164,14 @@ CMAKE_STATIC_LINKER_FLAGS_RELEASE:STRING=
 // during RELWITHDEBINFO builds.
 CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO:STRING=
 
-//No help, variable specified on the command line.
-CMAKE_TOOLCHAIN_FILE:STRING=D:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake
-
 //If this value is on, makefiles will be generated without the
 // .SILENT directive, and all commands will be echoed to the console
 // during the make.  This is useful for debugging only. With Visual
 // Studio IDE projects all commands are done without /nologo.
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
-//The directory containing a CMake configuration file for Qt5Core.
-Qt5Core_DIR:PATH=D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Core
-
-//The directory containing a CMake configuration file for Qt5Gui.
-Qt5Gui_DIR:PATH=D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Gui
-
-//The directory containing a CMake configuration file for Qt5OpenGL.
-Qt5OpenGL_DIR:PATH=D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5OpenGL
-
-//The directory containing a CMake configuration file for Qt5Widgets.
-Qt5Widgets_DIR:PATH=D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5Widgets
-
 //The directory containing a CMake configuration file for Qt5.
-Qt5_DIR:PATH=D:/Tools/vcpkg/installed/x64-windows/share/cmake/Qt5
+Qt5_DIR:PATH=Qt5_DIR-NOTFOUND
 
 //Value Computed by CMake
 TyrexCAD_BINARY_DIR:STATIC=D:/Projects/TyrexCAD
