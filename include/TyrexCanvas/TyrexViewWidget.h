@@ -1,4 +1,11 @@
-﻿#ifndef TYREXVIEWWIDGET_H
+﻿/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#ifndef TYREXVIEWWIDGET_H
 #define TYREXVIEWWIDGET_H
 
 #include <QWidget>
@@ -6,8 +13,10 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <memory>
+#include <chrono>
 
 #include "TyrexCanvas/TyrexGridConfig.h"
+#include "TyrexCore/UpdateManager.h"
 
 QT_BEGIN_NAMESPACE
 class QEnterEvent;
@@ -25,7 +34,11 @@ namespace TyrexCAD {
     /**
      * @brief Main 3D view widget for TyrexCAD
      *
-     * This widget combines OpenCascade visualization with grid overlay support.
+     * This widget combines OpenCascade visualization with optimized grid overlay.
+     * Key improvements:
+     * - Intelligent update management to reduce flickering
+     * - Separated geometry computation from rendering
+     * - Efficient OpenGL-based grid rendering
      */
     class TyrexViewWidget : public QWidget
     {
@@ -54,7 +67,7 @@ namespace TyrexCAD {
 
         // Debug functions
         void debugGridState();
-        void enableDebugMode(bool enable) { m_debugMode = enable; }
+        void enableDebugMode(bool enable);
 
     signals:
         void viewerInitialized();
@@ -85,26 +98,37 @@ namespace TyrexCAD {
         void initialize();
         void initializeOverlay();
 
+        /**
+         * @brief Request update with priority
+         * @param priority Update priority
+         */
+        void requestUpdate(UpdateManager::Priority priority);
+
+    private slots:
+        /**
+         * @brief Perform actual update
+         */
+        void performUpdate();
+
     private:
         // Core components
         std::shared_ptr<TyrexViewerManager> m_viewerManager;
         std::unique_ptr<TyrexGridOverlayRenderer> m_gridRenderer;
         std::shared_ptr<TyrexCanvasOverlay> m_canvasOverlay;
+        std::unique_ptr<UpdateManager> m_updateManager;
 
         // State
         bool m_gridInitialized;
         bool m_cursorInWidget;
         bool m_useOpenGLGrid;
         bool m_needsResize;
+        bool m_updatePending;
         QPoint m_currentCursorPos;
 
-        // Update management
-        QTimer* m_updateTimer;
-
-        // Debug
+        // Debug and performance tracking
         bool m_debugMode;
         int m_paintEventCount;
-        QElapsedTimer m_paintTimer;
+        int64_t m_lastPaintTime;
     };
 
 } // namespace TyrexCAD

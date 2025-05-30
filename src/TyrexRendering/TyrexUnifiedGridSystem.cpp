@@ -1,7 +1,15 @@
+/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
 #include "TyrexRendering/TyrexUnifiedGridSystem.h"
 #include "TyrexCanvas/TyrexCanvasOverlay.h"
 #include "TyrexRendering/TyrexGridOverlayRenderer.h"
 #include "TyrexRendering/TyrexViewerManager.h"
+#include "TyrexCore/UpdateManager.h"
 #include <QDebug>
 
 namespace TyrexCAD {
@@ -11,9 +19,13 @@ namespace TyrexCAD {
         , m_isActive(true)
         , m_initialized(false)
         , m_gridLayerId(-1)
+        , m_pendingUpdate(false)
     {
-        // Initialize with default configuration
         m_config = GridConfig::darkTheme();
+        m_updateManager = std::make_unique<UpdateManager>(this);
+
+        connect(m_updateManager.get(), &UpdateManager::updateRequested,
+            this, &TyrexUnifiedGridSystem::performUpdate);
     }
 
     TyrexUnifiedGridSystem::~TyrexUnifiedGridSystem() = default;
@@ -25,7 +37,7 @@ namespace TyrexCAD {
             return true;
         }
 
-        if (!viewerManager || viewerManager->context().IsNull() || viewerManager->view().IsNull()) {
+        if (!viewerManager || viewerManager->view().IsNull()) {
             qCritical() << "Cannot initialize unified grid - invalid viewer manager";
             return false;
         }
@@ -34,14 +46,13 @@ namespace TyrexCAD {
         m_gridLayerId = gridLayerId;
 
         try {
-            // Create canvas overlay for logic
+            // Create pure geometry computation overlay
             m_overlay = std::make_unique<TyrexCanvasOverlay>(
-                m_viewerManager->context(),
                 m_viewerManager->view(),
                 this
             );
 
-            // Create grid renderer for OpenGL rendering
+            // Create OpenGL renderer
             m_renderer = std::make_unique<TyrexGridOverlayRenderer>();
 
             // Initialize renderer
@@ -60,14 +71,13 @@ namespace TyrexCAD {
             // Connect signals
             connectSignals();
 
-            // Initial synchronization
-            synchronizeState();
+            // Initial update
+            m_overlay->updateViewParameters();
 
             m_initialized = true;
             qDebug() << "Unified grid system initialized successfully";
 
             return true;
-
         }
         catch (const std::exception& e) {
             qCritical() << "Exception initializing unified grid:" << e.what();
@@ -75,17 +85,21 @@ namespace TyrexCAD {
         }
     }
 
-    void TyrexUnifiedGridSystem::render(int viewportWidth, int viewportHeight, const QPoint& cursorPos)
+    void TyrexUnifiedGridSystem::render(int viewportWidth, int viewportHeight,
+        const QPoint& cursorPos)
     {
-        if (!m_initialized || !m_isActive || !m_renderer) {
+        if (!m_initialized || !m_isActive || !m_renderer || !m_overlay) {
             return;
         }
 
-        // Ensure synchronization before rendering
-        synchronizeState();
+        // Update view parameters if needed
+        if (m_pendingUpdate) {
+            m_overlay->updateViewParameters();
+            m_pendingUpdate = false;
+        }
 
-        // Render using OpenGL renderer
-        m_renderer->render(viewportWidth, viewportHeight, cursorPos);
+        // Render using optimized renderer with overlay data
+        m_renderer->renderFromOverlay(m_overlay.get(), viewportWidth, viewportHeight, cursorPos);
     }
 
     void TyrexUnifiedGridSystem::update()
@@ -94,13 +108,8 @@ namespace TyrexCAD {
             return;
         }
 
-        // Update overlay
-        if (m_overlay) {
-            m_overlay->update();
-        }
-
-        // Synchronize state
-        synchronizeState();
+        // Request update through update manager to batch requests
+        m_updateManager->requestUpdate(UpdateManager::Priority::Normal);
     }
 
     void TyrexUnifiedGridSystem::forceRedraw()
@@ -109,44 +118,33 @@ namespace TyrexCAD {
             return;
         }
 
-        // Force update in overlay
+        // Force immediate update
         if (m_overlay) {
             m_overlay->forceUpdate();
         }
 
-        // Mark renderer as needing update
-        synchronizeState();
+        // Request immediate redraw
+        m_updateManager->requestUpdate(UpdateManager::Priority::Immediate);
 
-        // Request redraw from viewer
         if (m_viewerManager && !m_viewerManager->view().IsNull()) {
             m_viewerManager->redraw();
         }
     }
 
-    void TyrexUnifiedGridSystem::synchronizeState()
+    void TyrexUnifiedGridSystem::performUpdate()
     {
-        if (!m_overlay || !m_renderer) {
+        if (!m_overlay) {
             return;
         }
 
-        // Get current configuration from overlay
-        const GridConfig& overlayConfig = m_overlay->getGridConfig();
+        // Update overlay view parameters
+        m_overlay->updateViewParameters();
+        m_pendingUpdate = false;
 
-        // Update renderer configuration
-        m_renderer->setGridConfig(overlayConfig);
-
-        // Synchronize visibility
-        m_renderer->setGridEnabled(m_overlay->isGridVisible());
-
-        // Ensure view is synchronized
-        if (m_viewerManager && !m_viewerManager->view().IsNull()) {
-            m_renderer->setView(m_viewerManager->view());
+        // Request redraw from viewer
+        if (m_viewerManager) {
+            m_viewerManager->redraw();
         }
-
-        // Synchronize current spacing
-        double currentSpacing = m_overlay->getCurrentGridSpacing();
-        // Note: TyrexGridOverlayRenderer calculates its own spacing,
-        // but we ensure consistency through the config
     }
 
     void TyrexUnifiedGridSystem::connectSignals()
@@ -155,26 +153,32 @@ namespace TyrexCAD {
             return;
         }
 
-        // Connect overlay signals to our signals
+        // Connect overlay signals
         connect(m_overlay.get(), &TyrexCanvasOverlay::gridSpacingChanged,
             this, &TyrexUnifiedGridSystem::onSpacingChanged);
 
         connect(m_overlay.get(), &TyrexCanvasOverlay::gridConfigChanged,
             this, &TyrexUnifiedGridSystem::onOverlayConfigChanged);
+
+        connect(m_overlay.get(), &TyrexCanvasOverlay::gridDataChanged,
+            this, [this]() {
+                // Schedule update when grid data changes
+                m_updateManager->requestUpdate(UpdateManager::Priority::Normal);
+            });
     }
 
     void TyrexUnifiedGridSystem::onOverlayConfigChanged()
     {
-        // Synchronize when configuration changes
-        synchronizeState();
+        // Update renderer configuration
+        if (m_renderer && m_overlay) {
+            m_renderer->setGridConfig(m_overlay->getGridConfig());
+        }
 
-        // Emit our signal
         emit gridConfigChanged();
     }
 
     void TyrexUnifiedGridSystem::onSpacingChanged(double spacing)
     {
-        // Emit our signal
         emit gridSpacingChanged(spacing);
     }
 
@@ -191,6 +195,7 @@ namespace TyrexCAD {
         }
 
         emit gridVisibilityChanged(visible);
+        update();
     }
 
     bool TyrexUnifiedGridSystem::isGridVisible() const
@@ -206,7 +211,11 @@ namespace TyrexCAD {
             m_overlay->setGridConfig(config);
         }
 
-        synchronizeState();
+        if (m_renderer) {
+            m_renderer->setGridConfig(config);
+        }
+
+        update();
     }
 
     const GridConfig& TyrexUnifiedGridSystem::getGridConfig() const
@@ -223,7 +232,11 @@ namespace TyrexCAD {
             m_overlay->setGridStyle(style);
         }
 
-        synchronizeState();
+        if (m_renderer) {
+            m_renderer->setGridStyle(style);
+        }
+
+        update();
     }
 
     GridStyle TyrexUnifiedGridSystem::getGridStyle() const
@@ -240,7 +253,7 @@ namespace TyrexCAD {
             m_overlay->setGridSpacing(spacing);
         }
 
-        synchronizeState();
+        update();
     }
 
     double TyrexUnifiedGridSystem::getCurrentGridSpacing() const
@@ -248,11 +261,6 @@ namespace TyrexCAD {
         if (m_overlay) {
             return m_overlay->getCurrentGridSpacing();
         }
-
-        if (m_renderer) {
-            return m_renderer->getCurrentGridSpacing();
-        }
-
         return m_config.baseSpacing;
     }
 
@@ -275,8 +283,6 @@ namespace TyrexCAD {
         if (m_overlay) {
             return m_overlay->screenToWorld(screenPos);
         }
-
-        // Fallback
         return gp_Pnt2d(screenPos.x(), screenPos.y());
     }
 
@@ -286,7 +292,6 @@ namespace TyrexCAD {
             return m_overlay->snapToGrid(point);
         }
 
-        // Fallback manual implementation
         if (!m_config.snapEnabled) {
             return point;
         }
@@ -314,11 +319,12 @@ namespace TyrexCAD {
         qDebug() << "Initialized:" << m_initialized;
         qDebug() << "Active:" << m_isActive;
         qDebug() << "Grid Layer ID:" << m_gridLayerId;
+        qDebug() << "Pending Update:" << m_pendingUpdate;
 
         if (m_overlay) {
             qDebug() << "Overlay: Grid visible:" << m_overlay->isGridVisible();
             qDebug() << "Overlay: Current spacing:" << m_overlay->getCurrentGridSpacing();
-            m_overlay->debugGridState();
+            qDebug() << "Overlay: Grid levels:" << m_overlay->getGridLevels().size();
         }
         else {
             qDebug() << "Overlay: Not created";

@@ -14,36 +14,59 @@
 #include <QColor>
 #include <QPoint>
 
- // Include GridConfig definitions
 #include "TyrexCanvas/TyrexGridConfig.h"
 
-// OpenCascade includes
+ // OpenCascade includes
 #include <Standard_Handle.hxx>
-#include <AIS_InteractiveObject.hxx>
 #include <Quantity_Color.hxx>
 #include <gp_Pnt2d.hxx>
 #include <gp_Vec2d.hxx>
-
+#include <gp_Pnt.hxx>
 
 // Forward declarations
-class AIS_InteractiveContext;
 class V3d_View;
-class Geom_TrimmedCurve;
 
 namespace TyrexCAD {
 
-    // NEW: هيكل لتخزين معلومات مستوى الشبكة
+    /**
+     * @brief Grid level information for multi-level adaptive grid
+     */
     struct GridLevel {
         double spacing;
         float opacity;
         float lineWidth;
         Quantity_Color color;
         bool visible;
-        int priority; // للترتيب: 0 = فرعي، 1 = أساسي، 2 = رئيسي
+        int priority; // 0 = sub, 1 = primary, 2 = major
     };
 
     /**
-     * @brief Canvas overlay system for grid, axes, and other 2D elements
+     * @brief Grid line data for rendering
+     */
+    struct GridLineData {
+        gp_Pnt startPoint;
+        gp_Pnt endPoint;
+        Quantity_Color color;
+        float lineWidth;
+        float opacity;
+    };
+
+    /**
+     * @brief Grid point data for dots/crosses rendering
+     */
+    struct GridPointData {
+        gp_Pnt position;
+        Quantity_Color color;
+        float size;
+        float opacity;
+    };
+
+    /**
+     * @brief Canvas overlay - pure grid geometry computation engine
+     *
+     * This class is responsible ONLY for computing grid geometry based on
+     * view parameters and configuration. It does NOT create any AIS objects
+     * or perform rendering. All output is raw geometric data.
      */
     class TyrexCanvasOverlay : public QObject
     {
@@ -51,12 +74,10 @@ namespace TyrexCAD {
     public:
         /**
          * @brief Constructor
-         * @param context AIS interactive context
          * @param view 3D view for coordinate conversion
          * @param parent Parent QObject
          */
-        TyrexCanvasOverlay(const Handle(AIS_InteractiveContext)& context,
-            const Handle(V3d_View)& view,
+        TyrexCanvasOverlay(const Handle(V3d_View)& view,
             QObject* parent = nullptr);
 
         /**
@@ -75,18 +96,6 @@ namespace TyrexCAD {
          * @return True if grid is shown
          */
         bool isGridVisible() const;
-
-        /**
-         * @brief Set axes visibility
-         * @param visible True to show axes
-         */
-        void setAxisVisible(bool visible);
-
-        /**
-         * @brief Check if axes are visible
-         * @return True if axes are shown
-         */
-        bool isAxisVisible() const;
 
         /**
          * @brief Set grid configuration
@@ -145,26 +154,50 @@ namespace TyrexCAD {
         gp_Pnt2d snapToGrid(const gp_Pnt2d& point) const;
 
         /**
-         * @brief Update overlay display
+         * @brief Compute grid lines
+         * @return Grid lines for current view state
          */
-        void update();
+        std::vector<GridLineData> computeGridLines();
 
         /**
-         * @brief Force redraw of overlay
+         * @brief Compute grid points (for dots/crosses style)
+         * @return Grid points for current view state
          */
-        void redraw();
+        std::vector<GridPointData> computeGridPoints();
 
         /**
-         * @brief Force complete update of overlay
-         * This method forces a complete recreation of the grid and axes
-         * with proper viewer invalidation
+         * @brief Compute axis lines
+         * @return Axis line data
+         */
+        std::vector<GridLineData> computeAxisLines();
+
+        /**
+         * @brief Update view parameters
+         * Must be called when view changes
+         */
+        void updateViewParameters();
+
+        /**
+         * @brief Get current grid levels
+         * @return Vector of grid levels
+         */
+        const std::vector<GridLevel>& getGridLevels() const { return m_gridLevels; }
+
+        /**
+         * @brief Force update of grid computation
          */
         void forceUpdate();
 
         /**
-         * @brief Debug grid state
+         * @brief Set axis visibility (compatibility method)
+         * @param visible True to show axes
          */
-        void debugGridState() const;
+        void setAxisVisible(bool visible);
+
+        /**
+         * @brief Update grid (compatibility method)
+         */
+        void update();
 
     signals:
         /**
@@ -178,61 +211,63 @@ namespace TyrexCAD {
          */
         void gridConfigChanged();
 
+        /**
+         * @brief Emitted when grid data needs to be re-rendered
+         */
+        void gridDataChanged();
+
     private:
-        void updateGrid();
-        void updateAxes();
-        void clearOverlay();
-        void calculateAdaptiveSpacing();
-        gp_Vec2d getViewExtents() const;
-        void setupProperZLayer();
-
-        // NEW: دوال محسّنة للشبكة اللانهائية
-        void updateInfiniteGrid();
+        // View parameter calculation
         void calculateViewBounds(double& minX, double& maxX, double& minY, double& maxY) const;
-        bool isLineInViewFrustum(double x1, double y1, double x2, double y2) const;
+        gp_Vec2d getViewExtents() const;
+        double getViewScale() const;
 
-        // NEW: دوال لنظام المستويات المتعددة
+        // Multi-level grid system
         void calculateMultiLevelSpacing();
         std::vector<GridLevel> generateGridLevels(double viewScale) const;
         double calculateOptimalSpacing(double viewScale) const;
         float calculateLevelOpacity(double pixelSpacing, double minSpacing, double maxSpacing) const;
-        void drawGridLevel(const GridLevel& level);
 
-        // NEW: دوال مساعدة للأداء
-        void batchCreateGridLines(const std::vector<std::pair<gp_Pnt, gp_Pnt>>& lines,
-            const GridLevel& level);
+        // Grid line computation
+        std::vector<GridLineData> computeGridLinesForLevel(const GridLevel& level) const;
+        std::vector<GridPointData> computeGridPointsForLevel(const GridLevel& level) const;
+
+        // Utility functions
         static float smoothstep(float edge0, float edge1, float x);
+        bool isLineInViewFrustum(double x1, double y1, double x2, double y2) const;
+        bool isPointInView(double x, double y) const;
+        int clampGridLineCount(int count) const;
 
     private:
-        Handle(AIS_InteractiveContext) m_context;
         Handle(V3d_View) m_view;
 
         // Configuration
         GridConfig m_config;
         bool m_gridVisible;
-        bool m_axisVisible;
         double m_currentSpacing;
 
-        // NEW: متغيرات للنظام المحسّن
+        // Multi-level grid state
         std::vector<GridLevel> m_gridLevels;
         double m_viewScale;
-        mutable gp_Vec2d m_viewCenter;
+        gp_Vec2d m_viewCenter;
+        gp_Vec2d m_viewExtents;
 
-        // Cache for performance
-        gp_Vec2d m_lastExtents;
-        double m_lastSpacing;
-        GridStyle m_lastStyle;
+        // View bounds cache
+        double m_viewMinX, m_viewMaxX;
+        double m_viewMinY, m_viewMaxY;
+
+        // State tracking
         double m_lastViewScale;
-        bool m_gridNeedsUpdate;
+        gp_Vec2d m_lastViewCenter;
+        bool m_needsUpdate;
 
-        // Visual objects
-        std::vector<Handle(AIS_InteractiveObject)> m_gridObjects;
-        std::vector<Handle(AIS_InteractiveObject)> m_axisObjects;
-
-        // NEW: ثوابت لتحسين الأداء
-        static constexpr double GRID_EXTENSION_FACTOR = 2.0; // توسيع الشبكة خارج الرؤية
-        static constexpr int MAX_GRID_LINES = 1000; // حد أقصى للخطوط لمنع تدهور الأداء
-        static constexpr double VIEW_SCALE_EPSILON = 0.01; // حساسية تغيير المقياس
+        // Constants
+        static constexpr double GRID_EXTENSION_FACTOR = 1.5;
+        static constexpr int MAX_GRID_LINES = 500;
+        static constexpr int MAX_GRID_POINTS = 2000;
+        static constexpr double VIEW_SCALE_EPSILON = 0.01;
+        static constexpr double MIN_SPACING = 0.001;
+        static constexpr double MAX_SPACING = 10000.0;
     };
 
 } // namespace TyrexCAD

@@ -22,8 +22,8 @@ QT_BEGIN_MOC_NAMESPACE
 QT_WARNING_PUSH
 QT_WARNING_DISABLE_DEPRECATED
 struct qt_meta_stringdata_TyrexCAD__TyrexViewWidget_t {
-    QByteArrayData data[13];
-    char stringdata0[158];
+    QByteArrayData data[14];
+    char stringdata0[172];
 };
 #define QT_MOC_LITERAL(idx, ofs, len) \
     Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \
@@ -44,13 +44,15 @@ QT_MOC_LITERAL(8, 96, 17), // "gridConfigChanged"
 QT_MOC_LITERAL(9, 114, 10), // "GridConfig"
 QT_MOC_LITERAL(10, 125, 6), // "config"
 QT_MOC_LITERAL(11, 132, 17), // "snapToGridChanged"
-QT_MOC_LITERAL(12, 150, 7) // "enabled"
+QT_MOC_LITERAL(12, 150, 7), // "enabled"
+QT_MOC_LITERAL(13, 158, 13) // "performUpdate"
 
     },
     "TyrexCAD::TyrexViewWidget\0viewerInitialized\0"
     "\0cursorWorldPosition\0x\0y\0gridSpacingChanged\0"
     "spacing\0gridConfigChanged\0GridConfig\0"
-    "config\0snapToGridChanged\0enabled"
+    "config\0snapToGridChanged\0enabled\0"
+    "performUpdate"
 };
 #undef QT_MOC_LITERAL
 
@@ -60,7 +62,7 @@ static const uint qt_meta_data_TyrexCAD__TyrexViewWidget[] = {
        8,       // revision
        0,       // classname
        0,    0, // classinfo
-       5,   14, // methods
+       6,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -68,11 +70,14 @@ static const uint qt_meta_data_TyrexCAD__TyrexViewWidget[] = {
        5,       // signalCount
 
  // signals: name, argc, parameters, tag, flags
-       1,    0,   39,    2, 0x06 /* Public */,
-       3,    2,   40,    2, 0x06 /* Public */,
-       6,    1,   45,    2, 0x06 /* Public */,
-       8,    1,   48,    2, 0x06 /* Public */,
-      11,    1,   51,    2, 0x06 /* Public */,
+       1,    0,   44,    2, 0x06 /* Public */,
+       3,    2,   45,    2, 0x06 /* Public */,
+       6,    1,   50,    2, 0x06 /* Public */,
+       8,    1,   53,    2, 0x06 /* Public */,
+      11,    1,   56,    2, 0x06 /* Public */,
+
+ // slots: name, argc, parameters, tag, flags
+      13,    0,   59,    2, 0x08 /* Private */,
 
  // signals: parameters
     QMetaType::Void,
@@ -80,6 +85,9 @@ static const uint qt_meta_data_TyrexCAD__TyrexViewWidget[] = {
     QMetaType::Void, QMetaType::Double,    7,
     QMetaType::Void, 0x80000000 | 9,   10,
     QMetaType::Void, QMetaType::Bool,   12,
+
+ // slots: parameters
+    QMetaType::Void,
 
        0        // eod
 };
@@ -95,6 +103,7 @@ void TyrexCAD::TyrexViewWidget::qt_static_metacall(QObject *_o, QMetaObject::Cal
         case 2: _t->gridSpacingChanged((*reinterpret_cast< double(*)>(_a[1]))); break;
         case 3: _t->gridConfigChanged((*reinterpret_cast< const GridConfig(*)>(_a[1]))); break;
         case 4: _t->snapToGridChanged((*reinterpret_cast< bool(*)>(_a[1]))); break;
+        case 5: _t->performUpdate(); break;
         default: ;
         }
     } else if (_c == QMetaObject::IndexOfMethod) {
@@ -166,13 +175,13 @@ int TyrexCAD::TyrexViewWidget::qt_metacall(QMetaObject::Call _c, int _id, void *
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 5)
+        if (_id < 6)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 5;
+        _id -= 6;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 5)
+        if (_id < 6)
             *reinterpret_cast<int*>(_a[0]) = -1;
-        _id -= 5;
+        _id -= 6;
     }
     return _id;
 }

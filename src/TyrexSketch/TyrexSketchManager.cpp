@@ -426,7 +426,7 @@ namespace TyrexCAD {
 
         // Use existing canvas overlay if available
         m_canvasOverlay = std::make_unique<TyrexCanvasOverlay>(
-            m_context, m_viewerManager->view(), nullptr);
+            m_viewerManager->view(), nullptr);
 
         qDebug() << "Canvas overlay initialized for sketch mode";
     }

@@ -1,12 +1,21 @@
+/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
 #ifndef TYREX_UNIFIED_GRID_SYSTEM_H
 #define TYREX_UNIFIED_GRID_SYSTEM_H
 
 #include <QObject>
 #include <memory>
+#include <chrono>
 #include "TyrexCanvas/TyrexGridConfig.h"
+#include "TyrexCore/UpdateManager.h"
 #include <gp_Pnt2d.hxx>
 
-// Forward declarations
+ // Forward declarations
 class QPoint;
 
 namespace TyrexCAD {
@@ -15,13 +24,18 @@ namespace TyrexCAD {
     class TyrexCanvasOverlay;
     class TyrexGridOverlayRenderer;
     class TyrexViewerManager;
-    class TyrexLayerManager;
 
     /**
-     * @brief Unified grid system combining logic and rendering
+     * @brief Unified grid system coordinator
      *
-     * This class unifies TyrexCanvasOverlay (logic) and TyrexGridOverlayRenderer (rendering)
-     * to provide a single, coherent grid system.
+     * This class coordinates between TyrexCanvasOverlay (geometry computation)
+     * and TyrexGridOverlayRenderer (OpenGL rendering) to provide a unified,
+     * high-performance grid system.
+     *
+     * Architecture:
+     * - TyrexCanvasOverlay: Computes grid geometry based on view state
+     * - TyrexGridOverlayRenderer: Renders geometry using OpenGL
+     * - TyrexUnifiedGridSystem: Coordinates and manages the overall system
      */
     class TyrexUnifiedGridSystem : public QObject {
         Q_OBJECT
@@ -41,10 +55,11 @@ namespace TyrexCAD {
         /**
          * @brief Initialize the unified grid system
          * @param viewerManager Viewer manager for view access
-         * @param gridLayerId Z-layer ID for grid rendering
+         * @param gridLayerId Z-layer ID for grid rendering (optional)
          * @return True if initialization successful
          */
-        bool initialize(std::shared_ptr<TyrexViewerManager> viewerManager, int gridLayerId = -1);
+        bool initialize(std::shared_ptr<TyrexViewerManager> viewerManager,
+            int gridLayerId = -1);
 
         /**
          * @brief Render the grid
@@ -52,15 +67,16 @@ namespace TyrexCAD {
          * @param viewportHeight Viewport height in pixels
          * @param cursorPos Current cursor position (optional)
          */
-        void render(int viewportWidth, int viewportHeight, const QPoint& cursorPos = QPoint(-1, -1));
+        void render(int viewportWidth, int viewportHeight,
+            const QPoint& cursorPos = QPoint(-1, -1));
 
         /**
-         * @brief Update grid state and synchronize components
+         * @brief Update grid state (batched)
          */
         void update();
 
         /**
-         * @brief Force complete redraw
+         * @brief Force immediate complete redraw
          */
         void forceRedraw();
 
@@ -173,12 +189,13 @@ namespace TyrexCAD {
          */
         void gridVisibilityChanged(bool visible);
 
-    private:
+    private slots:
         /**
-         * @brief Synchronize state between overlay and renderer
+         * @brief Perform actual update (called by UpdateManager)
          */
-        void synchronizeState();
+        void performUpdate();
 
+    private:
         /**
          * @brief Connect internal signals
          */
@@ -199,11 +216,13 @@ namespace TyrexCAD {
         // Core components
         std::unique_ptr<TyrexCanvasOverlay> m_overlay;
         std::unique_ptr<TyrexGridOverlayRenderer> m_renderer;
+        std::unique_ptr<UpdateManager> m_updateManager;
 
         // State
         GridConfig m_config;
         bool m_isActive;
         bool m_initialized;
+        bool m_pendingUpdate;
 
         // References
         std::shared_ptr<TyrexViewerManager> m_viewerManager;

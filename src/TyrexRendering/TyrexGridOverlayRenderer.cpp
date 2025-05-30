@@ -1,12 +1,50 @@
-﻿#include "TyrexRendering/TyrexGridOverlayRenderer.h"
+﻿/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
+#include "TyrexRendering/TyrexGridOverlayRenderer.h"
+#include "TyrexCanvas/TyrexCanvasOverlay.h"
+
 #include <QDebug>
 #include <QOpenGLContext>
-#include <QOpenGLFunctions_3_3_Core>
 #include <QMatrix4x4>
 #include <cmath>
 #include <algorithm>
 
 namespace TyrexCAD {
+
+    // Vertex shader with instancing support
+    static const char* vertexShaderSource = R"(
+        #version 330 core
+        layout(location = 0) in vec2 position;
+        layout(location = 1) in vec4 color;
+        
+        uniform mat4 u_projection;
+        uniform mat4 u_view;
+        
+        out vec4 v_color;
+        
+        void main() {
+            gl_Position = u_projection * u_view * vec4(position, 0.0, 1.0);
+            v_color = color;
+        }
+    )";
+
+    // Fragment shader with alpha support
+    static const char* fragmentShaderSource = R"(
+        #version 330 core
+        in vec4 v_color;
+        out vec4 fragColor;
+        
+        uniform float u_globalOpacity;
+        
+        void main() {
+            fragColor = vec4(v_color.rgb, v_color.a * u_globalOpacity);
+        }
+    )";
 
     TyrexGridOverlayRenderer::TyrexGridOverlayRenderer()
         : m_gridEnabled(true)
@@ -21,22 +59,14 @@ namespace TyrexCAD {
         , m_vboDirty(true)
         , m_glFunctions(nullptr)
     {
-        m_vertices.reserve(10000);
-        m_cachedVertices.reserve(10000);
+        m_vertices.reserve(20000);  // Reserve more for complex grids
+        m_cachedVertices.reserve(20000);
     }
 
     TyrexGridOverlayRenderer::~TyrexGridOverlayRenderer()
     {
-        // Clean up OpenGL resources properly
         if (QOpenGLContext::currentContext()) {
             cleanup();
-        }
-        else {
-            // Schedule cleanup when context is available
-            if (QOpenGLContext* ctx = QOpenGLContext::currentContext()) {
-                QObject::connect(ctx, &QOpenGLContext::aboutToBeDestroyed,
-                    [this]() { cleanup(); });
-            }
         }
     }
 
@@ -46,40 +76,31 @@ namespace TyrexCAD {
             return true;
         }
 
-        // Ensure we have a valid OpenGL context
         QOpenGLContext* context = QOpenGLContext::currentContext();
-        if (!context) {
-            qCritical() << "No OpenGL context available";
+        if (!context || !context->isValid()) {
+            qCritical() << "No valid OpenGL context available";
             return false;
         }
 
-        if (!context->isValid()) {
-            qCritical() << "Invalid OpenGL context";
-            return false;
-        }
-
-        // Get OpenGL 3.3 Core functions
         m_glFunctions = context->versionFunctions<QOpenGLFunctions_3_3_Core>();
         if (!m_glFunctions || !m_glFunctions->initializeOpenGLFunctions()) {
             qCritical() << "Failed to initialize OpenGL 3.3 Core functions";
             return false;
         }
 
-        // Initialize OpenGL functions for QOpenGLFunctions
         if (!initializeOpenGLFunctions()) {
             qCritical() << "Failed to initialize base OpenGL functions";
             return false;
         }
 
         if (!createShaders()) {
-            qCritical() << "Failed to create grid shaders";
             return false;
         }
 
         setupVertexArrays();
 
         m_initialized = true;
-        qDebug() << "TyrexGridOverlayRenderer initialized successfully";
+        qDebug() << "Grid renderer initialized successfully";
         return true;
     }
 
@@ -109,23 +130,337 @@ namespace TyrexCAD {
         m_glFunctions = nullptr;
     }
 
-    void TyrexGridOverlayRenderer::makeCurrent()
+    void TyrexGridOverlayRenderer::renderFromOverlay(TyrexCanvasOverlay* overlay,
+        int viewportWidth,
+        int viewportHeight,
+        const QPoint& cursorPos)
     {
-        // Ensure we have the correct context
-        if (QOpenGLContext::currentContext() && m_glFunctions) {
-            return; // Already current
+        if (!m_initialized || !m_gridEnabled || !overlay || !overlay->isGridVisible()) {
+            return;
         }
 
-        // Try to get functions again if needed
+        makeCurrent();
+
+        m_viewportWidth = viewportWidth;
+        m_viewportHeight = viewportHeight;
+
+        // Get grid configuration
+        m_config = overlay->getGridConfig();
+        m_currentSpacing = overlay->getCurrentGridSpacing();
+
+        // Save OpenGL state
+        GLboolean depthTestEnabled = glIsEnabled(GL_DEPTH_TEST);
+        GLboolean blendEnabled = glIsEnabled(GL_BLEND);
+        GLint blendSrc, blendDst;
+        glGetIntegerv(GL_BLEND_SRC_ALPHA, &blendSrc);
+        glGetIntegerv(GL_BLEND_DST_ALPHA, &blendDst);
+
+        // Configure OpenGL state
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        // Clear any previous errors
+        while (glGetError() != GL_NO_ERROR);
+
+        // Render based on style
+        switch (m_config.style) {
+        case GridStyle::Lines:
+            renderGridLines(overlay);
+            break;
+        case GridStyle::Dots:
+            renderGridPoints(overlay, true);
+            break;
+        case GridStyle::Crosses:
+            renderGridPoints(overlay, false);
+            break;
+        }
+
+        // Render axes if enabled
+        if (m_config.showAxes) {
+            renderAxes(overlay);
+        }
+
+        // Render coordinate display
+        if (m_config.showCoordinates && cursorPos.x() >= 0 && cursorPos.y() >= 0) {
+            renderCoordinateDisplay(cursorPos);
+        }
+
+        // Restore OpenGL state
+        if (depthTestEnabled) glEnable(GL_DEPTH_TEST);
+        if (!blendEnabled) glDisable(GL_BLEND);
+        glBlendFunc(blendSrc, blendDst);
+    }
+
+    void TyrexGridOverlayRenderer::renderGridLines(TyrexCanvasOverlay* overlay)
+    {
+        if (!m_glFunctions) return;
+
+        // Get grid lines from overlay
+        auto gridLines = overlay->computeGridLines();
+        if (gridLines.empty()) return;
+
+        m_vertices.clear();
+        m_vertices.reserve(gridLines.size() * 12);  // 2 vertices * 6 floats each
+
+        // Convert to vertex data
+        for (const auto& line : gridLines) {
+            float r = static_cast<float>(line.color.Red());
+            float g = static_cast<float>(line.color.Green());
+            float b = static_cast<float>(line.color.Blue());
+            float a = line.opacity * m_config.gridOpacity;
+
+            // Start point
+            m_vertices.push_back(static_cast<float>(line.startPoint.X()));
+            m_vertices.push_back(static_cast<float>(line.startPoint.Y()));
+            m_vertices.push_back(r);
+            m_vertices.push_back(g);
+            m_vertices.push_back(b);
+            m_vertices.push_back(a);
+
+            // End point
+            m_vertices.push_back(static_cast<float>(line.endPoint.X()));
+            m_vertices.push_back(static_cast<float>(line.endPoint.Y()));
+            m_vertices.push_back(r);
+            m_vertices.push_back(g);
+            m_vertices.push_back(b);
+            m_vertices.push_back(a);
+        }
+
+        // Render using VBO
+        renderVertexData(GL_LINES, gridLines.size() * 2);
+    }
+
+    void TyrexGridOverlayRenderer::renderGridPoints(TyrexCanvasOverlay* overlay, bool dots)
+    {
+        if (!m_glFunctions) return;
+
+        // Get grid points from overlay
+        auto gridPoints = overlay->computeGridPoints();
+        if (gridPoints.empty()) return;
+
+        if (dots) {
+            // Render as dots
+            m_vertices.clear();
+            m_vertices.reserve(gridPoints.size() * 6);
+
+            for (const auto& point : gridPoints) {
+                float r = static_cast<float>(point.color.Red());
+                float g = static_cast<float>(point.color.Green());
+                float b = static_cast<float>(point.color.Blue());
+                float a = point.opacity * m_config.gridOpacity;
+
+                m_vertices.push_back(static_cast<float>(point.position.X()));
+                m_vertices.push_back(static_cast<float>(point.position.Y()));
+                m_vertices.push_back(r);
+                m_vertices.push_back(g);
+                m_vertices.push_back(b);
+                m_vertices.push_back(a);
+            }
+
+            // Enable point rendering options
+            m_glFunctions->glEnable(GL_POINT_SMOOTH);
+            m_glFunctions->glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
+            m_glFunctions->glPointSize(m_config.dotSize);
+
+            renderVertexData(GL_POINTS, gridPoints.size());
+
+            m_glFunctions->glDisable(GL_POINT_SMOOTH);
+        }
+        else {
+            // Render as crosses
+            m_vertices.clear();
+            m_vertices.reserve(gridPoints.size() * 24);  // 4 vertices * 6 floats each
+
+            float halfSize = m_config.crossSize * 0.5f / m_viewScale;
+
+            for (const auto& point : gridPoints) {
+                float x = static_cast<float>(point.position.X());
+                float y = static_cast<float>(point.position.Y());
+                float r = static_cast<float>(point.color.Red());
+                float g = static_cast<float>(point.color.Green());
+                float b = static_cast<float>(point.color.Blue());
+                float a = point.opacity * m_config.gridOpacity;
+
+                // Horizontal line
+                m_vertices.insert(m_vertices.end(), {
+                    x - halfSize, y, r, g, b, a,
+                    x + halfSize, y, r, g, b, a
+                    });
+
+                // Vertical line
+                m_vertices.insert(m_vertices.end(), {
+                    x, y - halfSize, r, g, b, a,
+                    x, y + halfSize, r, g, b, a
+                    });
+            }
+
+            renderVertexData(GL_LINES, gridPoints.size() * 4);
+        }
+    }
+
+    void TyrexGridOverlayRenderer::renderAxes(TyrexCanvasOverlay* overlay)
+    {
+        if (!m_glFunctions) return;
+
+        auto axisLines = overlay->computeAxisLines();
+        if (axisLines.empty()) return;
+
+        m_vertices.clear();
+
+        for (const auto& axis : axisLines) {
+            float r = static_cast<float>(axis.color.Red());
+            float g = static_cast<float>(axis.color.Green());
+            float b = static_cast<float>(axis.color.Blue());
+            float a = 1.0f;  // Axes always fully opaque
+
+            m_vertices.insert(m_vertices.end(), {
+                static_cast<float>(axis.startPoint.X()),
+                static_cast<float>(axis.startPoint.Y()),
+                r, g, b, a,
+                static_cast<float>(axis.endPoint.X()),
+                static_cast<float>(axis.endPoint.Y()),
+                r, g, b, a
+                });
+        }
+
+        m_glFunctions->glLineWidth(m_config.axisLineWidth);
+        renderVertexData(GL_LINES, axisLines.size() * 2);
+        m_glFunctions->glLineWidth(1.0f);
+    }
+
+    void TyrexGridOverlayRenderer::renderVertexData(GLenum mode, int vertexCount)
+    {
+        if (!m_glFunctions || m_vertices.empty() || vertexCount == 0) return;
+
+        m_shaderProgram->bind();
+        m_vao->bind();
+
+        // Update VBO with new data
+        m_vertexBuffer->bind();
+        m_vertexBuffer->allocate(m_vertices.data(),
+            static_cast<int>(m_vertices.size() * sizeof(float)));
+
+        // Configure vertex attributes
+        m_shaderProgram->enableAttributeArray(0);
+        m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 2, 6 * sizeof(float));
+
+        m_shaderProgram->enableAttributeArray(1);
+        m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, 2 * sizeof(float), 4, 6 * sizeof(float));
+
+        // Set uniforms
+        QMatrix4x4 projection;
+        projection.ortho(m_worldMinX, m_worldMaxX, m_worldMaxY, m_worldMinY, -1, 1);
+        m_shaderProgram->setUniformValue("u_projection", projection);
+
+        QMatrix4x4 view;  // Identity for now
+        m_shaderProgram->setUniformValue("u_view", view);
+        m_shaderProgram->setUniformValue("u_globalOpacity", 1.0f);
+
+        // Draw
+        m_glFunctions->glDrawArrays(mode, 0, vertexCount);
+
+        m_vao->release();
+        m_shaderProgram->release();
+    }
+
+    void TyrexGridOverlayRenderer::updateViewBounds()
+    {
+        if (m_view.IsNull()) {
+            m_worldMinX = -500;
+            m_worldMaxX = 500;
+            m_worldMinY = -500;
+            m_worldMaxY = 500;
+            return;
+        }
+
+        try {
+            m_viewScale = m_view->Scale();
+
+            Standard_Real x1, y1, z1, x2, y2, z2;
+            m_view->Convert(0, 0, x1, y1, z1);
+            m_view->Convert(m_viewportWidth, m_viewportHeight, x2, y2, z2);
+
+            m_worldMinX = std::min(x1, x2);
+            m_worldMaxX = std::max(x1, x2);
+            m_worldMinY = std::min(y1, y2);
+            m_worldMaxY = std::max(y1, y2);
+
+            // Add margin
+            double marginX = (m_worldMaxX - m_worldMinX) * 0.1;
+            double marginY = (m_worldMaxY - m_worldMinY) * 0.1;
+
+            m_worldMinX -= marginX;
+            m_worldMaxX += marginX;
+            m_worldMinY -= marginY;
+            m_worldMaxY += marginY;
+        }
+        catch (const Standard_Failure& ex) {
+            qWarning() << "Error updating view bounds:" << ex.GetMessageString();
+        }
+    }
+
+    bool TyrexGridOverlayRenderer::createShaders()
+    {
+        m_shaderProgram = std::make_unique<QOpenGLShaderProgram>();
+
+        if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vertexShaderSource)) {
+            qCritical() << "Failed to compile vertex shader:" << m_shaderProgram->log();
+            return false;
+        }
+
+        if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentShaderSource)) {
+            qCritical() << "Failed to compile fragment shader:" << m_shaderProgram->log();
+            return false;
+        }
+
+        if (!m_shaderProgram->link()) {
+            qCritical() << "Failed to link shader program:" << m_shaderProgram->log();
+            return false;
+        }
+
+        return true;
+    }
+
+    void TyrexGridOverlayRenderer::setupVertexArrays()
+    {
+        if (!m_glFunctions) return;
+
+        m_vao = std::make_unique<QOpenGLVertexArrayObject>();
+        m_vao->create();
+
+        m_vertexBuffer = std::make_unique<QOpenGLBuffer>(QOpenGLBuffer::VertexBuffer);
+        m_vertexBuffer->create();
+        m_vertexBuffer->setUsagePattern(QOpenGLBuffer::DynamicDraw);
+
+        // Create additional VBO/VAO for optimized rendering
+        m_glFunctions->glGenBuffers(1, &m_gridVBO);
+        m_glFunctions->glGenVertexArrays(1, &m_gridVAO);
+    }
+
+    void TyrexGridOverlayRenderer::makeCurrent()
+    {
+        if (QOpenGLContext::currentContext() && m_glFunctions) {
+            return;
+        }
+
         if (QOpenGLContext* ctx = QOpenGLContext::currentContext()) {
             m_glFunctions = ctx->versionFunctions<QOpenGLFunctions_3_3_Core>();
         }
     }
 
+    // Legacy compatibility methods
+    void TyrexGridOverlayRenderer::render(int viewportWidth, int viewportHeight, const QPoint& cursorPos)
+    {
+        qWarning() << "Legacy render() called - use renderFromOverlay() instead";
+    }
+
     void TyrexGridOverlayRenderer::setView(const Handle(V3d_View)& view)
     {
         m_view = view;
-        m_vboDirty = true;
+        if (!m_view.IsNull()) {
+            updateViewBounds();
+        }
     }
 
     void TyrexGridOverlayRenderer::setGridEnabled(bool enabled)
@@ -160,59 +495,9 @@ namespace TyrexCAD {
         return m_config.style;
     }
 
-    void TyrexGridOverlayRenderer::render(int viewportWidth, int viewportHeight, const QPoint& cursorPos)
+    double TyrexGridOverlayRenderer::getCurrentGridSpacing() const
     {
-        if (!m_initialized || !m_gridEnabled || m_view.IsNull() || !m_glFunctions) {
-            return;
-        }
-
-        if (!shouldRenderGrid()) {
-            return;
-        }
-
-        makeCurrent();
-
-        m_viewportWidth = viewportWidth;
-        m_viewportHeight = viewportHeight;
-
-        updateViewBounds();
-        calculateAdaptiveSpacing();
-
-        if (m_vboDirty) {
-            updateVBO();
-            m_vboDirty = false;
-        }
-
-        // Save OpenGL state
-        GLboolean depthTestEnabled = glIsEnabled(GL_DEPTH_TEST);
-        GLboolean blendEnabled = glIsEnabled(GL_BLEND);
-        GLint blendSrc, blendDst;
-        glGetIntegerv(GL_BLEND_SRC_ALPHA, &blendSrc);
-        glGetIntegerv(GL_BLEND_DST_ALPHA, &blendDst);
-
-        // Set required state
-        glDisable(GL_DEPTH_TEST);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        renderGrid();
-
-        if (m_config.showAxes) {
-            renderAxes();
-        }
-
-        if (m_config.showOriginMarker) {
-            renderOriginMarker();
-        }
-
-        if (m_config.showCoordinates && cursorPos.x() >= 0 && cursorPos.y() >= 0) {
-            renderCoordinateDisplay(cursorPos);
-        }
-
-        // Restore OpenGL state
-        if (depthTestEnabled) glEnable(GL_DEPTH_TEST);
-        if (!blendEnabled) glDisable(GL_BLEND);
-        glBlendFunc(blendSrc, blendDst);
+        return m_currentSpacing;
     }
 
     bool TyrexGridOverlayRenderer::snapToGrid(double worldX, double worldY,
@@ -241,498 +526,11 @@ namespace TyrexCAD {
         return false;
     }
 
-    double TyrexGridOverlayRenderer::getCurrentGridSpacing() const
-    {
-        return m_currentSpacing;
-    }
-
     void TyrexGridOverlayRenderer::screenToWorld(int screenX, int screenY,
         double& worldX, double& worldY) const
     {
-        screenToWorldInternal(static_cast<float>(screenX), static_cast<float>(screenY),
-            worldX, worldY);
-    }
-
-    void TyrexGridOverlayRenderer::updateViewBounds()
-    {
-        if (m_view.IsNull()) {
-            return;
-        }
-
-        try {
-            m_viewScale = m_view->Scale();
-
-            Standard_Real x1, y1, z1, x2, y2, z2;
-            m_view->Convert(0, 0, x1, y1, z1);
-            m_view->Convert(m_viewportWidth, m_viewportHeight, x2, y2, z2);
-
-            m_worldMinX = std::min(x1, x2);
-            m_worldMaxX = std::max(x1, x2);
-            m_worldMinY = std::min(y1, y2);
-            m_worldMaxY = std::max(y1, y2);
-
-            double marginX = (m_worldMaxX - m_worldMinX) * 0.1;
-            double marginY = (m_worldMaxY - m_worldMinY) * 0.1;
-
-            m_worldMinX -= marginX;
-            m_worldMaxX += marginX;
-            m_worldMinY -= marginY;
-            m_worldMaxY += marginY;
-
-        }
-        catch (const Standard_Failure& ex) {
-            qWarning() << "Error updating view bounds:" << ex.GetMessageString();
-        }
-    }
-
-    void TyrexGridOverlayRenderer::calculateAdaptiveSpacing()
-    {
-        if (!m_config.adaptiveSpacing) {
-            m_currentSpacing = m_config.baseSpacing;
-            return;
-        }
-
-        double pixelSpacing = m_config.baseSpacing * m_viewScale;
-        double targetSpacing = m_config.baseSpacing;
-
-        while (pixelSpacing < m_config.minPixelSpacing && targetSpacing < 10000.0) {
-            targetSpacing *= 10.0;
-            pixelSpacing = targetSpacing * m_viewScale;
-        }
-
-        while (pixelSpacing > m_config.maxPixelSpacing && targetSpacing > 0.001) {
-            targetSpacing *= 0.1;
-            pixelSpacing = targetSpacing * m_viewScale;
-        }
-
-        m_currentSpacing = targetSpacing;
-    }
-
-    void TyrexGridOverlayRenderer::renderGrid()
-    {
-        if (!m_shaderProgram || !m_vertexBuffer || !m_vao || !m_glFunctions) {
-            return;
-        }
-
-        switch (m_config.style) {
-        case GridStyle::Lines:
-            renderGridLines();
-            break;
-        case GridStyle::Dots:
-            renderGridDots();
-            break;
-        case GridStyle::Crosses:
-            renderGridCrosses();
-            break;
-        }
-    }
-
-    void TyrexGridOverlayRenderer::renderGridLines()
-    {
-        if (!m_glFunctions) return;
-
-        m_vertices.clear();
-
-        double startX = std::floor(m_worldMinX / m_currentSpacing) * m_currentSpacing;
-        double endX = std::ceil(m_worldMaxX / m_currentSpacing) * m_currentSpacing;
-        double startY = std::floor(m_worldMinY / m_currentSpacing) * m_currentSpacing;
-        double endY = std::ceil(m_worldMaxY / m_currentSpacing) * m_currentSpacing;
-
-        int proposedVLines = static_cast<int>((endX - startX) / m_currentSpacing) + 1;
-        int proposedHLines = static_cast<int>((endY - startY) / m_currentSpacing) + 1;
-
-        proposedVLines = clampGridLineCount(proposedVLines, m_config.maxGridLinesV);
-        proposedHLines = clampGridLineCount(proposedHLines, m_config.maxGridLinesH);
-
-        double stepX = (endX - startX) / std::max(1, proposedVLines - 1);
-        for (int i = 0; i < proposedVLines; ++i) {
-            double x = startX + i * stepX;
-
-            bool isMajor = (std::abs(std::fmod(x / m_currentSpacing, m_config.majorGridInterval)) < 0.01);
-
-            if (m_config.showAxes && std::abs(x) < m_currentSpacing * 0.01) {
-                continue;
-            }
-
-            float screenX1, screenY1, screenX2, screenY2;
-            worldToScreen(x, m_worldMinY, screenX1, screenY1);
-            worldToScreen(x, m_worldMaxY, screenX2, screenY2);
-
-            QColor4ub color = isMajor ? quantityColorToRGBA(m_config.gridColorMajor) :
-                quantityColorToRGBA(m_config.gridColorMinor);
-
-            m_vertices.insert(m_vertices.end(), {
-                screenX1, screenY1, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
-                screenX2, screenY2, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f
-                });
-        }
-
-        double stepY = (endY - startY) / std::max(1, proposedHLines - 1);
-        for (int i = 0; i < proposedHLines; ++i) {
-            double y = startY + i * stepY;
-
-            bool isMajor = (std::abs(std::fmod(y / m_currentSpacing, m_config.majorGridInterval)) < 0.01);
-
-            if (m_config.showAxes && std::abs(y) < m_currentSpacing * 0.01) {
-                continue;
-            }
-
-            float screenX1, screenY1, screenX2, screenY2;
-            worldToScreen(m_worldMinX, y, screenX1, screenY1);
-            worldToScreen(m_worldMaxX, y, screenX2, screenY2);
-
-            QColor4ub color = isMajor ? quantityColorToRGBA(m_config.gridColorMajor) :
-                quantityColorToRGBA(m_config.gridColorMinor);
-
-            m_vertices.insert(m_vertices.end(), {
-                screenX1, screenY1, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
-                screenX2, screenY2, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f
-                });
-        }
-
-        if (m_vertices.empty()) {
-            return;
-        }
-
-        m_shaderProgram->bind();
-        m_vao->bind();
-
-        m_vertexBuffer->bind();
-        m_vertexBuffer->allocate(m_vertices.data(),
-            static_cast<int>(m_vertices.size() * sizeof(float)));
-
-        m_shaderProgram->enableAttributeArray(0);
-        m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 2, 6 * sizeof(float));
-
-        m_shaderProgram->enableAttributeArray(1);
-        m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, 2 * sizeof(float), 4, 6 * sizeof(float));
-
-        QMatrix4x4 projection;
-        projection.ortho(0, m_viewportWidth, m_viewportHeight, 0, -1, 1);
-        m_shaderProgram->setUniformValue("u_projection", projection);
-
-        m_glFunctions->glLineWidth(m_config.lineWidthMinor);
-
-        m_glFunctions->glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(m_vertices.size() / 6));
-
-        m_vao->release();
-        m_shaderProgram->release();
-    }
-
-    void TyrexGridOverlayRenderer::renderGridDots()
-    {
-        if (!m_glFunctions) return;
-
-        m_vertices.clear();
-
-        double startX = std::floor(m_worldMinX / m_currentSpacing) * m_currentSpacing;
-        double endX = std::ceil(m_worldMaxX / m_currentSpacing) * m_currentSpacing;
-        double startY = std::floor(m_worldMinY / m_currentSpacing) * m_currentSpacing;
-        double endY = std::ceil(m_worldMaxY / m_currentSpacing) * m_currentSpacing;
-
-        int dotCount = 0;
-        for (double x = startX; x <= endX && dotCount < m_config.maxDots; x += m_currentSpacing) {
-            for (double y = startY; y <= endY && dotCount < m_config.maxDots; y += m_currentSpacing) {
-                if (!isIntersectionVisible(x, y)) {
-                    continue;
-                }
-
-                float screenX, screenY;
-                worldToScreen(x, y, screenX, screenY);
-
-                bool isMajorX = (std::abs(std::fmod(x / m_currentSpacing, m_config.majorGridInterval)) < 0.01);
-                bool isMajorY = (std::abs(std::fmod(y / m_currentSpacing, m_config.majorGridInterval)) < 0.01);
-                bool isMajor = isMajorX || isMajorY;
-
-                QColor4ub color = isMajor ? quantityColorToRGBA(m_config.gridColorMajor) :
-                    quantityColorToRGBA(m_config.gridColorMinor);
-
-                m_vertices.insert(m_vertices.end(), {
-                    screenX, screenY, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f
-                    });
-
-                dotCount++;
-            }
-        }
-
-        if (m_vertices.empty()) {
-            return;
-        }
-
-        m_shaderProgram->bind();
-        m_vao->bind();
-
-        m_vertexBuffer->bind();
-        m_vertexBuffer->allocate(m_vertices.data(),
-            static_cast<int>(m_vertices.size() * sizeof(float)));
-
-        m_shaderProgram->enableAttributeArray(0);
-        m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 2, 6 * sizeof(float));
-
-        m_shaderProgram->enableAttributeArray(1);
-        m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, 2 * sizeof(float), 4, 6 * sizeof(float));
-
-        QMatrix4x4 projection;
-        projection.ortho(0, m_viewportWidth, m_viewportHeight, 0, -1, 1);
-        m_shaderProgram->setUniformValue("u_projection", projection);
-
-        m_glFunctions->glEnable(GL_POINT_SMOOTH);
-        m_glFunctions->glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
-        m_glFunctions->glPointSize(m_config.dotSize);
-
-        m_glFunctions->glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(m_vertices.size() / 6));
-
-        m_glFunctions->glDisable(GL_POINT_SMOOTH);
-
-        m_vao->release();
-        m_shaderProgram->release();
-    }
-
-    void TyrexGridOverlayRenderer::renderGridCrosses()
-    {
-        if (!m_glFunctions) return;
-
-        m_vertices.clear();
-
-        double startX = std::floor(m_worldMinX / m_currentSpacing) * m_currentSpacing;
-        double endX = std::ceil(m_worldMaxX / m_currentSpacing) * m_currentSpacing;
-        double startY = std::floor(m_worldMinY / m_currentSpacing) * m_currentSpacing;
-        double endY = std::ceil(m_worldMaxY / m_currentSpacing) * m_currentSpacing;
-
-        int crossCount = 0;
-        float halfSize = m_config.crossSize * 0.5f;
-
-        for (double x = startX; x <= endX && crossCount < m_config.maxDots; x += m_currentSpacing) {
-            for (double y = startY; y <= endY && crossCount < m_config.maxDots; y += m_currentSpacing) {
-                if (!isIntersectionVisible(x, y)) {
-                    continue;
-                }
-
-                float screenX, screenY;
-                worldToScreen(x, y, screenX, screenY);
-
-                bool isMajorX = (std::abs(std::fmod(x / m_currentSpacing, m_config.majorGridInterval)) < 0.01);
-                bool isMajorY = (std::abs(std::fmod(y / m_currentSpacing, m_config.majorGridInterval)) < 0.01);
-                bool isMajor = isMajorX || isMajorY;
-
-                QColor4ub color = isMajor ? quantityColorToRGBA(m_config.gridColorMajor) :
-                    quantityColorToRGBA(m_config.gridColorMinor);
-
-                // Horizontal line of cross
-                m_vertices.insert(m_vertices.end(), {
-                    screenX - halfSize, screenY, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
-                    screenX + halfSize, screenY, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f
-                    });
-
-                // Vertical line of cross
-                m_vertices.insert(m_vertices.end(), {
-                    screenX, screenY - halfSize, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
-                    screenX, screenY + halfSize, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f
-                    });
-
-                crossCount++;
-            }
-        }
-
-        if (m_vertices.empty()) {
-            return;
-        }
-
-        m_shaderProgram->bind();
-        m_vao->bind();
-
-        m_vertexBuffer->bind();
-        m_vertexBuffer->allocate(m_vertices.data(),
-            static_cast<int>(m_vertices.size() * sizeof(float)));
-
-        m_shaderProgram->enableAttributeArray(0);
-        m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 2, 6 * sizeof(float));
-
-        m_shaderProgram->enableAttributeArray(1);
-        m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, 2 * sizeof(float), 4, 6 * sizeof(float));
-
-        QMatrix4x4 projection;
-        projection.ortho(0, m_viewportWidth, m_viewportHeight, 0, -1, 1);
-        m_shaderProgram->setUniformValue("u_projection", projection);
-
-        m_glFunctions->glLineWidth(1.0f);
-
-        m_glFunctions->glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(m_vertices.size() / 6));
-
-        m_vao->release();
-        m_shaderProgram->release();
-    }
-
-    void TyrexGridOverlayRenderer::renderAxes()
-    {
-        if (!m_glFunctions) return;
-
-        if (m_worldMinX > 0 || m_worldMaxX < 0 || m_worldMinY > 0 || m_worldMaxY < 0) {
-            return;
-        }
-
-        std::vector<float> axisVertices;
-
-        float screenX1, screenY1, screenX2, screenY2;
-        worldToScreen(m_worldMinX, 0, screenX1, screenY1);
-        worldToScreen(m_worldMaxX, 0, screenX2, screenY2);
-
-        QColor4ub xColor = quantityColorToRGBA(m_config.axisColorX);
-        axisVertices.insert(axisVertices.end(), {
-            screenX1, screenY1, xColor.r / 255.0f, xColor.g / 255.0f, xColor.b / 255.0f, xColor.a / 255.0f,
-            screenX2, screenY2, xColor.r / 255.0f, xColor.g / 255.0f, xColor.b / 255.0f, xColor.a / 255.0f
-            });
-
-        worldToScreen(0, m_worldMinY, screenX1, screenY1);
-        worldToScreen(0, m_worldMaxY, screenX2, screenY2);
-
-        QColor4ub yColor = quantityColorToRGBA(m_config.axisColorY);
-        axisVertices.insert(axisVertices.end(), {
-            screenX1, screenY1, yColor.r / 255.0f, yColor.g / 255.0f, yColor.b / 255.0f, yColor.a / 255.0f,
-            screenX2, screenY2, yColor.r / 255.0f, yColor.g / 255.0f, yColor.b / 255.0f, yColor.a / 255.0f
-            });
-
-        m_glFunctions->glLineWidth(m_config.axisLineWidth);
-
-        m_vertexBuffer->bind();
-        m_vertexBuffer->allocate(axisVertices.data(),
-            static_cast<int>(axisVertices.size() * sizeof(float)));
-
-        m_glFunctions->glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(axisVertices.size() / 6));
-
-        m_glFunctions->glLineWidth(1.0f);
-    }
-
-    void TyrexGridOverlayRenderer::renderOriginMarker()
-    {
-        if (!m_glFunctions) return;
-
-        float originScreenX, originScreenY;
-        worldToScreen(0, 0, originScreenX, originScreenY);
-
-        if (originScreenX < 0 || originScreenX > m_viewportWidth ||
-            originScreenY < 0 || originScreenY > m_viewportHeight) {
-            return;
-        }
-
-        float size = m_config.originMarkerSize;
-        QColor4ub color = QColor4ub(255, 255, 255, 255);
-
-        std::vector<float> markerVertices = {
-            originScreenX - size, originScreenY, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
-            originScreenX + size, originScreenY, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
-            originScreenX, originScreenY - size, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f,
-            originScreenX, originScreenY + size, color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f
-        };
-
-        m_glFunctions->glLineWidth(2.0f);
-
-        m_vertexBuffer->bind();
-        m_vertexBuffer->allocate(markerVertices.data(),
-            static_cast<int>(markerVertices.size() * sizeof(float)));
-
-        m_glFunctions->glDrawArrays(GL_LINES, 0, 4);
-
-        m_glFunctions->glLineWidth(1.0f);
-    }
-
-    void TyrexGridOverlayRenderer::renderCoordinateDisplay(const QPoint& cursorPos)
-    {
-        double worldX, worldY;
-        screenToWorld(cursorPos.x(), cursorPos.y(), worldX, worldY);
-
-        if (m_config.snapEnabled) {
-            snapToGrid(worldX, worldY, worldX, worldY);
-        }
-
-        QString coordText = QString("X: %1, Y: %2")
-            .arg(worldX, 0, 'f', 2)
-            .arg(worldY, 0, 'f', 2);
-
-        float renderX = cursorPos.x() + m_config.coordinateOffset.x();
-        float renderY = cursorPos.y() + m_config.coordinateOffset.y();
-
-        if (renderX + 150 > m_viewportWidth) {
-            renderX = cursorPos.x() - 150 - m_config.coordinateOffset.x();
-        }
-        if (renderY + 20 > m_viewportHeight) {
-            renderY = cursorPos.y() - 20 - m_config.coordinateOffset.y();
-        }
-
-        renderText(coordText, renderX, renderY, m_config.coordinateColor);
-    }
-
-    void TyrexGridOverlayRenderer::updateVBO()
-    {
-        createVBOForStyle();
-    }
-
-    void TyrexGridOverlayRenderer::createVBOForStyle()
-    {
-        m_cachedVertices.clear();
-    }
-
-    bool TyrexGridOverlayRenderer::createShaders()
-    {
-        m_shaderProgram = std::make_unique<QOpenGLShaderProgram>();
-
-        const char* vertexShader = R"(
-            #version 330 core
-            layout(location = 0) in vec2 position;
-            layout(location = 1) in vec4 color;
-            
-            uniform mat4 u_projection;
-            out vec4 v_color;
-            
-            void main() {
-                gl_Position = u_projection * vec4(position, 0.0, 1.0);
-                v_color = color;
-            }
-        )";
-
-        const char* fragmentShader = R"(
-            #version 330 core
-            in vec4 v_color;
-            out vec4 fragColor;
-            
-            void main() {
-                fragColor = v_color;
-            }
-        )";
-
-        if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vertexShader)) {
-            qCritical() << "Failed to compile vertex shader:" << m_shaderProgram->log();
-            return false;
-        }
-
-        if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentShader)) {
-            qCritical() << "Failed to compile fragment shader:" << m_shaderProgram->log();
-            return false;
-        }
-
-        if (!m_shaderProgram->link()) {
-            qCritical() << "Failed to link shader program:" << m_shaderProgram->log();
-            return false;
-        }
-
-        return true;
-    }
-
-    void TyrexGridOverlayRenderer::setupVertexArrays()
-    {
-        if (!m_glFunctions) return;
-
-        m_vao = std::make_unique<QOpenGLVertexArrayObject>();
-        m_vao->create();
-        m_vao->bind();
-
-        m_vertexBuffer = std::make_unique<QOpenGLBuffer>(QOpenGLBuffer::VertexBuffer);
-        m_vertexBuffer->create();
-
-        m_glFunctions->glGenBuffers(1, &m_gridVBO);
-        m_glFunctions->glGenVertexArrays(1, &m_gridVAO);
-
-        m_vao->release();
+        screenToWorldInternal(static_cast<float>(screenX),
+            static_cast<float>(screenY), worldX, worldY);
     }
 
     void TyrexGridOverlayRenderer::worldToScreen(double worldX, double worldY,
@@ -778,31 +576,10 @@ namespace TyrexCAD {
         }
     }
 
-    bool TyrexGridOverlayRenderer::shouldRenderGrid() const
+    void TyrexGridOverlayRenderer::renderCoordinateDisplay(const QPoint& cursorPos)
     {
-        if (m_viewportWidth < 50 || m_viewportHeight < 50) {
-            return false;
-        }
-
-        if (m_viewScale < 0.001 || m_viewScale > 10000.0) {
-            return false;
-        }
-
-        return true;
-    }
-
-    int TyrexGridOverlayRenderer::clampGridLineCount(int proposedCount, int maxCount) const
-    {
-        return std::min(std::max(proposedCount, 2), maxCount);
-    }
-
-    bool TyrexGridOverlayRenderer::isIntersectionVisible(double x, double y) const
-    {
-        float screenX, screenY;
-        worldToScreen(x, y, screenX, screenY);
-
-        return screenX >= -10 && screenX <= m_viewportWidth + 10 &&
-            screenY >= -10 && screenY <= m_viewportHeight + 10;
+        // Coordinate display would require text rendering
+        // This is a placeholder for future implementation
     }
 
     void TyrexGridOverlayRenderer::renderText(const QString& text, float x, float y, const QColor& color)
@@ -811,7 +588,7 @@ namespace TyrexCAD {
         Q_UNUSED(x);
         Q_UNUSED(y);
         Q_UNUSED(color);
-        // Text rendering implementation would go here
+        // Text rendering requires additional setup with font texture atlas
     }
 
-}
+} // namespace TyrexCAD

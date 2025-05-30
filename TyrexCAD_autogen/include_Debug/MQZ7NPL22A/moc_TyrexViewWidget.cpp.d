@@ -54,7 +54,9 @@ D:/Projects/TyrexCAD/TyrexCAD_autogen/include_Debug/MQZ7NPL22A/moc_TyrexViewWidg
   D:/OpenCascade/install/inc/TCollection_AsciiString.hxx \
   D:/OpenCascade/install/inc/TCollection_AsciiString.lxx \
   D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexGridConfig.h \
+  D:/Projects/TyrexCAD/include/TyrexCore/UpdateManager.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/QElapsedTimer \
+  D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/QObject \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/QPoint \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/QTimer \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qalgorithms.h \

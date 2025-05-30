@@ -1,180 +1,24 @@
 D:/Projects/TyrexCAD/TyrexCAD_autogen/include_Debug/MQZ7NPL22A/moc_TyrexCanvasOverlay.cpp: D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexCanvasOverlay.h \
-  D:/OpenCascade/install/inc/AIS_DragAction.hxx \
-  D:/OpenCascade/install/inc/AIS_InteractiveObject.hxx \
-  D:/OpenCascade/install/inc/AIS_KindOfInteractive.hxx \
-  D:/OpenCascade/install/inc/Aspect_Eye.hxx \
-  D:/OpenCascade/install/inc/Aspect_FrustumLRBT.hxx \
-  D:/OpenCascade/install/inc/Aspect_HatchStyle.hxx \
-  D:/OpenCascade/install/inc/Aspect_InteriorStyle.hxx \
-  D:/OpenCascade/install/inc/Aspect_PolygonOffsetMode.hxx \
-  D:/OpenCascade/install/inc/Aspect_TypeOfDeflection.hxx \
-  D:/OpenCascade/install/inc/Aspect_TypeOfDisplayText.hxx \
-  D:/OpenCascade/install/inc/Aspect_TypeOfFacingModel.hxx \
-  D:/OpenCascade/install/inc/Aspect_TypeOfHighlightMethod.hxx \
-  D:/OpenCascade/install/inc/Aspect_TypeOfLine.hxx \
-  D:/OpenCascade/install/inc/Aspect_TypeOfMarker.hxx \
-  D:/OpenCascade/install/inc/Aspect_TypeOfStyleText.hxx \
-  D:/OpenCascade/install/inc/Aspect_TypeOfTriedronPosition.hxx \
-  D:/OpenCascade/install/inc/BVH_Box.hxx \
-  D:/OpenCascade/install/inc/BVH_Constants.hxx \
-  D:/OpenCascade/install/inc/BVH_Types.hxx \
-  D:/OpenCascade/install/inc/Bnd_Box.hxx \
-  D:/OpenCascade/install/inc/Bnd_Range.hxx \
-  D:/OpenCascade/install/inc/Font_FontAspect.hxx \
-  D:/OpenCascade/install/inc/GeomAbs_Shape.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_AlphaMode.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_AspectFillArea3d.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Aspects.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_BSDF.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_BndBox3d.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_BndBox4f.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_BoundBuffer.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Buffer.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_BufferRange.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_CStructure.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Camera.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_CameraTile.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_CappingFlags.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_ClipPlane.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_DisplayPriority.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Group.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_GroupAspect.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_HatchStyle.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_HorizontalTextAlignment.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_IndexBuffer.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_LevelOfTextureAnisotropy.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_MapOfAspectsToAspects.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_MapOfStructure.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_MarkerImage.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Mat4.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Mat4d.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_MaterialAspect.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_NameOfMaterial.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_PBRMaterial.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_PolygonOffset.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_PresentationAttributes.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_RenderTransparentMethod.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_SequenceOfGroup.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_SequenceOfHClipPlane.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_ShaderAttribute.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_ShaderObject.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_ShaderProgram.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_ShaderVariable.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_ShaderVariable.lxx \
-  D:/OpenCascade/install/inc/Graphic3d_Structure.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TextPath.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TextureMap.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TextureParams.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TextureRoot.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TextureSet.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TextureUnit.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TransModeFlags.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TransformPers.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TransformUtils.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfBackfacingModel.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfConnection.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfMaterial.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfPrimitiveArray.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfReflection.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfShaderObject.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfShadingModel.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfStructure.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfTexture.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfTextureFilter.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_TypeOfTextureMode.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Vec.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Vec2.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Vec3.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Vec4.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_Vertex.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_VerticalTextAlignment.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_ViewAffinity.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_WorldViewProjState.hxx \
-  D:/OpenCascade/install/inc/Graphic3d_ZLayerId.hxx \
-  D:/OpenCascade/install/inc/Image_Color.hxx \
-  D:/OpenCascade/install/inc/Image_CompressedFormat.hxx \
-  D:/OpenCascade/install/inc/Image_Format.hxx \
-  D:/OpenCascade/install/inc/Image_PixMap.hxx \
-  D:/OpenCascade/install/inc/Image_PixMapData.hxx \
-  D:/OpenCascade/install/inc/Message.hxx \
-  D:/OpenCascade/install/inc/Message_Gravity.hxx \
-  D:/OpenCascade/install/inc/Message_Messenger.hxx \
-  D:/OpenCascade/install/inc/Message_MetricType.hxx \
-  D:/OpenCascade/install/inc/Message_Printer.hxx \
-  D:/OpenCascade/install/inc/Message_SequenceOfPrinters.hxx \
-  D:/OpenCascade/install/inc/NCollection_Allocator.hxx \
-  D:/OpenCascade/install/inc/NCollection_Array1.hxx \
   D:/OpenCascade/install/inc/NCollection_BaseAllocator.hxx \
   D:/OpenCascade/install/inc/NCollection_BaseList.hxx \
   D:/OpenCascade/install/inc/NCollection_BaseMap.hxx \
-  D:/OpenCascade/install/inc/NCollection_BasePointerVector.hxx \
-  D:/OpenCascade/install/inc/NCollection_BaseSequence.hxx \
-  D:/OpenCascade/install/inc/NCollection_Buffer.hxx \
-  D:/OpenCascade/install/inc/NCollection_DataMap.hxx \
   D:/OpenCascade/install/inc/NCollection_DefaultHasher.hxx \
   D:/OpenCascade/install/inc/NCollection_DefineAlloc.hxx \
-  D:/OpenCascade/install/inc/NCollection_DefineHArray1.hxx \
   D:/OpenCascade/install/inc/NCollection_DefineHasher.hxx \
-  D:/OpenCascade/install/inc/NCollection_DynamicArray.hxx \
   D:/OpenCascade/install/inc/NCollection_IndexedDataMap.hxx \
-  D:/OpenCascade/install/inc/NCollection_IndexedIterator.hxx \
-  D:/OpenCascade/install/inc/NCollection_IndexedMap.hxx \
-  D:/OpenCascade/install/inc/NCollection_Iterator.hxx \
-  D:/OpenCascade/install/inc/NCollection_Lerp.hxx \
   D:/OpenCascade/install/inc/NCollection_List.hxx \
   D:/OpenCascade/install/inc/NCollection_ListNode.hxx \
-  D:/OpenCascade/install/inc/NCollection_Map.hxx \
-  D:/OpenCascade/install/inc/NCollection_MapAlgo.hxx \
   D:/OpenCascade/install/inc/NCollection_Mat3.hxx \
   D:/OpenCascade/install/inc/NCollection_Mat4.hxx \
-  D:/OpenCascade/install/inc/NCollection_OccAllocator.hxx \
-  D:/OpenCascade/install/inc/NCollection_Sequence.hxx \
-  D:/OpenCascade/install/inc/NCollection_Shared.hxx \
   D:/OpenCascade/install/inc/NCollection_StlIterator.hxx \
   D:/OpenCascade/install/inc/NCollection_TListIterator.hxx \
   D:/OpenCascade/install/inc/NCollection_TListNode.hxx \
   D:/OpenCascade/install/inc/NCollection_Vec2.hxx \
   D:/OpenCascade/install/inc/NCollection_Vec3.hxx \
   D:/OpenCascade/install/inc/NCollection_Vec4.hxx \
-  D:/OpenCascade/install/inc/NCollection_Vector.hxx \
-  D:/OpenCascade/install/inc/OSD_MemInfo.hxx \
-  D:/OpenCascade/install/inc/OSD_Path.hxx \
-  D:/OpenCascade/install/inc/OSD_SysType.hxx \
-  D:/OpenCascade/install/inc/Precision.hxx \
-  D:/OpenCascade/install/inc/Prs3d_DimensionUnits.hxx \
-  D:/OpenCascade/install/inc/Prs3d_Drawer.hxx \
-  D:/OpenCascade/install/inc/Prs3d_Presentation.hxx \
-  D:/OpenCascade/install/inc/Prs3d_TypeOfHLR.hxx \
-  D:/OpenCascade/install/inc/Prs3d_VertexDrawMode.hxx \
-  D:/OpenCascade/install/inc/PrsMgr_DisplayStatus.hxx \
-  D:/OpenCascade/install/inc/PrsMgr_ListOfPresentableObjects.hxx \
-  D:/OpenCascade/install/inc/PrsMgr_PresentableObject.hxx \
-  D:/OpenCascade/install/inc/PrsMgr_Presentation.hxx \
-  D:/OpenCascade/install/inc/PrsMgr_Presentations.hxx \
-  D:/OpenCascade/install/inc/PrsMgr_TypeOfPresentation3d.hxx \
   D:/OpenCascade/install/inc/Quantity_Color.hxx \
-  D:/OpenCascade/install/inc/Quantity_ColorRGBA.hxx \
   D:/OpenCascade/install/inc/Quantity_NameOfColor.hxx \
   D:/OpenCascade/install/inc/Quantity_TypeOfColor.hxx \
-  D:/OpenCascade/install/inc/Select3D_BndBox3d.hxx \
-  D:/OpenCascade/install/inc/Select3D_SensitiveEntity.hxx \
-  D:/OpenCascade/install/inc/Select3D_TypeOfSensitivity.hxx \
-  D:/OpenCascade/install/inc/SelectBasics_PickResult.hxx \
-  D:/OpenCascade/install/inc/SelectBasics_SelectingVolumeManager.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_BaseIntersector.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_IndexedMapOfOwner.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_SelectableObject.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_SelectingVolumeManager.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_Selection.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_SelectionType.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_SensitiveEntity.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_SequenceOfOwner.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_SequenceOfSelection.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_StateOfSelection.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_TypeOfBVHUpdate.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_TypeOfUpdate.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_VectorTypes.hxx \
-  D:/OpenCascade/install/inc/SelectMgr_ViewClipRange.hxx \
   D:/OpenCascade/install/inc/Standard.hxx \
   D:/OpenCascade/install/inc/Standard_Assert.hxx \
   D:/OpenCascade/install/inc/Standard_Boolean.hxx \
@@ -184,8 +28,6 @@ D:/Projects/TyrexCAD/TyrexCAD_autogen/include_Debug/MQZ7NPL22A/moc_TyrexCanvasOv
   D:/OpenCascade/install/inc/Standard_DefineAlloc.hxx \
   D:/OpenCascade/install/inc/Standard_DefineException.hxx \
   D:/OpenCascade/install/inc/Standard_DefineHandle.hxx \
-  D:/OpenCascade/install/inc/Standard_DimensionError.hxx \
-  D:/OpenCascade/install/inc/Standard_DimensionMismatch.hxx \
   D:/OpenCascade/install/inc/Standard_DomainError.hxx \
   D:/OpenCascade/install/inc/Standard_Dump.hxx \
   D:/OpenCascade/install/inc/Standard_ExtCharacter.hxx \
@@ -197,12 +39,9 @@ D:/Projects/TyrexCAD/TyrexCAD_autogen/include_Debug/MQZ7NPL22A/moc_TyrexCanvasOv
   D:/OpenCascade/install/inc/Standard_Integer.hxx \
   D:/OpenCascade/install/inc/Standard_Macro.hxx \
   D:/OpenCascade/install/inc/Standard_NoSuchObject.hxx \
-  D:/OpenCascade/install/inc/Standard_NotImplemented.hxx \
   D:/OpenCascade/install/inc/Standard_OStream.hxx \
-  D:/OpenCascade/install/inc/Standard_OutOfMemory.hxx \
   D:/OpenCascade/install/inc/Standard_OutOfRange.hxx \
   D:/OpenCascade/install/inc/Standard_PCharacter.hxx \
-  D:/OpenCascade/install/inc/Standard_PExtCharacter.hxx \
   D:/OpenCascade/install/inc/Standard_PrimitiveTypes.hxx \
   D:/OpenCascade/install/inc/Standard_ProgramError.hxx \
   D:/OpenCascade/install/inc/Standard_RangeError.hxx \
@@ -215,36 +54,14 @@ D:/Projects/TyrexCAD/TyrexCAD_autogen/include_Debug/MQZ7NPL22A/moc_TyrexCanvasOv
   D:/OpenCascade/install/inc/Standard_Type.hxx \
   D:/OpenCascade/install/inc/Standard_TypeDef.hxx \
   D:/OpenCascade/install/inc/Standard_TypeMismatch.hxx \
-  D:/OpenCascade/install/inc/StdFail_NotDone.hxx \
-  D:/OpenCascade/install/inc/TColStd_Array1OfByte.hxx \
-  D:/OpenCascade/install/inc/TColStd_HArray1OfByte.hxx \
-  D:/OpenCascade/install/inc/TColStd_ListOfInteger.hxx \
-  D:/OpenCascade/install/inc/TColgp_Array1OfPnt.hxx \
-  D:/OpenCascade/install/inc/TColgp_Array1OfPnt2d.hxx \
-  D:/OpenCascade/install/inc/TColgp_HArray1OfPnt.hxx \
   D:/OpenCascade/install/inc/TCollection_AsciiString.hxx \
   D:/OpenCascade/install/inc/TCollection_AsciiString.lxx \
-  D:/OpenCascade/install/inc/TCollection_ExtendedString.hxx \
-  D:/OpenCascade/install/inc/TCollection_HAsciiString.hxx \
-  D:/OpenCascade/install/inc/TCollection_HAsciiString.lxx \
-  D:/OpenCascade/install/inc/TCollection_HExtendedString.hxx \
-  D:/OpenCascade/install/inc/TopLoc_Datum3D.hxx \
-  D:/OpenCascade/install/inc/TopLoc_ItemLocation.hxx \
-  D:/OpenCascade/install/inc/TopLoc_Location.hxx \
-  D:/OpenCascade/install/inc/TopLoc_Location.lxx \
-  D:/OpenCascade/install/inc/TopLoc_SListOfItemLocation.hxx \
   D:/OpenCascade/install/inc/gp.hxx \
-  D:/OpenCascade/install/inc/gp_Ax1.hxx \
-  D:/OpenCascade/install/inc/gp_Ax2.hxx \
   D:/OpenCascade/install/inc/gp_Ax2d.hxx \
-  D:/OpenCascade/install/inc/gp_Ax3.hxx \
   D:/OpenCascade/install/inc/gp_Dir.hxx \
   D:/OpenCascade/install/inc/gp_Dir2d.hxx \
-  D:/OpenCascade/install/inc/gp_GTrsf.hxx \
-  D:/OpenCascade/install/inc/gp_Lin.hxx \
   D:/OpenCascade/install/inc/gp_Mat.hxx \
   D:/OpenCascade/install/inc/gp_Mat2d.hxx \
-  D:/OpenCascade/install/inc/gp_Pln.hxx \
   D:/OpenCascade/install/inc/gp_Pnt.hxx \
   D:/OpenCascade/install/inc/gp_Pnt2d.hxx \
   D:/OpenCascade/install/inc/gp_Trsf.hxx \

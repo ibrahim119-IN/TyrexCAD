@@ -1,3 +1,10 @@
+/***************************************************************************
+ *   Copyright (c) 2025 TyrexCAD development team                          *
+ *                                                                         *
+ *   This file is part of the TyrexCAD CAx development system.             *
+ *                                                                         *
+ ***************************************************************************/
+
 #ifndef TYREX_GRID_OVERLAY_RENDERER_H
 #define TYREX_GRID_OVERLAY_RENDERER_H
 
@@ -18,105 +25,89 @@
 
 namespace TyrexCAD {
 
+    // Forward declaration
+    class TyrexCanvasOverlay;
+
+    /**
+     * @brief High-performance OpenGL grid renderer
+     *
+     * This class is responsible for rendering grid geometry using OpenGL.
+     * It receives geometry data from TyrexCanvasOverlay and renders it
+     * efficiently using VBOs and modern OpenGL techniques.
+     */
     class TyrexGridOverlayRenderer : protected QOpenGLFunctions_3_3_Core
     {
     public:
         TyrexGridOverlayRenderer();
         ~TyrexGridOverlayRenderer();
 
+        /**
+         * @brief Initialize OpenGL resources
+         * @return True if successful
+         */
         bool initialize();
+
+        /**
+         * @brief Clean up OpenGL resources
+         */
         void cleanup();
 
-        void setView(const Handle(V3d_View)& view);
+        /**
+         * @brief Render grid using data from overlay
+         * @param overlay Canvas overlay providing grid geometry
+         * @param viewportWidth Viewport width in pixels
+         * @param viewportHeight Viewport height in pixels
+         * @param cursorPos Current cursor position (optional)
+         */
+        void renderFromOverlay(TyrexCanvasOverlay* overlay,
+            int viewportWidth,
+            int viewportHeight,
+            const QPoint& cursorPos = QPoint(-1, -1));
 
+        // Legacy compatibility methods
+        void setView(const Handle(V3d_View)& view);
         void setGridEnabled(bool enabled);
         bool isGridEnabled() const;
-
         void setGridConfig(const GridConfig& config);
         const GridConfig& getGridConfig() const;
-
         void setGridStyle(GridStyle style);
         GridStyle getGridStyle() const;
-
-        void render(int viewportWidth, int viewportHeight, const QPoint& cursorPos = QPoint(-1, -1));
+        double getCurrentGridSpacing() const;
 
         bool snapToGrid(double worldX, double worldY,
             double& snappedX, double& snappedY) const;
 
-        double getCurrentGridSpacing() const;
-
         void screenToWorld(int screenX, int screenY,
             double& worldX, double& worldY) const;
+
+        // Legacy render method (deprecated)
+        void render(int viewportWidth, int viewportHeight,
+            const QPoint& cursorPos = QPoint(-1, -1));
 
     private:
         // OpenGL context management
         void makeCurrent();
 
-        // Member variables
-        Handle(V3d_View) m_view;
-        GridConfig m_config;
-        bool m_gridEnabled;
-        bool m_initialized;
-        QOpenGLFunctions_3_3_Core* m_glFunctions;  // Store OpenGL functions pointer
+        // Rendering methods
+        void renderGridLines(TyrexCanvasOverlay* overlay);
+        void renderGridPoints(TyrexCanvasOverlay* overlay, bool dots);
+        void renderAxes(TyrexCanvasOverlay* overlay);
+        void renderVertexData(GLenum mode, int vertexCount);
 
-        double m_currentSpacing;
-        double m_viewScale;
-        double m_worldMinX, m_worldMaxX;
-        double m_worldMinY, m_worldMaxY;
-        int m_viewportWidth, m_viewportHeight;
-
-        std::unique_ptr<QOpenGLShaderProgram> m_shaderProgram;
-        std::unique_ptr<QOpenGLShaderProgram> m_textShaderProgram;
-        std::unique_ptr<QOpenGLBuffer> m_vertexBuffer;
-        std::unique_ptr<QOpenGLVertexArrayObject> m_vao;
-        std::vector<float> m_vertices;
-
-        GLuint m_gridVBO;
-        GLuint m_gridVAO;
-        bool m_vboDirty;
-        std::vector<float> m_cachedVertices;
-
-        void updateViewBounds();
-        void calculateAdaptiveSpacing();
-        void generateGridVertices();
-        void renderGrid();
-        void renderAxes();
-        void renderOriginMarker();
-        void renderCoordinateDisplay(const QPoint& cursorPos);
-
-        void renderGridLines();
-        void renderGridDots();
-        void renderGridCrosses();
-
-        void updateVBO();
-        void createVBOForStyle();
-
+        // Shader and vertex setup
         bool createShaders();
         void setupVertexArrays();
 
+        // View calculations
+        void updateViewBounds();
         void worldToScreen(double worldX, double worldY,
             float& screenX, float& screenY) const;
         void screenToWorldInternal(float screenX, float screenY,
             double& worldX, double& worldY) const;
 
-        bool shouldRenderGrid() const;
-        int clampGridLineCount(int proposedCount, int maxCount) const;
-        bool isIntersectionVisible(double x, double y) const;
-
+        // Utility methods
+        void renderCoordinateDisplay(const QPoint& cursorPos);
         void renderText(const QString& text, float x, float y, const QColor& color);
-
-        struct QColor4ub {
-            unsigned char r, g, b, a;
-            QColor4ub(unsigned char r = 0, unsigned char g = 0,
-                unsigned char b = 0, unsigned char a = 255)
-                : r(r), g(g), b(b), a(a) {
-            }
-        };
-
-        struct GridVertex {
-            float x, y;
-            float r, g, b, a;
-        };
 
         QColor convertQuantityToQColor(const Quantity_Color& color) const {
             return QColor(
@@ -126,16 +117,39 @@ namespace TyrexCAD {
             );
         }
 
-        QColor4ub quantityColorToRGBA(const Quantity_Color& color) const {
-            return QColor4ub(
-                static_cast<unsigned char>(color.Red() * 255),
-                static_cast<unsigned char>(color.Green() * 255),
-                static_cast<unsigned char>(color.Blue() * 255),
-                255
-            );
-        }
+    private:
+        // View reference
+        Handle(V3d_View) m_view;
+
+        // Configuration
+        GridConfig m_config;
+        bool m_gridEnabled;
+        bool m_initialized;
+
+        // OpenGL resources
+        QOpenGLFunctions_3_3_Core* m_glFunctions;
+        std::unique_ptr<QOpenGLShaderProgram> m_shaderProgram;
+        std::unique_ptr<QOpenGLShaderProgram> m_textShaderProgram;
+        std::unique_ptr<QOpenGLBuffer> m_vertexBuffer;
+        std::unique_ptr<QOpenGLVertexArrayObject> m_vao;
+
+        // Additional VBO/VAO for optimization
+        GLuint m_gridVBO;
+        GLuint m_gridVAO;
+
+        // Vertex data
+        std::vector<float> m_vertices;
+        std::vector<float> m_cachedVertices;
+        bool m_vboDirty;
+
+        // View parameters
+        double m_currentSpacing;
+        double m_viewScale;
+        double m_worldMinX, m_worldMaxX;
+        double m_worldMinY, m_worldMaxY;
+        int m_viewportWidth, m_viewportHeight;
     };
 
-}
+} // namespace TyrexCAD
 
 #endif // TYREX_GRID_OVERLAY_RENDERER_H

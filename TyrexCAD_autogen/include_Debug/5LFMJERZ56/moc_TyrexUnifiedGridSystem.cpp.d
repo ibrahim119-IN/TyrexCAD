@@ -73,12 +73,16 @@ D:/Projects/TyrexCAD/TyrexCAD_autogen/include_Debug/5LFMJERZ56/moc_TyrexUnifiedG
   D:/OpenCascade/install/inc/gp_XY.hxx \
   D:/OpenCascade/install/inc/gp_XYZ.hxx \
   D:/Projects/TyrexCAD/include/TyrexCanvas/TyrexGridConfig.h \
+  D:/Projects/TyrexCAD/include/TyrexCore/UpdateManager.h \
+  D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/QElapsedTimer \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/QObject \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/QPoint \
+  D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/QTimer \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qalgorithms.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qarraydata.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qatomic.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qbasicatomic.h \
+  D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qbasictimer.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qbytearray.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qbytearraylist.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qchar.h \
@@ -86,6 +90,7 @@ D:/Projects/TyrexCAD/TyrexCAD_autogen/include_Debug/5LFMJERZ56/moc_TyrexUnifiedG
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qconfig.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qcontainerfwd.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qcontainertools_impl.h \
+  D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qelapsedtimer.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qflags.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qglobal.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qglobalstatic.h \
@@ -116,6 +121,7 @@ D:/Projects/TyrexCAD/TyrexCAD_autogen/include_Debug/5LFMJERZ56/moc_TyrexUnifiedG
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qsysinfo.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qsystemdetection.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qtcore-config.h \
+  D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qtimer.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qtypeinfo.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qvarlengtharray.h \
   D:/Tools/vcpkg/installed/x64-windows/include/qt5/QtCore/qvector.h \
