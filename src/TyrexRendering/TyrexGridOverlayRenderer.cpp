@@ -5,16 +5,25 @@
  *                                                                         *
  ***************************************************************************/
 
+ // Fix Windows min/max macro conflicts
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#endif
+
 #include "TyrexRendering/TyrexGridOverlayRenderer.h"
 #include "TyrexCanvas/TyrexCanvasOverlay.h"
 
 #include <QDebug>
 #include <QOpenGLContext>
+#include <QOpenGLShaderProgram>
+#include <QOpenGLVertexArrayObject>
+#include <QOpenGLBuffer>
+#include <QOpenGLFunctions_3_3_Core>
 #include <QMatrix4x4>
 #include <cmath>
 #include <algorithm>
-#include <OpenGl_glext.h>
-
 
 namespace TyrexCAD {
 
@@ -58,11 +67,10 @@ namespace TyrexCAD {
         , m_gridVBO(0)
         , m_gridVAO(0)
         , m_vboDirty(true)
-        , m_shaderProgram(0)
         , m_vertexShader(0)
         , m_fragmentShader(0)
-        , m_vao(0)
         , m_vbo(0)
+        , m_glFunctions(nullptr)
     {
         m_vertices.reserve(20000);  // Reserve more for complex grids
         m_cachedVertices.reserve(20000);
@@ -121,35 +129,54 @@ namespace TyrexCAD {
 
         makeCurrent();
 
-        if (m_gridVBO != 0) {
-            glDeleteBuffers(1, &m_gridVBO);
-            m_gridVBO = 0;
-        }
-        if (m_gridVAO != 0) {
-            glDeleteVertexArrays(1, &m_gridVAO);
-            m_gridVAO = 0;
-        }
-
-        if (m_vbo != 0) {
-            glDeleteBuffers(1, &m_vbo);
-            m_vbo = 0;
-        }
-        if (m_vao != 0) {
-            glDeleteVertexArrays(1, &m_vao);
-            m_vao = 0;
+        // Get OpenGL functions if not available
+        if (!m_glFunctions) {
+            auto* ctx = QOpenGLContext::currentContext();
+            if (ctx) {
+                m_glFunctions = ctx->versionFunctions<QOpenGLFunctions_3_3_Core>();
+                if (m_glFunctions) {
+                    m_glFunctions->initializeOpenGLFunctions();
+                }
+            }
         }
 
-        if (m_shaderProgram != 0) {
-            glDeleteProgram(m_shaderProgram);
-            m_shaderProgram = 0;
+        // Clean up raw OpenGL resources using function pointers
+        if (m_glFunctions) {
+            if (m_gridVBO != 0) {
+                m_glFunctions->glDeleteBuffers(1, &m_gridVBO);
+                m_gridVBO = 0;
+            }
+            if (m_gridVAO != 0) {
+                m_glFunctions->glDeleteVertexArrays(1, &m_gridVAO);
+                m_gridVAO = 0;
+            }
+
+            if (m_vbo != 0) {
+                m_glFunctions->glDeleteBuffers(1, &m_vbo);
+                m_vbo = 0;
+            }
+
+            if (m_vertexShader != 0) {
+                m_glFunctions->glDeleteShader(m_vertexShader);
+                m_vertexShader = 0;
+            }
+            if (m_fragmentShader != 0) {
+                m_glFunctions->glDeleteShader(m_fragmentShader);
+                m_fragmentShader = 0;
+            }
         }
-        if (m_vertexShader != 0) {
-            glDeleteShader(m_vertexShader);
-            m_vertexShader = 0;
+
+        // Clean up Qt OpenGL objects
+        if (m_vertexBuffer) {
+            m_vertexBuffer.reset();
         }
-        if (m_fragmentShader != 0) {
-            glDeleteShader(m_fragmentShader);
-            m_fragmentShader = 0;
+        if (m_vao) {
+            m_vao.reset();
+        }
+
+        // Clean up shaders
+        if (m_shaderProgram) {
+            m_shaderProgram.reset();
         }
 
         m_initialized = false;
@@ -352,14 +379,21 @@ namespace TyrexCAD {
     {
         if (m_vertices.empty() || vertexCount == 0) return;
 
-        // Lazy initialization of VAO/VBO to ensure context is current
-        if (!m_vao->isCreated()) {
+        // Ensure Qt OpenGL objects are created
+        if (!m_shaderProgram) return;
+        if (!m_vao || !m_vao->isCreated()) {
             m_vao->create();
         }
-        if (!m_vertexBuffer->isCreated()) {
+        if (!m_vertexBuffer || !m_vertexBuffer->isCreated()) {
             m_vertexBuffer->create();
             m_vertexBuffer->setUsagePattern(QOpenGLBuffer::DynamicDraw);
         }
+
+        // Ensure we have OpenGL functions
+        if (!m_glFunctions) {
+            makeCurrent();
+        }
+        if (!m_glFunctions) return;
 
         m_shaderProgram->bind();
         m_vao->bind();
@@ -385,8 +419,8 @@ namespace TyrexCAD {
         m_shaderProgram->setUniformValue("u_view", view);
         m_shaderProgram->setUniformValue("u_globalOpacity", 1.0f);
 
-        // Draw using basic OpenGL
-        glDrawArrays(mode, 0, vertexCount);
+        // Draw using OpenGL functions
+        m_glFunctions->glDrawArrays(mode, 0, vertexCount);
 
         m_vao->release();
         m_shaderProgram->release();
@@ -409,10 +443,10 @@ namespace TyrexCAD {
             m_view->Convert(0, 0, x1, y1, z1);
             m_view->Convert(m_viewportWidth, m_viewportHeight, x2, y2, z2);
 
-            m_worldMinX = std::min(x1, x2);
-            m_worldMaxX = std::max(x1, x2);
-            m_worldMinY = std::min(y1, y2);
-            m_worldMaxY = std::max(y1, y2);
+            m_worldMinX = (std::min)(x1, x2);
+            m_worldMaxX = (std::max)(x1, x2);
+            m_worldMinY = (std::min)(y1, y2);
+            m_worldMaxY = (std::max)(y1, y2);
 
             // Add margin
             double marginX = (m_worldMaxX - m_worldMinX) * 0.1;
@@ -452,23 +486,20 @@ namespace TyrexCAD {
 
     void TyrexGridOverlayRenderer::setupVertexArrays()
     {
-        // Don't use Qt's VAO/VBO classes with OpenCascade's context
-        // Just initialize the member variables
+        // Create Qt OpenGL objects (but don't initialize them yet)
         m_vao = std::make_unique<QOpenGLVertexArrayObject>();
         m_vertexBuffer = std::make_unique<QOpenGLBuffer>(QOpenGLBuffer::VertexBuffer);
-
-        // Don't create them yet - do it lazily when needed
-        // This avoids context issues during initialization
     }
 
     void TyrexGridOverlayRenderer::makeCurrent()
     {
-        if (QOpenGLContext::currentContext() && m_glFunctions) {
-            return;
-        }
-
-        if (QOpenGLContext* ctx = QOpenGLContext::currentContext()) {
+        if (QOpenGLContext::currentContext()) {
+            auto* ctx = QOpenGLContext::currentContext();
             m_glFunctions = ctx->versionFunctions<QOpenGLFunctions_3_3_Core>();
+            if (!m_glFunctions) {
+                m_glFunctions = new QOpenGLFunctions_3_3_Core();
+                m_glFunctions->initializeOpenGLFunctions();
+            }
         }
     }
 
@@ -612,6 +643,12 @@ namespace TyrexCAD {
         Q_UNUSED(y);
         Q_UNUSED(color);
         // Text rendering requires additional setup with font texture atlas
+    }
+
+    void TyrexGridOverlayRenderer::calculateOrthoMatrix(float* matrix)
+    {
+        Q_UNUSED(matrix);
+        // Implementation for ortho matrix calculation
     }
 
 } // namespace TyrexCAD

@@ -24,6 +24,12 @@
 
 #include "TyrexCanvas/TyrexGridConfig.h"
 
+ // Forward declarations
+class QOpenGLShaderProgram;
+class QOpenGLVertexArrayObject;
+class QOpenGLBuffer;
+class QOpenGLFunctions_3_3_Core;
+
 namespace TyrexCAD {
 
     // Forward declaration
@@ -128,11 +134,14 @@ namespace TyrexCAD {
         bool m_gridEnabled;
         bool m_initialized;
 
-        // OpenGL resources - using raw handles instead of Qt classes
-        GLuint m_shaderProgram;
+        // OpenGL resources - Qt wrappers
+        std::unique_ptr<QOpenGLShaderProgram> m_shaderProgram;
+        std::unique_ptr<QOpenGLVertexArrayObject> m_vao;
+        std::unique_ptr<QOpenGLBuffer> m_vertexBuffer;
+
+        // Additional shader resources (raw GL)
         GLuint m_vertexShader;
         GLuint m_fragmentShader;
-        GLuint m_vao;
         GLuint m_vbo;
 
         // Additional VBO/VAO for optimization
@@ -150,6 +159,9 @@ namespace TyrexCAD {
         double m_worldMinX, m_worldMaxX;
         double m_worldMinY, m_worldMaxY;
         int m_viewportWidth, m_viewportHeight;
+
+        // OpenGL function pointer
+        QOpenGLFunctions_3_3_Core* m_glFunctions;
     };
 
 } // namespace TyrexCAD
