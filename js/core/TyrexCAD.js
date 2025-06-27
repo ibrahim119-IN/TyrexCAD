@@ -1,5 +1,5 @@
 // TyrexCAD - النواة الأساسية لنظام CAD
-// يعتمد على: Geometry.js, Tools.js, UI.js, GeometryAdvanced.js
+// يعتمد على: Geometry.js, GeometryAdvanced.js, Tools.js, UI.js
 
 // TyrexCAD Professional v3.0 - Enhanced Implementation with Advanced Geometry
 
@@ -8,7 +8,7 @@ class TyrexCAD {
         // Geometry library reference
         this.geo = window.Geometry;
         
-        // نظام الهندسة المتقدمة (يُحمل عند الحاجة)
+        // Advanced Geometry library (loaded on demand)
         this.geometryAdvanced = null;
         
         // Canvas setup
@@ -138,9 +138,7 @@ class TyrexCAD {
         this.recordState();
     }
     
-    /**
-     * تحميل نظام الهندسة المتقدمة
-     */
+    // Advanced Geometry Loader
     async loadAdvancedGeometry() {
         if (this.geometryAdvanced) return this.geometryAdvanced;
         
@@ -151,954 +149,13 @@ class TyrexCAD {
             }
             
             this.geometryAdvanced = new GeometryAdvanced();
-            await this.geometryAdvanced.init(this);
             console.log('Advanced geometry loaded successfully');
-            this.updateStatus('Advanced geometry ready');
             return this.geometryAdvanced;
             
         } catch (error) {
             console.error('Failed to load advanced geometry:', error);
-            this.updateStatus('Advanced geometry not available');
             return null;
         }
-    }
-    
-    // ==================== العمليات البوليانية ====================
-    
-    /**
-     * عملية الدمج (Union)
-     */
-    async performUnion() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length < 2) {
-            this.updateStatus('Select at least 2 shapes for union');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Performing union...');
-            const result = await geo.union(selected);
-            
-            if (result.length > 0) {
-                // إضافة النتيجة وحذف الأصلية
-                this.recordState();
-                
-                // حذف الأشكال الأصلية
-                selected.forEach(shape => {
-                    const index = this.shapes.indexOf(shape);
-                    if (index !== -1) {
-                        this.shapes.splice(index, 1);
-                    }
-                });
-                
-                // إضافة الأشكال الجديدة
-                result.forEach(shape => {
-                    shape.color = this.currentColor;
-                    shape.lineWidth = this.currentLineWidth;
-                    shape.lineType = this.currentLineType;
-                    shape.layerId = this.currentLayerId;
-                    this.shapes.push(shape);
-                });
-                
-                this.selectedShapes.clear();
-                this.updateUI();
-                this.render();
-                this.updateStatus('Union completed');
-            } else {
-                this.updateStatus('Union resulted in empty shape');
-            }
-        } catch (error) {
-            console.error('Union error:', error);
-            this.updateStatus('Union failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * عملية الطرح (Difference)
-     */
-    async performDifference() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 2) {
-            this.updateStatus('Select exactly 2 shapes for difference (first - second)');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Performing difference...');
-            const result = await geo.difference(selected[0], [selected[1]]);
-            
-            if (result.length > 0) {
-                this.recordState();
-                
-                // حذف الأشكال الأصلية
-                selected.forEach(shape => {
-                    const index = this.shapes.indexOf(shape);
-                    if (index !== -1) {
-                        this.shapes.splice(index, 1);
-                    }
-                });
-                
-                // إضافة الأشكال الجديدة
-                result.forEach(shape => {
-                    shape.color = selected[0].color;
-                    shape.lineWidth = selected[0].lineWidth;
-                    shape.lineType = selected[0].lineType;
-                    shape.layerId = selected[0].layerId;
-                    this.shapes.push(shape);
-                });
-                
-                this.selectedShapes.clear();
-                this.updateUI();
-                this.render();
-                this.updateStatus('Difference completed');
-            } else {
-                this.updateStatus('Difference resulted in empty shape');
-            }
-        } catch (error) {
-            console.error('Difference error:', error);
-            this.updateStatus('Difference failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * عملية التقاطع (Intersection)
-     */
-    async performIntersection() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length < 2) {
-            this.updateStatus('Select at least 2 shapes for intersection');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Performing intersection...');
-            const result = await geo.intersection(selected);
-            
-            if (result.length > 0) {
-                this.recordState();
-                
-                // حذف الأشكال الأصلية
-                selected.forEach(shape => {
-                    const index = this.shapes.indexOf(shape);
-                    if (index !== -1) {
-                        this.shapes.splice(index, 1);
-                    }
-                });
-                
-                // إضافة الأشكال الجديدة
-                result.forEach(shape => {
-                    shape.color = this.currentColor;
-                    shape.lineWidth = this.currentLineWidth;
-                    shape.lineType = this.currentLineType;
-                    shape.layerId = this.currentLayerId;
-                    this.shapes.push(shape);
-                });
-                
-                this.selectedShapes.clear();
-                this.updateUI();
-                this.render();
-                this.updateStatus('Intersection completed');
-            } else {
-                this.updateStatus('No intersection found');
-            }
-        } catch (error) {
-            console.error('Intersection error:', error);
-            this.updateStatus('Intersection failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * عملية XOR
-     */
-    async performXor() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 2) {
-            this.updateStatus('Select exactly 2 shapes for XOR');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Performing XOR...');
-            const result = await geo.xor(selected[0], selected[1]);
-            
-            if (result.length > 0) {
-                this.recordState();
-                
-                // حذف الأشكال الأصلية
-                selected.forEach(shape => {
-                    const index = this.shapes.indexOf(shape);
-                    if (index !== -1) {
-                        this.shapes.splice(index, 1);
-                    }
-                });
-                
-                // إضافة الأشكال الجديدة
-                result.forEach(shape => {
-                    shape.color = this.currentColor;
-                    shape.lineWidth = this.currentLineWidth;
-                    shape.lineType = this.currentLineType;
-                    shape.layerId = this.currentLayerId;
-                    this.shapes.push(shape);
-                });
-                
-                this.selectedShapes.clear();
-                this.updateUI();
-                this.render();
-                this.updateStatus('XOR completed');
-            } else {
-                this.updateStatus('XOR resulted in empty shape');
-            }
-        } catch (error) {
-            console.error('XOR error:', error);
-            this.updateStatus('XOR failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * عملية Offset المتقدمة
-     */
-    async performAdvancedOffset() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 1) {
-            this.updateStatus('Select exactly 1 shape for advanced offset');
-            return;
-        }
-        
-        const distance = prompt('Enter offset distance:', '10');
-        if (!distance) return;
-        
-        const parsedDistance = this.parseUserInput(distance);
-        if (parsedDistance === null) {
-            this.updateStatus('Invalid distance');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Performing offset...');
-            let result = [];
-            
-            const shape = selected[0];
-            switch (shape.type) {
-                case 'polygon':
-                    result = await geo.offsetPolygon(shape, parsedDistance);
-                    break;
-                case 'polyline':
-                    result = await geo.offsetPolyline(shape, parsedDistance);
-                    break;
-                case 'circle':
-                    result = [{
-                        type: 'circle',
-                        center: shape.center,
-                        radius: shape.radius + parsedDistance,
-                        color: shape.color,
-                        lineWidth: shape.lineWidth,
-                        lineType: shape.lineType,
-                        layerId: shape.layerId,
-                        id: this.generateId()
-                    }];
-                    break;
-                default:
-                    this.updateStatus('Shape type not supported for advanced offset');
-                    return;
-            }
-            
-            if (result.length > 0) {
-                this.recordState();
-                
-                // إضافة الأشكال الجديدة
-                result.forEach(shape => {
-                    shape.color = selected[0].color;
-                    shape.lineWidth = selected[0].lineWidth;
-                    shape.lineType = selected[0].lineType;
-                    shape.layerId = selected[0].layerId;
-                    this.shapes.push(shape);
-                });
-                
-                this.updateUI();
-                this.render();
-                this.updateStatus('Offset completed');
-            } else {
-                this.updateStatus('Offset resulted in empty shape');
-            }
-        } catch (error) {
-            console.error('Offset error:', error);
-            this.updateStatus('Offset failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * تبسيط مضلع
-     */
-    async simplifyShape() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 1) {
-            this.updateStatus('Select exactly 1 polygon or polyline to simplify');
-            return;
-        }
-        
-        const shape = selected[0];
-        if (shape.type !== 'polygon' && shape.type !== 'polyline') {
-            this.updateStatus('Can only simplify polygons and polylines');
-            return;
-        }
-        
-        const tolerance = prompt('Enter simplification tolerance:', '1');
-        if (!tolerance) return;
-        
-        const parsedTolerance = this.parseUserInput(tolerance);
-        if (parsedTolerance === null) {
-            this.updateStatus('Invalid tolerance');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Simplifying shape...');
-            const simplified = geo.simplifyPolygon(shape, parsedTolerance);
-            
-            if (simplified && simplified.points.length > 0) {
-                this.recordState();
-                
-                // تحديث الشكل
-                shape.points = simplified.points;
-                
-                this.updateUI();
-                this.render();
-                this.updateStatus(`Shape simplified from ${shape.points.length} to ${simplified.points.length} points`);
-            } else {
-                this.updateStatus('Simplification failed');
-            }
-        } catch (error) {
-            console.error('Simplification error:', error);
-            this.updateStatus('Simplification failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * تنعيم خط متعدد
-     */
-    async smoothPolyline() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 1) {
-            this.updateStatus('Select exactly 1 polyline to smooth');
-            return;
-        }
-        
-        const shape = selected[0];
-        if (shape.type !== 'polyline') {
-            this.updateStatus('Can only smooth polylines');
-            return;
-        }
-        
-        const factor = prompt('Enter smoothing factor (0-1):', '0.5');
-        if (!factor) return;
-        
-        const parsedFactor = parseFloat(factor);
-        if (isNaN(parsedFactor) || parsedFactor < 0 || parsedFactor > 1) {
-            this.updateStatus('Invalid factor (must be between 0 and 1)');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Smoothing polyline...');
-            const smoothed = geo.smoothPolyline(shape, parsedFactor);
-            
-            if (smoothed && smoothed.points.length > 0) {
-                this.recordState();
-                
-                // إضافة الخط المنعم الجديد
-                smoothed.color = shape.color;
-                smoothed.lineWidth = shape.lineWidth;
-                smoothed.lineType = shape.lineType;
-                smoothed.layerId = shape.layerId;
-                this.shapes.push(smoothed);
-                
-                this.updateUI();
-                this.render();
-                this.updateStatus('Polyline smoothed');
-            } else {
-                this.updateStatus('Smoothing failed');
-            }
-        } catch (error) {
-            console.error('Smoothing error:', error);
-            this.updateStatus('Smoothing failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * إنشاء Convex Hull
-     */
-    async createConvexHull() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length < 3) {
-            this.updateStatus('Select at least 3 points or shapes for convex hull');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Creating convex hull...');
-            
-            // جمع كل النقاط من الأشكال المحددة
-            const points = [];
-            selected.forEach(shape => {
-                const shapePoints = this.getShapePoints(shape);
-                points.push(...shapePoints);
-            });
-            
-            if (points.length < 3) {
-                this.updateStatus('Not enough points for convex hull');
-                return;
-            }
-            
-            const hull = geo.convexHull(points);
-            
-            if (hull && hull.points.length > 0) {
-                this.recordState();
-                
-                // إضافة الغلاف المحدب
-                hull.color = this.currentColor;
-                hull.lineWidth = this.currentLineWidth;
-                hull.lineType = this.currentLineType;
-                hull.layerId = this.currentLayerId;
-                this.shapes.push(hull);
-                
-                this.updateUI();
-                this.render();
-                this.updateStatus('Convex hull created');
-            } else {
-                this.updateStatus('Convex hull creation failed');
-            }
-        } catch (error) {
-            console.error('Convex hull error:', error);
-            this.updateStatus('Convex hull failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * تثليث مضلع
-     */
-    async triangulatePolygon() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 1) {
-            this.updateStatus('Select exactly 1 polygon to triangulate');
-            return;
-        }
-        
-        const shape = selected[0];
-        if (shape.type !== 'polygon') {
-            this.updateStatus('Can only triangulate polygons');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Triangulating polygon...');
-            const triangles = await geo.triangulatePolygon(shape);
-            
-            if (triangles && triangles.length > 0) {
-                this.recordState();
-                
-                // حذف المضلع الأصلي
-                const index = this.shapes.indexOf(shape);
-                if (index !== -1) {
-                    this.shapes.splice(index, 1);
-                }
-                
-                // إضافة المثلثات
-                triangles.forEach(triangle => {
-                    triangle.color = shape.color;
-                    triangle.lineWidth = shape.lineWidth;
-                    triangle.lineType = shape.lineType;
-                    triangle.layerId = shape.layerId;
-                    this.shapes.push(triangle);
-                });
-                
-                this.selectedShapes.clear();
-                this.updateUI();
-                this.render();
-                this.updateStatus(`Created ${triangles.length} triangles`);
-            } else {
-                this.updateStatus('Triangulation failed');
-            }
-        } catch (error) {
-            console.error('Triangulation error:', error);
-            this.updateStatus('Triangulation failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * إنشاء Fillet
-     */
-    async createFillet() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 2) {
-            this.updateStatus('Select exactly 2 lines to fillet');
-            return;
-        }
-        
-        if (selected[0].type !== 'line' || selected[1].type !== 'line') {
-            this.updateStatus('Can only fillet lines');
-            return;
-        }
-        
-        const radius = prompt('Enter fillet radius:', '5');
-        if (!radius) return;
-        
-        const parsedRadius = this.parseUserInput(radius);
-        if (parsedRadius === null || parsedRadius <= 0) {
-            this.updateStatus('Invalid radius');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Creating fillet...');
-            const result = await geo.filletCorner(selected[0], selected[1], parsedRadius);
-            
-            if (result && result.arc) {
-                this.recordState();
-                
-                // تحديث الخطوط الأصلية
-                selected[0].end = result.tangentPoints.tan1;
-                selected[1].start = result.tangentPoints.tan2;
-                
-                // إضافة القوس
-                result.arc.color = this.currentColor;
-                result.arc.lineWidth = this.currentLineWidth;
-                result.arc.lineType = this.currentLineType;
-                result.arc.layerId = this.currentLayerId;
-                this.shapes.push(result.arc);
-                
-                this.updateUI();
-                this.render();
-                this.updateStatus('Fillet created');
-            } else {
-                this.updateStatus('Fillet creation failed');
-            }
-        } catch (error) {
-            console.error('Fillet error:', error);
-            this.updateStatus('Fillet failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * إنشاء Chamfer
-     */
-    async createChamfer() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 2) {
-            this.updateStatus('Select exactly 2 lines to chamfer');
-            return;
-        }
-        
-        if (selected[0].type !== 'line' || selected[1].type !== 'line') {
-            this.updateStatus('Can only chamfer lines');
-            return;
-        }
-        
-        const distance = prompt('Enter chamfer distance:', '5');
-        if (!distance) return;
-        
-        const parsedDistance = this.parseUserInput(distance);
-        if (parsedDistance === null || parsedDistance <= 0) {
-            this.updateStatus('Invalid distance');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Creating chamfer...');
-            const result = await geo.chamferCorner(selected[0], selected[1], parsedDistance);
-            
-            if (result && result.line) {
-                this.recordState();
-                
-                // تحديث الخطوط الأصلية
-                selected[0].end = result.chamferPoints.chamfer1;
-                selected[1].start = result.chamferPoints.chamfer2;
-                
-                // إضافة خط القطع
-                result.line.color = this.currentColor;
-                result.line.lineWidth = this.currentLineWidth;
-                result.line.lineType = this.currentLineType;
-                result.line.layerId = this.currentLayerId;
-                this.shapes.push(result.line);
-                
-                this.updateUI();
-                this.render();
-                this.updateStatus('Chamfer created');
-            } else {
-                this.updateStatus('Chamfer creation failed');
-            }
-        } catch (error) {
-            console.error('Chamfer error:', error);
-            this.updateStatus('Chamfer failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * إنشاء مصفوفة مستطيلة
-     */
-    async createRectangularArray() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 1) {
-            this.updateStatus('Select exactly 1 shape for array');
-            return;
-        }
-        
-        const rows = prompt('Enter number of rows:', '3');
-        const cols = prompt('Enter number of columns:', '3');
-        const rowSpacing = prompt('Enter row spacing:', '50');
-        const colSpacing = prompt('Enter column spacing:', '50');
-        
-        if (!rows || !cols || !rowSpacing || !colSpacing) return;
-        
-        const parsedRows = parseInt(rows);
-        const parsedCols = parseInt(cols);
-        const parsedRowSpacing = this.parseUserInput(rowSpacing);
-        const parsedColSpacing = this.parseUserInput(colSpacing);
-        
-        if (isNaN(parsedRows) || isNaN(parsedCols) || 
-            parsedRowSpacing === null || parsedColSpacing === null) {
-            this.updateStatus('Invalid array parameters');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Creating array...');
-            const result = geo.rectangularArray(
-                selected[0], 
-                parsedRows, 
-                parsedCols, 
-                parsedRowSpacing, 
-                parsedColSpacing
-            );
-            
-            if (result && result.length > 0) {
-                this.recordState();
-                
-                // إضافة النسخ
-                result.forEach(shape => {
-                    shape.color = selected[0].color;
-                    shape.lineWidth = selected[0].lineWidth;
-                    shape.lineType = selected[0].lineType;
-                    shape.layerId = selected[0].layerId;
-                    this.shapes.push(shape);
-                });
-                
-                this.selectedShapes.clear();
-                this.updateUI();
-                this.render();
-                this.updateStatus(`Created ${result.length} copies`);
-            } else {
-                this.updateStatus('Array creation failed');
-            }
-        } catch (error) {
-            console.error('Array error:', error);
-            this.updateStatus('Array failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * إنشاء مصفوفة قطبية
-     */
-    async createPolarArray() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 1) {
-            this.updateStatus('Select exactly 1 shape for polar array');
-            return;
-        }
-        
-        this.updateStatus('Click center point for array');
-        this.setTool('polar-array-center');
-        this.pendingOperation = {
-            type: 'polar-array',
-            shape: selected[0]
-        };
-    }
-    
-    /**
-     * تنفيذ المصفوفة القطبية
-     */
-    async executePolarArray(center) {
-        if (!this.pendingOperation || this.pendingOperation.type !== 'polar-array') {
-            return;
-        }
-        
-        const count = prompt('Enter number of copies:', '6');
-        const angle = prompt('Enter total angle (degrees, 360 for full circle):', '360');
-        
-        if (!count || !angle) {
-            this.pendingOperation = null;
-            this.setTool('select');
-            return;
-        }
-        
-        const parsedCount = parseInt(count);
-        const parsedAngle = parseFloat(angle) * Math.PI / 180;
-        
-        if (isNaN(parsedCount) || isNaN(parsedAngle)) {
-            this.updateStatus('Invalid parameters');
-            this.pendingOperation = null;
-            this.setTool('select');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            this.pendingOperation = null;
-            this.setTool('select');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Creating polar array...');
-            const result = geo.polarArray(
-                this.pendingOperation.shape,
-                center,
-                parsedCount,
-                parsedAngle
-            );
-            
-            if (result && result.length > 0) {
-                this.recordState();
-                
-                // إضافة النسخ
-                result.forEach(shape => {
-                    shape.color = this.pendingOperation.shape.color;
-                    shape.lineWidth = this.pendingOperation.shape.lineWidth;
-                    shape.lineType = this.pendingOperation.shape.lineType;
-                    shape.layerId = this.pendingOperation.shape.layerId;
-                    this.shapes.push(shape);
-                });
-                
-                this.selectedShapes.clear();
-                this.updateUI();
-                this.render();
-                this.updateStatus(`Created ${result.length} copies`);
-            } else {
-                this.updateStatus('Polar array creation failed');
-            }
-        } catch (error) {
-            console.error('Polar array error:', error);
-            this.updateStatus('Polar array failed: ' + error.message);
-        }
-        
-        this.pendingOperation = null;
-        this.setTool('select');
-    }
-    
-    /**
-     * إنشاء Hatch
-     */
-    async createHatch() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 1) {
-            this.updateStatus('Select exactly 1 closed shape to hatch');
-            return;
-        }
-        
-        const shape = selected[0];
-        if (shape.type !== 'polygon' && shape.type !== 'rectangle' && shape.type !== 'circle') {
-            this.updateStatus('Can only hatch closed shapes');
-            return;
-        }
-        
-        const pattern = prompt('Enter pattern (lines/dots):', 'lines');
-        const spacing = prompt('Enter spacing:', '10');
-        const angle = prompt('Enter angle (degrees, for lines):', '45');
-        
-        if (!pattern || !spacing) return;
-        
-        const parsedSpacing = this.parseUserInput(spacing);
-        const parsedAngle = angle ? parseFloat(angle) * Math.PI / 180 : 0;
-        
-        if (parsedSpacing === null || parsedSpacing <= 0) {
-            this.updateStatus('Invalid spacing');
-            return;
-        }
-        
-        this.updateStatus('Loading advanced geometry...');
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            this.updateStatus('Creating hatch...');
-            
-            // تحويل الشكل لمضلع إذا لزم الأمر
-            let polygon = shape;
-            if (shape.type === 'rectangle') {
-                polygon = {
-                    type: 'polygon',
-                    points: [
-                        { x: shape.start.x, y: shape.start.y },
-                        { x: shape.end.x, y: shape.start.y },
-                        { x: shape.end.x, y: shape.end.y },
-                        { x: shape.start.x, y: shape.end.y }
-                    ]
-                };
-            } else if (shape.type === 'circle') {
-                // تحويل الدائرة لمضلع
-                const segments = 32;
-                polygon = {
-                    type: 'polygon',
-                    points: []
-                };
-                for (let i = 0; i < segments; i++) {
-                    const angle = (i / segments) * Math.PI * 2;
-                    polygon.points.push({
-                        x: shape.center.x + shape.radius * Math.cos(angle),
-                        y: shape.center.y + shape.radius * Math.sin(angle)
-                    });
-                }
-            }
-            
-            const hatchLines = geo.hatchPolygon(polygon, pattern, parsedSpacing, parsedAngle);
-            
-            if (hatchLines && hatchLines.length > 0) {
-                this.recordState();
-                
-                // إضافة خطوط التهشير
-                hatchLines.forEach(line => {
-                    line.color = shape.color;
-                    line.lineWidth = 1;
-                    line.lineType = shape.lineType;
-                    line.layerId = shape.layerId;
-                    this.shapes.push(line);
-                });
-                
-                this.updateUI();
-                this.render();
-                this.updateStatus(`Created ${hatchLines.length} hatch lines`);
-            } else {
-                this.updateStatus('Hatch creation failed');
-            }
-        } catch (error) {
-            console.error('Hatch error:', error);
-            this.updateStatus('Hatch failed: ' + error.message);
-        }
-    }
-    
-    /**
-     * الحصول على نقاط الشكل
-     */
-    getShapePoints(shape) {
-        const points = [];
-        
-        switch (shape.type) {
-            case 'line':
-                points.push(shape.start, shape.end);
-                break;
-            case 'rectangle':
-                points.push(
-                    { x: shape.start.x, y: shape.start.y },
-                    { x: shape.end.x, y: shape.start.y },
-                    { x: shape.end.x, y: shape.end.y },
-                    { x: shape.start.x, y: shape.end.y }
-                );
-                break;
-            case 'circle':
-                // نقاط على محيط الدائرة
-                for (let i = 0; i < 8; i++) {
-                    const angle = (i / 8) * Math.PI * 2;
-                    points.push({
-                        x: shape.center.x + shape.radius * Math.cos(angle),
-                        y: shape.center.y + shape.radius * Math.sin(angle)
-                    });
-                }
-                break;
-            case 'polyline':
-            case 'polygon':
-                points.push(...shape.points);
-                break;
-        }
-        
-        return points;
     }
     
     resizeCanvas() {
@@ -1327,10 +384,6 @@ class TyrexCAD {
                 this.startPanning(x, y);
             } else if (this.currentTool === 'select') {
                 this.handleSelection(x, y, e.ctrlKey);
-            } else if (this.currentTool === 'polar-array-center' && this.pendingOperation) {
-                const world = this.screenToWorld(x, y);
-                const snapPoint = this.getSnapPoint(world.x, world.y);
-                this.executePolarArray(snapPoint);
             } else {
                 this.handleDrawing(x, y);
             }
@@ -1585,6 +638,21 @@ class TyrexCAD {
             case 'dimension-diameter':
                 this.handleDimension(snapPoint);
                 break;
+            // Advanced geometry tools
+            case 'polygon':
+                this.drawPolygon(snapPoint);
+                break;
+            case 'fillet':
+                this.handleFillet(snapPoint);
+                break;
+            case 'chamfer':
+                this.handleChamfer(snapPoint);
+                break;
+            case 'rectangular-array':
+            case 'polar-array':
+            case 'path-array':
+                this.handleArray(snapPoint);
+                break;
         }
     }
     
@@ -1619,6 +687,605 @@ class TyrexCAD {
     
     drawText(point) {
         return Tools.drawText(point);
+    }
+    
+    // Advanced Geometry Tools
+    async drawPolygon(point) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        if (!this.isDrawing) {
+            this.isDrawing = true;
+            this.drawingPoints = [point];
+            const sides = prompt('Number of sides:', '6');
+            if (sides && parseInt(sides) >= 3) {
+                this.polygonSides = parseInt(sides);
+                this.updateStatus('Specify radius or second point');
+            } else {
+                this.cancelCurrentOperation();
+            }
+        } else {
+            const center = this.drawingPoints[0];
+            const radius = this.distance(center.x, center.y, point.x, point.y);
+            
+            const polygon = geo.createPolygon(center, radius, this.polygonSides);
+            polygon.color = this.currentColor;
+            polygon.lineWidth = this.currentLineWidth;
+            polygon.lineType = this.currentLineType;
+            polygon.layerId = this.currentLayerId;
+            polygon.id = this.generateId();
+            
+            this.addShape(polygon);
+            this.finishDrawing();
+        }
+    }
+    
+    async handleFillet(point) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const world = this.screenToWorld(this.mouseX, this.mouseY);
+        const shape = this.getShapeAt(world.x, world.y);
+        
+        if (!this.filletShape1) {
+            if (shape) {
+                this.filletShape1 = shape;
+                this.updateStatus('Select second shape');
+            }
+        } else {
+            if (shape && shape !== this.filletShape1) {
+                const radiusStr = prompt('Fillet radius:', '10');
+                if (radiusStr) {
+                    const radius = this.parseUserInput(radiusStr);
+                    if (radius) {
+                        try {
+                            const result = geo.fillet(this.filletShape1, shape, radius);
+                            if (result.success) {
+                                this.recordState();
+                                // Add new shapes
+                                result.shapes.forEach(s => {
+                                    s.color = this.currentColor;
+                                    s.lineWidth = this.currentLineWidth;
+                                    s.lineType = this.currentLineType;
+                                    s.layerId = this.currentLayerId;
+                                    s.id = this.generateId();
+                                    this.shapes.push(s);
+                                });
+                                // Remove original shapes
+                                this.deleteShape(this.filletShape1);
+                                this.deleteShape(shape);
+                                this.render();
+                                this.updateStatus('Fillet created');
+                            }
+                        } catch (error) {
+                            this.updateStatus('Fillet failed: ' + error.message);
+                        }
+                    }
+                }
+                this.filletShape1 = null;
+            }
+        }
+    }
+    
+    async handleChamfer(point) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const world = this.screenToWorld(this.mouseX, this.mouseY);
+        const shape = this.getShapeAt(world.x, world.y);
+        
+        if (!this.chamferShape1) {
+            if (shape) {
+                this.chamferShape1 = shape;
+                this.updateStatus('Select second shape');
+            }
+        } else {
+            if (shape && shape !== this.chamferShape1) {
+                const distance1Str = prompt('First distance:', '10');
+                const distance2Str = prompt('Second distance (or Enter for equal):', distance1Str);
+                
+                if (distance1Str) {
+                    const distance1 = this.parseUserInput(distance1Str);
+                    const distance2 = distance2Str ? this.parseUserInput(distance2Str) : distance1;
+                    
+                    if (distance1 && distance2) {
+                        try {
+                            const result = geo.chamfer(this.chamferShape1, shape, distance1, distance2);
+                            if (result.success) {
+                                this.recordState();
+                                // Add new shapes
+                                result.shapes.forEach(s => {
+                                    s.color = this.currentColor;
+                                    s.lineWidth = this.currentLineWidth;
+                                    s.lineType = this.currentLineType;
+                                    s.layerId = this.currentLayerId;
+                                    s.id = this.generateId();
+                                    this.shapes.push(s);
+                                });
+                                // Remove original shapes
+                                this.deleteShape(this.chamferShape1);
+                                this.deleteShape(shape);
+                                this.render();
+                                this.updateStatus('Chamfer created');
+                            }
+                        } catch (error) {
+                            this.updateStatus('Chamfer failed: ' + error.message);
+                        }
+                    }
+                }
+                this.chamferShape1 = null;
+            }
+        }
+    }
+    
+    async handleArray(point) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        if (this.selectedShapes.size === 0) {
+            this.updateStatus('Select objects first');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        
+        switch (this.currentTool) {
+            case 'rectangular-array':
+                const rows = prompt('Number of rows:', '3');
+                const cols = prompt('Number of columns:', '3');
+                const rowSpacing = prompt('Row spacing:', '50');
+                const colSpacing = prompt('Column spacing:', '50');
+                
+                if (rows && cols && rowSpacing && colSpacing) {
+                    const options = {
+                        rows: parseInt(rows),
+                        columns: parseInt(cols),
+                        rowSpacing: this.parseUserInput(rowSpacing),
+                        columnSpacing: this.parseUserInput(colSpacing)
+                    };
+                    
+                    try {
+                        const result = geo.rectangularArray(selected, options);
+                        this.recordState();
+                        result.forEach(shape => {
+                            shape.id = this.generateId();
+                            this.shapes.push(shape);
+                        });
+                        this.render();
+                        this.updateStatus(`Created ${result.length} copies`);
+                    } catch (error) {
+                        this.updateStatus('Array failed: ' + error.message);
+                    }
+                }
+                break;
+                
+            case 'polar-array':
+                if (!this.isDrawing) {
+                    this.isDrawing = true;
+                    this.drawingPoints = [point];
+                    this.updateStatus('Specify center point for array');
+                } else {
+                    const center = this.drawingPoints[0];
+                    const count = prompt('Number of items:', '6');
+                    const angle = prompt('Fill angle (360 for full circle):', '360');
+                    const rotate = confirm('Rotate items?');
+                    
+                    if (count && angle) {
+                        const options = {
+                            center: center,
+                            count: parseInt(count),
+                            angle: parseFloat(angle),
+                            rotateItems: rotate
+                        };
+                        
+                        try {
+                            const result = geo.polarArray(selected, options);
+                            this.recordState();
+                            result.forEach(shape => {
+                                shape.id = this.generateId();
+                                this.shapes.push(shape);
+                            });
+                            this.render();
+                            this.updateStatus(`Created ${result.length} copies`);
+                        } catch (error) {
+                            this.updateStatus('Array failed: ' + error.message);
+                        }
+                    }
+                    this.finishDrawing();
+                }
+                break;
+                
+            case 'path-array':
+                const world = this.screenToWorld(this.mouseX, this.mouseY);
+                const pathShape = this.getShapeAt(world.x, world.y);
+                
+                if (pathShape && (pathShape.type === 'line' || pathShape.type === 'polyline' || 
+                    pathShape.type === 'arc' || pathShape.type === 'circle')) {
+                    const count = prompt('Number of items:', '10');
+                    const align = confirm('Align items to path?');
+                    
+                    if (count) {
+                        const options = {
+                            count: parseInt(count),
+                            alignToPath: align
+                        };
+                        
+                        try {
+                            const result = geo.pathArray(selected, pathShape, options);
+                            this.recordState();
+                            result.forEach(shape => {
+                                shape.id = this.generateId();
+                                this.shapes.push(shape);
+                            });
+                            this.render();
+                            this.updateStatus(`Created ${result.length} copies`);
+                        } catch (error) {
+                            this.updateStatus('Array failed: ' + error.message);
+                        }
+                    }
+                } else {
+                    this.updateStatus('Select a path (line, polyline, arc, or circle)');
+                }
+                break;
+        }
+    }
+    
+    // Boolean Operations
+    async performUnion() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length < 2) {
+            this.updateStatus('Select at least 2 shapes for union');
+            return;
+        }
+        
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            const result = await geo.union(selected);
+            this.recordState();
+            
+            // Add result shapes
+            result.forEach(shape => {
+                shape.color = this.currentColor;
+                shape.lineWidth = this.currentLineWidth;
+                shape.lineType = this.currentLineType;
+                shape.layerId = this.currentLayerId;
+                shape.id = this.generateId();
+                this.shapes.push(shape);
+            });
+            
+            // Remove original shapes
+            selected.forEach(shape => this.deleteShape(shape));
+            
+            this.selectedShapes.clear();
+            this.render();
+            this.updateStatus('Union completed');
+        } catch (error) {
+            this.updateStatus('Union failed: ' + error.message);
+        }
+    }
+    
+    async performDifference() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 2) {
+            this.updateStatus('Select exactly 2 shapes for difference');
+            return;
+        }
+        
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            const result = await geo.difference(selected[0], selected[1]);
+            this.recordState();
+            
+            // Add result shapes
+            result.forEach(shape => {
+                shape.color = this.currentColor;
+                shape.lineWidth = this.currentLineWidth;
+                shape.lineType = this.currentLineType;
+                shape.layerId = this.currentLayerId;
+                shape.id = this.generateId();
+                this.shapes.push(shape);
+            });
+            
+            // Remove original shapes
+            selected.forEach(shape => this.deleteShape(shape));
+            
+            this.selectedShapes.clear();
+            this.render();
+            this.updateStatus('Difference completed');
+        } catch (error) {
+            this.updateStatus('Difference failed: ' + error.message);
+        }
+    }
+    
+    async performIntersection() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length < 2) {
+            this.updateStatus('Select at least 2 shapes for intersection');
+            return;
+        }
+        
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            const result = await geo.intersection(selected);
+            this.recordState();
+            
+            // Add result shapes
+            result.forEach(shape => {
+                shape.color = this.currentColor;
+                shape.lineWidth = this.currentLineWidth;
+                shape.lineType = this.currentLineType;
+                shape.layerId = this.currentLayerId;
+                shape.id = this.generateId();
+                this.shapes.push(shape);
+            });
+            
+            // Remove original shapes
+            selected.forEach(shape => this.deleteShape(shape));
+            
+            this.selectedShapes.clear();
+            this.render();
+            this.updateStatus('Intersection completed');
+        } catch (error) {
+            this.updateStatus('Intersection failed: ' + error.message);
+        }
+    }
+    
+    // Analysis Operations
+    async analyzeDistance() {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 2) {
+            this.updateStatus('Select exactly 2 shapes to measure distance');
+            return;
+        }
+        
+        try {
+            const result = geo.calculateDistance(selected[0], selected[1]);
+            const formatted = this.formatValue(result.distance);
+            
+            alert(`Distance Analysis:\n\nMinimum Distance: ${formatted}\n` +
+                  `Point 1: (${result.point1.x.toFixed(2)}, ${result.point1.y.toFixed(2)})\n` +
+                  `Point 2: (${result.point2.x.toFixed(2)}, ${result.point2.y.toFixed(2)})`);
+                  
+            // Draw temporary dimension line
+            const dim = {
+                type: 'dimension-linear',
+                start: result.point1,
+                end: result.point2,
+                offset: 20,
+                text: formatted,
+                color: '#ff0099',
+                layerId: this.currentLayerId,
+                id: this.generateId()
+            };
+            
+            this.addShape(dim);
+        } catch (error) {
+            this.updateStatus('Distance analysis failed: ' + error.message);
+        }
+    }
+    
+    async analyzeArea() {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length === 0) {
+            this.updateStatus('Select shapes to calculate area');
+            return;
+        }
+        
+        try {
+            let totalArea = 0;
+            let details = [];
+            
+            for (const shape of selected) {
+                const area = geo.calculateArea(shape);
+                totalArea += area;
+                details.push(`${shape.type}: ${this.formatValue(area)} sq${this.currentUnit}`);
+            }
+            
+            alert(`Area Analysis:\n\n` +
+                  details.join('\n') + '\n\n' +
+                  `Total Area: ${this.formatValue(totalArea)} sq${this.currentUnit}`);
+                  
+        } catch (error) {
+            this.updateStatus('Area analysis failed: ' + error.message);
+        }
+    }
+    
+    async analyzeProperties() {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 1) {
+            this.updateStatus('Select exactly 1 shape to analyze properties');
+            return;
+        }
+        
+        try {
+            const props = geo.getShapeProperties(selected[0]);
+            
+            let message = `Shape Properties:\n\n`;
+            message += `Type: ${selected[0].type}\n`;
+            message += `Perimeter: ${this.formatValue(props.perimeter)}\n`;
+            message += `Area: ${this.formatValue(props.area)} sq${this.currentUnit}\n`;
+            message += `Centroid: (${props.centroid.x.toFixed(2)}, ${props.centroid.y.toFixed(2)})\n`;
+            
+            if (props.boundingBox) {
+                message += `\nBounding Box:\n`;
+                message += `Width: ${this.formatValue(props.boundingBox.width)}\n`;
+                message += `Height: ${this.formatValue(props.boundingBox.height)}\n`;
+            }
+            
+            alert(message);
+            
+        } catch (error) {
+            this.updateStatus('Property analysis failed: ' + error.message);
+        }
+    }
+    
+    // Curve Operations
+    async convertToPolyline() {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length === 0) {
+            this.updateStatus('Select shapes to convert to polyline');
+            return;
+        }
+        
+        const segments = prompt('Number of segments:', '32');
+        if (!segments) return;
+        
+        try {
+            this.recordState();
+            
+            for (const shape of selected) {
+                if (shape.type === 'circle' || shape.type === 'arc' || shape.type === 'ellipse') {
+                    const polyline = geo.curveToPolyline(shape, { segments: parseInt(segments) });
+                    polyline.color = shape.color;
+                    polyline.lineWidth = shape.lineWidth;
+                    polyline.lineType = shape.lineType;
+                    polyline.layerId = shape.layerId;
+                    polyline.id = this.generateId();
+                    
+                    this.shapes.push(polyline);
+                    this.deleteShape(shape);
+                }
+            }
+            
+            this.selectedShapes.clear();
+            this.render();
+            this.updateStatus('Conversion completed');
+            
+        } catch (error) {
+            this.updateStatus('Conversion failed: ' + error.message);
+        }
+    }
+    
+    async simplifyPolyline() {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        const polylines = selected.filter(s => s.type === 'polyline');
+        
+        if (polylines.length === 0) {
+            this.updateStatus('Select polylines to simplify');
+            return;
+        }
+        
+        const tolerance = prompt('Simplification tolerance:', '1');
+        if (!tolerance) return;
+        
+        try {
+            this.recordState();
+            
+            for (const polyline of polylines) {
+                const simplified = geo.simplifyPolyline(polyline, {
+                    tolerance: this.parseUserInput(tolerance)
+                });
+                
+                polyline.points = simplified.points;
+            }
+            
+            this.render();
+            this.updateStatus('Simplification completed');
+            
+        } catch (error) {
+            this.updateStatus('Simplification failed: ' + error.message);
+        }
+    }
+    
+    async smoothPolyline() {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        const polylines = selected.filter(s => s.type === 'polyline');
+        
+        if (polylines.length === 0) {
+            this.updateStatus('Select polylines to smooth');
+            return;
+        }
+        
+        try {
+            this.recordState();
+            
+            for (const polyline of polylines) {
+                const smoothed = geo.smoothPolyline(polyline, {
+                    iterations: 2,
+                    factor: 0.5
+                });
+                
+                polyline.points = smoothed.points;
+            }
+            
+            this.render();
+            this.updateStatus('Smoothing completed');
+            
+        } catch (error) {
+            this.updateStatus('Smoothing failed: ' + error.message);
+        }
+    }
+    
+    // Utility function to delete a shape
+    deleteShape(shape) {
+        const index = this.shapes.indexOf(shape);
+        if (index !== -1) {
+            this.shapes.splice(index, 1);
+        }
+        this.selectedShapes.delete(shape);
     }
     
     // Modify tools - Wrapper functions to Tools
@@ -1873,12 +1540,6 @@ class TyrexCAD {
                     p.y += dy;
                 });
                 break;
-            case 'polygon':
-                shape.points.forEach(p => {
-                    p.x += dx;
-                    p.y += dy;
-                });
-                break;
             case 'text':
                 shape.position.x += dx;
                 shape.position.y += dy;
@@ -1948,9 +1609,6 @@ class TyrexCAD {
             case 'polyline':
                 shape.points = shape.points.map(rotatePoint);
                 break;
-            case 'polygon':
-                shape.points = shape.points.map(rotatePoint);
-                break;
             case 'text':
                 shape.position = rotatePoint(shape.position);
                 break;
@@ -1983,9 +1641,6 @@ class TyrexCAD {
                 shape.radiusY *= scale;
                 break;
             case 'polyline':
-                shape.points = shape.points.map(scalePoint);
-                break;
-            case 'polygon':
                 shape.points = shape.points.map(scalePoint);
                 break;
             case 'text':
@@ -2063,9 +1718,6 @@ class TyrexCAD {
                 );
                 break;
             case 'polyline':
-                shape.points = shape.points.map(mirrorPoint);
-                break;
-            case 'polygon':
                 shape.points = shape.points.map(mirrorPoint);
                 break;
             case 'text':
@@ -2175,14 +1827,6 @@ class TyrexCAD {
                     }
                 }
                 return false;
-            case 'polygon':
-                for (let i = 0; i < shape.points.length; i++) {
-                    const next = (i + 1) % shape.points.length;
-                    if (this.geo.isPointOnLine(x, y, shape.points[i], shape.points[next], tolerance)) {
-                        return true;
-                    }
-                }
-                return false;
             case 'arc':
                 const dist = this.distance(x, y, shape.center.x, shape.center.y);
                 if (Math.abs(dist - shape.radius) > tolerance) return false;
@@ -2280,7 +1924,6 @@ class TyrexCAD {
                 updateBounds(shape.center.x + shape.radiusX, shape.center.y + shape.radiusY);
                 break;
             case 'polyline':
-            case 'polygon':
                 shape.points.forEach(p => updateBounds(p.x, p.y));
                 break;
             case 'text':
@@ -2457,8 +2100,6 @@ class TyrexCAD {
                 ];
             case 'polyline':
                 return shape.points;
-            case 'polygon':
-                return shape.points;
             case 'arc':
                 return [
                     {
@@ -2498,16 +2139,6 @@ class TyrexCAD {
                     });
                 }
                 return midpoints;
-            case 'polygon':
-                const polyMidpoints = [];
-                for (let i = 0; i < shape.points.length; i++) {
-                    const next = (i + 1) % shape.points.length;
-                    polyMidpoints.push({
-                        x: (shape.points[i].x + shape.points[next].x) / 2,
-                        y: (shape.points[i].y + shape.points[next].y) / 2
-                    });
-                }
-                return polyMidpoints;
             case 'arc':
                 const midAngle = (shape.startAngle + shape.endAngle) / 2;
                 return [{
@@ -2534,16 +2165,6 @@ class TyrexCAD {
                 return {
                     x: (shape.start.x + shape.end.x) / 2,
                     y: (shape.start.y + shape.end.y) / 2
-                };
-            case 'polygon':
-                let sumX = 0, sumY = 0;
-                shape.points.forEach(p => {
-                    sumX += p.x;
-                    sumY += p.y;
-                });
-                return {
-                    x: sumX / shape.points.length,
-                    y: sumY / shape.points.length
                 };
             default:
                 return null;
@@ -2744,6 +2365,32 @@ class TyrexCAD {
                         center: this.drawingPoints[0],
                         radiusX: Math.abs(snapPoint.x - this.drawingPoints[0].x),
                         radiusY: Math.abs(snapPoint.y - this.drawingPoints[0].y),
+                        color: this.currentColor,
+                        lineWidth: this.currentLineWidth,
+                        lineType: this.currentLineType
+                    };
+                }
+                break;
+                
+            case 'polygon':
+                if (this.drawingPoints.length === 1 && this.polygonSides) {
+                    const center = this.drawingPoints[0];
+                    const radius = this.distance(center.x, center.y, snapPoint.x, snapPoint.y);
+                    const points = [];
+                    const angleStep = (2 * Math.PI) / this.polygonSides;
+                    
+                    for (let i = 0; i < this.polygonSides; i++) {
+                        const angle = i * angleStep;
+                        points.push({
+                            x: center.x + radius * Math.cos(angle),
+                            y: center.y + radius * Math.sin(angle)
+                        });
+                    }
+                    points.push(points[0]); // Close the polygon
+                    
+                    this.tempShape = {
+                        type: 'polyline',
+                        points: points,
                         color: this.currentColor,
                         lineWidth: this.currentLineWidth,
                         lineType: this.currentLineType
@@ -3180,16 +2827,6 @@ class TyrexCAD {
                 this.ctx.stroke();
                 break;
                 
-            case 'polygon':
-                this.ctx.beginPath();
-                this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
-                for (let i = 1; i < shape.points.length; i++) {
-                    this.ctx.lineTo(shape.points[i].x, shape.points[i].y);
-                }
-                this.ctx.closePath();
-                this.ctx.stroke();
-                break;
-                
             case 'text':
                 this.ctx.font = `${shape.fontSize}px Arial`;
                 this.ctx.fillText(shape.text, shape.position.x, shape.position.y);
@@ -3448,7 +3085,6 @@ class TyrexCAD {
                 break;
                 
             case 'polyline':
-            case 'polygon':
                 shape.points.forEach(p => drawHandle(p.x, p.y));
                 break;
         }
@@ -3820,6 +3456,8 @@ class TyrexCAD {
             'a': () => this.setTool('arc'),
             'ellipse': () => this.setTool('ellipse'),
             'el': () => this.setTool('ellipse'),
+            'polygon': () => this.setTool('polygon'),
+            'pol': () => this.setTool('polygon'),
             'move': () => this.setTool('move'),
             'm': () => this.setTool('move'),
             'copy': () => this.setTool('copy'),
@@ -3836,6 +3474,23 @@ class TyrexCAD {
             'ex': () => this.setTool('extend'),
             'offset': () => this.setTool('offset'),
             'of': () => this.setTool('offset'),
+            'fillet': () => this.setTool('fillet'),
+            'f': () => this.setTool('fillet'),
+            'chamfer': () => this.setTool('chamfer'),
+            'cha': () => this.setTool('chamfer'),
+            'array': () => this.showArrayMenu(),
+            'ar': () => this.showArrayMenu(),
+            'union': () => this.performUnion(),
+            'uni': () => this.performUnion(),
+            'difference': () => this.performDifference(),
+            'dif': () => this.performDifference(),
+            'intersection': () => this.performIntersection(),
+            'int': () => this.performIntersection(),
+            'distance': () => this.analyzeDistance(),
+            'dist': () => this.analyzeDistance(),
+            'area': () => this.analyzeArea(),
+            'properties': () => this.analyzeProperties(),
+            'prop': () => this.analyzeProperties(),
             'delete': () => this.deleteSelected(),
             'del': () => this.deleteSelected(),
             'undo': () => this.undo(),
@@ -3854,25 +3509,7 @@ class TyrexCAD {
             'polar': () => this.togglePolar(),
             'units': () => this.showUnitsDialog(),
             'help': () => this.showHelp(),
-            'f1': () => this.showHelp(),
-            // Boolean operations
-            'union': () => this.performUnion(),
-            'difference': () => this.performDifference(),
-            'diff': () => this.performDifference(),
-            'intersection': () => this.performIntersection(),
-            'int': () => this.performIntersection(),
-            'xor': () => this.performXor(),
-            // Advanced operations
-            'fillet': () => this.createFillet(),
-            'fi': () => this.createFillet(),
-            'chamfer': () => this.createChamfer(),
-            'ch': () => this.createChamfer(),
-            'array': () => this.createRectangularArray(),
-            'ar': () => this.createRectangularArray(),
-            'polar-array': () => this.createPolarArray(),
-            'pa': () => this.createPolarArray(),
-            'hatch': () => this.createHatch(),
-            'h': () => this.createHatch()
+            'f1': () => this.showHelp()
         };
         
         if (commands[cmd]) {
@@ -3880,6 +3517,21 @@ class TyrexCAD {
             this.lastCommand = cmd;
         } else {
             this.updateStatus(`Unknown command: ${cmd}`);
+        }
+    }
+    
+    showArrayMenu() {
+        const choice = prompt('Array type:\n1. Rectangular\n2. Polar\n3. Path', '1');
+        switch (choice) {
+            case '1':
+                this.setTool('rectangular-array');
+                break;
+            case '2':
+                this.setTool('polar-array');
+                break;
+            case '3':
+                this.setTool('path-array');
+                break;
         }
     }
     
@@ -3893,6 +3545,7 @@ Drawing:
 - POLYLINE (PL) - Draw polyline
 - ARC (A) - Draw arc
 - ELLIPSE (EL) - Draw ellipse
+- POLYGON (POL) - Draw polygon
 
 Modify:
 - MOVE (M) - Move objects
@@ -3903,19 +3556,19 @@ Modify:
 - TRIM (TR) - Trim objects
 - EXTEND (EX) - Extend objects
 - OFFSET (OF) - Offset objects
+- FILLET (F) - Fillet corners
+- CHAMFER (CHA) - Chamfer corners
+- ARRAY (AR) - Create arrays
 
 Boolean Operations:
-- UNION - Unite selected shapes
-- DIFFERENCE (DIFF) - Subtract shapes
-- INTERSECTION (INT) - Intersect shapes
-- XOR - Exclusive OR of shapes
+- UNION (UNI) - Combine shapes
+- DIFFERENCE (DIF) - Subtract shapes
+- INTERSECTION (INT) - Find overlap
 
-Advanced:
-- FILLET (FI) - Round corners
-- CHAMFER (CH) - Bevel corners
-- ARRAY (AR) - Rectangular array
-- POLAR-ARRAY (PA) - Circular array
-- HATCH (H) - Fill with pattern
+Analysis:
+- DISTANCE (DIST) - Measure distance
+- AREA - Calculate area
+- PROPERTIES (PROP) - Show properties
 
 View:
 - ZOOM (Z) - Zoom extents
@@ -4071,6 +3724,11 @@ Other:
         this.lastTool = this.currentTool;
         this.updateStatus('READY');
         
+        // Reset state for advanced tools
+        this.filletShape1 = null;
+        this.chamferShape1 = null;
+        this.polygonSides = null;
+        
         // Reset Tools state
         if (window.Tools) {
             Tools.resetModifyState();
@@ -4082,7 +3740,6 @@ Other:
         this.isPanning = false;
         this.isSelecting = false;
         this.isZoomWindow = false;
-        this.pendingOperation = null;
         this.ui.hideSelectionBox();
         this.ui.hideZoomWindow();
         this.updateStatus('READY');
