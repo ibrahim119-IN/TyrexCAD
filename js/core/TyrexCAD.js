@@ -1,0 +1,4228 @@
+// TyrexCAD - النواة الأساسية لنظام CAD
+// يعتمد على: Geometry.js, Tools.js, UI.js, GeometryAdvanced.js
+
+// TyrexCAD Professional v3.0 - Enhanced Implementation with Advanced Geometry
+
+class TyrexCAD {
+    constructor() {
+        // Geometry library reference
+        this.geo = window.Geometry;
+        
+        // نظام الهندسة المتقدمة (يُحمل عند الحاجة)
+        this.geometryAdvanced = null;
+        
+        // Canvas setup
+        this.canvas = document.getElementById('mainCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.canvas3D = document.getElementById('canvas3D');
+        
+        // State
+        this.mode = '2D';
+        this.currentTool = 'select';
+        this.isDrawing = false;
+        this.drawingPoints = [];
+        this.tempShape = null;
+        
+        // View state
+        this.zoom = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.gridSize = 20;
+        this.minZoom = 0.01;
+        this.maxZoom = 100;
+        
+        // Mouse state
+        this.mouseX = 0;
+        this.mouseY = 0;
+        this.worldX = 0;
+        this.worldY = 0;
+        this.isPanning = false;
+        this.isSelecting = false;
+        this.isZoomWindow = false;
+        
+        // Settings
+        this.gridEnabled = true;
+        this.snapEnabled = true;
+        this.orthoEnabled = false;
+        this.polarEnabled = false;
+        
+        // Snap settings
+        this.snapSettings = {
+            grid: true,
+            endpoint: true,
+            midpoint: true,
+            center: true,
+            intersection: false,
+            perpendicular: false,
+            tangent: false,
+            nearest: false
+        };
+        
+        // Drawing settings
+        this.currentColor = '#00d4aa';
+        this.currentLineWidth = 2;
+        this.currentLineType = 'solid';
+        
+        // Data
+        this.shapes = [];
+        this.selectedShapes = new Set();
+        this.layers = new Map();
+        this.currentLayerId = 0;
+        
+        // History
+        this.history = [];
+        this.historyIndex = -1;
+        this.clipboard = [];
+
+        // Units system
+        this.units = new UnitsSystem();
+        this.currentUnit = 'mm'; // الوحدة الافتراضية
+        
+        // 3D Scene
+        this.scene3D = null;
+        this.camera3D = null;
+        this.renderer3D = null;
+        this.controls3D = null;
+        this.meshes3D = new Map();
+        
+        // Colors
+        this.colorPalette = [
+            '#00d4aa', '#0099ff', '#ff0099', '#ffaa00',
+            '#ff4444', '#44ff44', '#4444ff', '#ffff44',
+            '#ff44ff', '#44ffff', '#ffffff', '#808080',
+            '#ff6600', '#00ff66', '#6600ff', '#ffcc00',
+            '#cc00ff', '#00ccff', '#ff0000', '#00ff00',
+            '#0000ff', '#ffff00', '#ff00ff', '#00ffff'
+        ];
+        
+        // Dimension settings
+        this.dimensionSettings = {
+            textHeight: 12,
+            arrowSize: 10,
+            extension: 5,
+            offset: 10
+        };
+        
+        // UI System
+        this.ui = new UI(this);
+        
+        // Pending shape properties (from input dialog)
+        this.pendingShapeProperties = null;
+        
+        this.init();
+    }
+    
+    init() {
+        // ربط نظام الأدوات
+        if (window.Tools) {
+            window.Tools.init(this);
+        }
+        
+        // Initialize UI
+        this.ui.init();
+        
+        this.resizeCanvas();
+        this.setupEventListeners();
+        this.initializeLayers();
+        this.init3D();
+        // Initialize units
+        this.changeUnits('mm'); // تعيين الوحدة الافتراضية
+        this.updateUI();
+        this.startRenderLoop();
+        
+        // Hide loading screen
+        setTimeout(() => {
+            this.ui.hideLoadingScreen();
+        }, 1000);
+        
+        this.recordState();
+    }
+    
+    /**
+     * تحميل نظام الهندسة المتقدمة
+     */
+    async loadAdvancedGeometry() {
+        if (this.geometryAdvanced) return this.geometryAdvanced;
+        
+        try {
+            // تحميل الـ module
+            if (!window.GeometryAdvanced) {
+                throw new Error('GeometryAdvanced not loaded');
+            }
+            
+            this.geometryAdvanced = new GeometryAdvanced();
+            await this.geometryAdvanced.init(this);
+            console.log('Advanced geometry loaded successfully');
+            this.updateStatus('Advanced geometry ready');
+            return this.geometryAdvanced;
+            
+        } catch (error) {
+            console.error('Failed to load advanced geometry:', error);
+            this.updateStatus('Advanced geometry not available');
+            return null;
+        }
+    }
+    
+    // ==================== العمليات البوليانية ====================
+    
+    /**
+     * عملية الدمج (Union)
+     */
+    async performUnion() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length < 2) {
+            this.updateStatus('Select at least 2 shapes for union');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Performing union...');
+            const result = await geo.union(selected);
+            
+            if (result.length > 0) {
+                // إضافة النتيجة وحذف الأصلية
+                this.recordState();
+                
+                // حذف الأشكال الأصلية
+                selected.forEach(shape => {
+                    const index = this.shapes.indexOf(shape);
+                    if (index !== -1) {
+                        this.shapes.splice(index, 1);
+                    }
+                });
+                
+                // إضافة الأشكال الجديدة
+                result.forEach(shape => {
+                    shape.color = this.currentColor;
+                    shape.lineWidth = this.currentLineWidth;
+                    shape.lineType = this.currentLineType;
+                    shape.layerId = this.currentLayerId;
+                    this.shapes.push(shape);
+                });
+                
+                this.selectedShapes.clear();
+                this.updateUI();
+                this.render();
+                this.updateStatus('Union completed');
+            } else {
+                this.updateStatus('Union resulted in empty shape');
+            }
+        } catch (error) {
+            console.error('Union error:', error);
+            this.updateStatus('Union failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * عملية الطرح (Difference)
+     */
+    async performDifference() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 2) {
+            this.updateStatus('Select exactly 2 shapes for difference (first - second)');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Performing difference...');
+            const result = await geo.difference(selected[0], [selected[1]]);
+            
+            if (result.length > 0) {
+                this.recordState();
+                
+                // حذف الأشكال الأصلية
+                selected.forEach(shape => {
+                    const index = this.shapes.indexOf(shape);
+                    if (index !== -1) {
+                        this.shapes.splice(index, 1);
+                    }
+                });
+                
+                // إضافة الأشكال الجديدة
+                result.forEach(shape => {
+                    shape.color = selected[0].color;
+                    shape.lineWidth = selected[0].lineWidth;
+                    shape.lineType = selected[0].lineType;
+                    shape.layerId = selected[0].layerId;
+                    this.shapes.push(shape);
+                });
+                
+                this.selectedShapes.clear();
+                this.updateUI();
+                this.render();
+                this.updateStatus('Difference completed');
+            } else {
+                this.updateStatus('Difference resulted in empty shape');
+            }
+        } catch (error) {
+            console.error('Difference error:', error);
+            this.updateStatus('Difference failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * عملية التقاطع (Intersection)
+     */
+    async performIntersection() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length < 2) {
+            this.updateStatus('Select at least 2 shapes for intersection');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Performing intersection...');
+            const result = await geo.intersection(selected);
+            
+            if (result.length > 0) {
+                this.recordState();
+                
+                // حذف الأشكال الأصلية
+                selected.forEach(shape => {
+                    const index = this.shapes.indexOf(shape);
+                    if (index !== -1) {
+                        this.shapes.splice(index, 1);
+                    }
+                });
+                
+                // إضافة الأشكال الجديدة
+                result.forEach(shape => {
+                    shape.color = this.currentColor;
+                    shape.lineWidth = this.currentLineWidth;
+                    shape.lineType = this.currentLineType;
+                    shape.layerId = this.currentLayerId;
+                    this.shapes.push(shape);
+                });
+                
+                this.selectedShapes.clear();
+                this.updateUI();
+                this.render();
+                this.updateStatus('Intersection completed');
+            } else {
+                this.updateStatus('No intersection found');
+            }
+        } catch (error) {
+            console.error('Intersection error:', error);
+            this.updateStatus('Intersection failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * عملية XOR
+     */
+    async performXor() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 2) {
+            this.updateStatus('Select exactly 2 shapes for XOR');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Performing XOR...');
+            const result = await geo.xor(selected[0], selected[1]);
+            
+            if (result.length > 0) {
+                this.recordState();
+                
+                // حذف الأشكال الأصلية
+                selected.forEach(shape => {
+                    const index = this.shapes.indexOf(shape);
+                    if (index !== -1) {
+                        this.shapes.splice(index, 1);
+                    }
+                });
+                
+                // إضافة الأشكال الجديدة
+                result.forEach(shape => {
+                    shape.color = this.currentColor;
+                    shape.lineWidth = this.currentLineWidth;
+                    shape.lineType = this.currentLineType;
+                    shape.layerId = this.currentLayerId;
+                    this.shapes.push(shape);
+                });
+                
+                this.selectedShapes.clear();
+                this.updateUI();
+                this.render();
+                this.updateStatus('XOR completed');
+            } else {
+                this.updateStatus('XOR resulted in empty shape');
+            }
+        } catch (error) {
+            console.error('XOR error:', error);
+            this.updateStatus('XOR failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * عملية Offset المتقدمة
+     */
+    async performAdvancedOffset() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 1) {
+            this.updateStatus('Select exactly 1 shape for advanced offset');
+            return;
+        }
+        
+        const distance = prompt('Enter offset distance:', '10');
+        if (!distance) return;
+        
+        const parsedDistance = this.parseUserInput(distance);
+        if (parsedDistance === null) {
+            this.updateStatus('Invalid distance');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Performing offset...');
+            let result = [];
+            
+            const shape = selected[0];
+            switch (shape.type) {
+                case 'polygon':
+                    result = await geo.offsetPolygon(shape, parsedDistance);
+                    break;
+                case 'polyline':
+                    result = await geo.offsetPolyline(shape, parsedDistance);
+                    break;
+                case 'circle':
+                    result = [{
+                        type: 'circle',
+                        center: shape.center,
+                        radius: shape.radius + parsedDistance,
+                        color: shape.color,
+                        lineWidth: shape.lineWidth,
+                        lineType: shape.lineType,
+                        layerId: shape.layerId,
+                        id: this.generateId()
+                    }];
+                    break;
+                default:
+                    this.updateStatus('Shape type not supported for advanced offset');
+                    return;
+            }
+            
+            if (result.length > 0) {
+                this.recordState();
+                
+                // إضافة الأشكال الجديدة
+                result.forEach(shape => {
+                    shape.color = selected[0].color;
+                    shape.lineWidth = selected[0].lineWidth;
+                    shape.lineType = selected[0].lineType;
+                    shape.layerId = selected[0].layerId;
+                    this.shapes.push(shape);
+                });
+                
+                this.updateUI();
+                this.render();
+                this.updateStatus('Offset completed');
+            } else {
+                this.updateStatus('Offset resulted in empty shape');
+            }
+        } catch (error) {
+            console.error('Offset error:', error);
+            this.updateStatus('Offset failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * تبسيط مضلع
+     */
+    async simplifyShape() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 1) {
+            this.updateStatus('Select exactly 1 polygon or polyline to simplify');
+            return;
+        }
+        
+        const shape = selected[0];
+        if (shape.type !== 'polygon' && shape.type !== 'polyline') {
+            this.updateStatus('Can only simplify polygons and polylines');
+            return;
+        }
+        
+        const tolerance = prompt('Enter simplification tolerance:', '1');
+        if (!tolerance) return;
+        
+        const parsedTolerance = this.parseUserInput(tolerance);
+        if (parsedTolerance === null) {
+            this.updateStatus('Invalid tolerance');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Simplifying shape...');
+            const simplified = geo.simplifyPolygon(shape, parsedTolerance);
+            
+            if (simplified && simplified.points.length > 0) {
+                this.recordState();
+                
+                // تحديث الشكل
+                shape.points = simplified.points;
+                
+                this.updateUI();
+                this.render();
+                this.updateStatus(`Shape simplified from ${shape.points.length} to ${simplified.points.length} points`);
+            } else {
+                this.updateStatus('Simplification failed');
+            }
+        } catch (error) {
+            console.error('Simplification error:', error);
+            this.updateStatus('Simplification failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * تنعيم خط متعدد
+     */
+    async smoothPolyline() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 1) {
+            this.updateStatus('Select exactly 1 polyline to smooth');
+            return;
+        }
+        
+        const shape = selected[0];
+        if (shape.type !== 'polyline') {
+            this.updateStatus('Can only smooth polylines');
+            return;
+        }
+        
+        const factor = prompt('Enter smoothing factor (0-1):', '0.5');
+        if (!factor) return;
+        
+        const parsedFactor = parseFloat(factor);
+        if (isNaN(parsedFactor) || parsedFactor < 0 || parsedFactor > 1) {
+            this.updateStatus('Invalid factor (must be between 0 and 1)');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Smoothing polyline...');
+            const smoothed = geo.smoothPolyline(shape, parsedFactor);
+            
+            if (smoothed && smoothed.points.length > 0) {
+                this.recordState();
+                
+                // إضافة الخط المنعم الجديد
+                smoothed.color = shape.color;
+                smoothed.lineWidth = shape.lineWidth;
+                smoothed.lineType = shape.lineType;
+                smoothed.layerId = shape.layerId;
+                this.shapes.push(smoothed);
+                
+                this.updateUI();
+                this.render();
+                this.updateStatus('Polyline smoothed');
+            } else {
+                this.updateStatus('Smoothing failed');
+            }
+        } catch (error) {
+            console.error('Smoothing error:', error);
+            this.updateStatus('Smoothing failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * إنشاء Convex Hull
+     */
+    async createConvexHull() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length < 3) {
+            this.updateStatus('Select at least 3 points or shapes for convex hull');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Creating convex hull...');
+            
+            // جمع كل النقاط من الأشكال المحددة
+            const points = [];
+            selected.forEach(shape => {
+                const shapePoints = this.getShapePoints(shape);
+                points.push(...shapePoints);
+            });
+            
+            if (points.length < 3) {
+                this.updateStatus('Not enough points for convex hull');
+                return;
+            }
+            
+            const hull = geo.convexHull(points);
+            
+            if (hull && hull.points.length > 0) {
+                this.recordState();
+                
+                // إضافة الغلاف المحدب
+                hull.color = this.currentColor;
+                hull.lineWidth = this.currentLineWidth;
+                hull.lineType = this.currentLineType;
+                hull.layerId = this.currentLayerId;
+                this.shapes.push(hull);
+                
+                this.updateUI();
+                this.render();
+                this.updateStatus('Convex hull created');
+            } else {
+                this.updateStatus('Convex hull creation failed');
+            }
+        } catch (error) {
+            console.error('Convex hull error:', error);
+            this.updateStatus('Convex hull failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * تثليث مضلع
+     */
+    async triangulatePolygon() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 1) {
+            this.updateStatus('Select exactly 1 polygon to triangulate');
+            return;
+        }
+        
+        const shape = selected[0];
+        if (shape.type !== 'polygon') {
+            this.updateStatus('Can only triangulate polygons');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Triangulating polygon...');
+            const triangles = await geo.triangulatePolygon(shape);
+            
+            if (triangles && triangles.length > 0) {
+                this.recordState();
+                
+                // حذف المضلع الأصلي
+                const index = this.shapes.indexOf(shape);
+                if (index !== -1) {
+                    this.shapes.splice(index, 1);
+                }
+                
+                // إضافة المثلثات
+                triangles.forEach(triangle => {
+                    triangle.color = shape.color;
+                    triangle.lineWidth = shape.lineWidth;
+                    triangle.lineType = shape.lineType;
+                    triangle.layerId = shape.layerId;
+                    this.shapes.push(triangle);
+                });
+                
+                this.selectedShapes.clear();
+                this.updateUI();
+                this.render();
+                this.updateStatus(`Created ${triangles.length} triangles`);
+            } else {
+                this.updateStatus('Triangulation failed');
+            }
+        } catch (error) {
+            console.error('Triangulation error:', error);
+            this.updateStatus('Triangulation failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * إنشاء Fillet
+     */
+    async createFillet() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 2) {
+            this.updateStatus('Select exactly 2 lines to fillet');
+            return;
+        }
+        
+        if (selected[0].type !== 'line' || selected[1].type !== 'line') {
+            this.updateStatus('Can only fillet lines');
+            return;
+        }
+        
+        const radius = prompt('Enter fillet radius:', '5');
+        if (!radius) return;
+        
+        const parsedRadius = this.parseUserInput(radius);
+        if (parsedRadius === null || parsedRadius <= 0) {
+            this.updateStatus('Invalid radius');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Creating fillet...');
+            const result = await geo.filletCorner(selected[0], selected[1], parsedRadius);
+            
+            if (result && result.arc) {
+                this.recordState();
+                
+                // تحديث الخطوط الأصلية
+                selected[0].end = result.tangentPoints.tan1;
+                selected[1].start = result.tangentPoints.tan2;
+                
+                // إضافة القوس
+                result.arc.color = this.currentColor;
+                result.arc.lineWidth = this.currentLineWidth;
+                result.arc.lineType = this.currentLineType;
+                result.arc.layerId = this.currentLayerId;
+                this.shapes.push(result.arc);
+                
+                this.updateUI();
+                this.render();
+                this.updateStatus('Fillet created');
+            } else {
+                this.updateStatus('Fillet creation failed');
+            }
+        } catch (error) {
+            console.error('Fillet error:', error);
+            this.updateStatus('Fillet failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * إنشاء Chamfer
+     */
+    async createChamfer() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 2) {
+            this.updateStatus('Select exactly 2 lines to chamfer');
+            return;
+        }
+        
+        if (selected[0].type !== 'line' || selected[1].type !== 'line') {
+            this.updateStatus('Can only chamfer lines');
+            return;
+        }
+        
+        const distance = prompt('Enter chamfer distance:', '5');
+        if (!distance) return;
+        
+        const parsedDistance = this.parseUserInput(distance);
+        if (parsedDistance === null || parsedDistance <= 0) {
+            this.updateStatus('Invalid distance');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Creating chamfer...');
+            const result = await geo.chamferCorner(selected[0], selected[1], parsedDistance);
+            
+            if (result && result.line) {
+                this.recordState();
+                
+                // تحديث الخطوط الأصلية
+                selected[0].end = result.chamferPoints.chamfer1;
+                selected[1].start = result.chamferPoints.chamfer2;
+                
+                // إضافة خط القطع
+                result.line.color = this.currentColor;
+                result.line.lineWidth = this.currentLineWidth;
+                result.line.lineType = this.currentLineType;
+                result.line.layerId = this.currentLayerId;
+                this.shapes.push(result.line);
+                
+                this.updateUI();
+                this.render();
+                this.updateStatus('Chamfer created');
+            } else {
+                this.updateStatus('Chamfer creation failed');
+            }
+        } catch (error) {
+            console.error('Chamfer error:', error);
+            this.updateStatus('Chamfer failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * إنشاء مصفوفة مستطيلة
+     */
+    async createRectangularArray() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 1) {
+            this.updateStatus('Select exactly 1 shape for array');
+            return;
+        }
+        
+        const rows = prompt('Enter number of rows:', '3');
+        const cols = prompt('Enter number of columns:', '3');
+        const rowSpacing = prompt('Enter row spacing:', '50');
+        const colSpacing = prompt('Enter column spacing:', '50');
+        
+        if (!rows || !cols || !rowSpacing || !colSpacing) return;
+        
+        const parsedRows = parseInt(rows);
+        const parsedCols = parseInt(cols);
+        const parsedRowSpacing = this.parseUserInput(rowSpacing);
+        const parsedColSpacing = this.parseUserInput(colSpacing);
+        
+        if (isNaN(parsedRows) || isNaN(parsedCols) || 
+            parsedRowSpacing === null || parsedColSpacing === null) {
+            this.updateStatus('Invalid array parameters');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Creating array...');
+            const result = geo.rectangularArray(
+                selected[0], 
+                parsedRows, 
+                parsedCols, 
+                parsedRowSpacing, 
+                parsedColSpacing
+            );
+            
+            if (result && result.length > 0) {
+                this.recordState();
+                
+                // إضافة النسخ
+                result.forEach(shape => {
+                    shape.color = selected[0].color;
+                    shape.lineWidth = selected[0].lineWidth;
+                    shape.lineType = selected[0].lineType;
+                    shape.layerId = selected[0].layerId;
+                    this.shapes.push(shape);
+                });
+                
+                this.selectedShapes.clear();
+                this.updateUI();
+                this.render();
+                this.updateStatus(`Created ${result.length} copies`);
+            } else {
+                this.updateStatus('Array creation failed');
+            }
+        } catch (error) {
+            console.error('Array error:', error);
+            this.updateStatus('Array failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * إنشاء مصفوفة قطبية
+     */
+    async createPolarArray() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 1) {
+            this.updateStatus('Select exactly 1 shape for polar array');
+            return;
+        }
+        
+        this.updateStatus('Click center point for array');
+        this.setTool('polar-array-center');
+        this.pendingOperation = {
+            type: 'polar-array',
+            shape: selected[0]
+        };
+    }
+    
+    /**
+     * تنفيذ المصفوفة القطبية
+     */
+    async executePolarArray(center) {
+        if (!this.pendingOperation || this.pendingOperation.type !== 'polar-array') {
+            return;
+        }
+        
+        const count = prompt('Enter number of copies:', '6');
+        const angle = prompt('Enter total angle (degrees, 360 for full circle):', '360');
+        
+        if (!count || !angle) {
+            this.pendingOperation = null;
+            this.setTool('select');
+            return;
+        }
+        
+        const parsedCount = parseInt(count);
+        const parsedAngle = parseFloat(angle) * Math.PI / 180;
+        
+        if (isNaN(parsedCount) || isNaN(parsedAngle)) {
+            this.updateStatus('Invalid parameters');
+            this.pendingOperation = null;
+            this.setTool('select');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            this.pendingOperation = null;
+            this.setTool('select');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Creating polar array...');
+            const result = geo.polarArray(
+                this.pendingOperation.shape,
+                center,
+                parsedCount,
+                parsedAngle
+            );
+            
+            if (result && result.length > 0) {
+                this.recordState();
+                
+                // إضافة النسخ
+                result.forEach(shape => {
+                    shape.color = this.pendingOperation.shape.color;
+                    shape.lineWidth = this.pendingOperation.shape.lineWidth;
+                    shape.lineType = this.pendingOperation.shape.lineType;
+                    shape.layerId = this.pendingOperation.shape.layerId;
+                    this.shapes.push(shape);
+                });
+                
+                this.selectedShapes.clear();
+                this.updateUI();
+                this.render();
+                this.updateStatus(`Created ${result.length} copies`);
+            } else {
+                this.updateStatus('Polar array creation failed');
+            }
+        } catch (error) {
+            console.error('Polar array error:', error);
+            this.updateStatus('Polar array failed: ' + error.message);
+        }
+        
+        this.pendingOperation = null;
+        this.setTool('select');
+    }
+    
+    /**
+     * إنشاء Hatch
+     */
+    async createHatch() {
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length !== 1) {
+            this.updateStatus('Select exactly 1 closed shape to hatch');
+            return;
+        }
+        
+        const shape = selected[0];
+        if (shape.type !== 'polygon' && shape.type !== 'rectangle' && shape.type !== 'circle') {
+            this.updateStatus('Can only hatch closed shapes');
+            return;
+        }
+        
+        const pattern = prompt('Enter pattern (lines/dots):', 'lines');
+        const spacing = prompt('Enter spacing:', '10');
+        const angle = prompt('Enter angle (degrees, for lines):', '45');
+        
+        if (!pattern || !spacing) return;
+        
+        const parsedSpacing = this.parseUserInput(spacing);
+        const parsedAngle = angle ? parseFloat(angle) * Math.PI / 180 : 0;
+        
+        if (parsedSpacing === null || parsedSpacing <= 0) {
+            this.updateStatus('Invalid spacing');
+            return;
+        }
+        
+        this.updateStatus('Loading advanced geometry...');
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        try {
+            this.updateStatus('Creating hatch...');
+            
+            // تحويل الشكل لمضلع إذا لزم الأمر
+            let polygon = shape;
+            if (shape.type === 'rectangle') {
+                polygon = {
+                    type: 'polygon',
+                    points: [
+                        { x: shape.start.x, y: shape.start.y },
+                        { x: shape.end.x, y: shape.start.y },
+                        { x: shape.end.x, y: shape.end.y },
+                        { x: shape.start.x, y: shape.end.y }
+                    ]
+                };
+            } else if (shape.type === 'circle') {
+                // تحويل الدائرة لمضلع
+                const segments = 32;
+                polygon = {
+                    type: 'polygon',
+                    points: []
+                };
+                for (let i = 0; i < segments; i++) {
+                    const angle = (i / segments) * Math.PI * 2;
+                    polygon.points.push({
+                        x: shape.center.x + shape.radius * Math.cos(angle),
+                        y: shape.center.y + shape.radius * Math.sin(angle)
+                    });
+                }
+            }
+            
+            const hatchLines = geo.hatchPolygon(polygon, pattern, parsedSpacing, parsedAngle);
+            
+            if (hatchLines && hatchLines.length > 0) {
+                this.recordState();
+                
+                // إضافة خطوط التهشير
+                hatchLines.forEach(line => {
+                    line.color = shape.color;
+                    line.lineWidth = 1;
+                    line.lineType = shape.lineType;
+                    line.layerId = shape.layerId;
+                    this.shapes.push(line);
+                });
+                
+                this.updateUI();
+                this.render();
+                this.updateStatus(`Created ${hatchLines.length} hatch lines`);
+            } else {
+                this.updateStatus('Hatch creation failed');
+            }
+        } catch (error) {
+            console.error('Hatch error:', error);
+            this.updateStatus('Hatch failed: ' + error.message);
+        }
+    }
+    
+    /**
+     * الحصول على نقاط الشكل
+     */
+    getShapePoints(shape) {
+        const points = [];
+        
+        switch (shape.type) {
+            case 'line':
+                points.push(shape.start, shape.end);
+                break;
+            case 'rectangle':
+                points.push(
+                    { x: shape.start.x, y: shape.start.y },
+                    { x: shape.end.x, y: shape.start.y },
+                    { x: shape.end.x, y: shape.end.y },
+                    { x: shape.start.x, y: shape.end.y }
+                );
+                break;
+            case 'circle':
+                // نقاط على محيط الدائرة
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    points.push({
+                        x: shape.center.x + shape.radius * Math.cos(angle),
+                        y: shape.center.y + shape.radius * Math.sin(angle)
+                    });
+                }
+                break;
+            case 'polyline':
+            case 'polygon':
+                points.push(...shape.points);
+                break;
+        }
+        
+        return points;
+    }
+    
+    resizeCanvas() {
+        const container = document.getElementById('canvasContainer');
+        const rect = container.getBoundingClientRect();
+        
+        this.canvas.width = rect.width;
+        this.canvas.height = rect.height;
+        this.canvas3D.width = rect.width;
+        this.canvas3D.height = rect.height;
+        
+        // Center the view
+        this.panX = this.canvas.width / 2;
+        this.panY = this.canvas.height / 2;
+        
+        if (this.renderer3D) {
+            this.renderer3D.setSize(rect.width, rect.height);
+            this.camera3D.aspect = rect.width / rect.height;
+            this.camera3D.updateProjectionMatrix();
+        }
+        
+        this.render();
+    }
+    
+    setupEventListeners() {
+        // Window events
+        window.addEventListener('resize', () => this.resizeCanvas());
+        
+        // Canvas events - only for 2D mode
+        this.canvas.addEventListener('mousedown', (e) => {
+            if (this.mode === '2D') this.onMouseDown(e);
+        });
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (this.mode === '2D') this.onMouseMove(e);
+        });
+        this.canvas.addEventListener('mouseup', (e) => {
+            if (this.mode === '2D') this.onMouseUp(e);
+        });
+        this.canvas.addEventListener('wheel', (e) => {
+            if (this.mode === '2D') this.onWheel(e);
+        });
+        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        // 3D Canvas events
+        this.canvas3D.addEventListener('mousedown', (e) => {
+            if (this.mode === '3D') this.on3DMouseDown(e);
+        });
+        this.canvas3D.addEventListener('mousemove', (e) => {
+            if (this.mode === '3D') this.on3DMouseMove(e);
+        });
+        this.canvas3D.addEventListener('mouseup', (e) => {
+            if (this.mode === '3D') this.on3DMouseUp(e);
+        });
+        this.canvas3D.addEventListener('wheel', (e) => {
+            if (this.mode === '3D') this.on3DWheel(e);
+        });
+        this.canvas3D.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        // Keyboard events
+        document.addEventListener('keydown', (e) => this.onKeyDown(e));
+        document.addEventListener('keyup', (e) => this.onKeyUp(e));
+        
+        // Command input
+        const commandInput = document.getElementById('commandInput');
+        commandInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                this.executeCommand(e.target.value);
+                e.target.value = '';
+            } else if (e.key === 'Escape') {
+                e.target.value = '';
+                this.cancelCurrentOperation();
+            }
+        });
+        
+        // Dynamic input
+        const dynamicField = document.getElementById('dynamicField');
+        dynamicField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                this.applyDynamicInput();
+            } else if (e.key === 'Escape') {
+                this.ui.hideDynamicInput();
+                this.cancelCurrentOperation();
+            }
+        });
+        
+        // Zoom window overlay
+        const zoomOverlay = document.getElementById('zoomWindowOverlay');
+        zoomOverlay.addEventListener('mousedown', (e) => this.onZoomWindowStart(e));
+        zoomOverlay.addEventListener('mousemove', (e) => this.onZoomWindowMove(e));
+        zoomOverlay.addEventListener('mouseup', (e) => this.onZoomWindowEnd(e));
+    }
+    
+    // 3D Scene Setup
+    init3D() {
+        // Scene
+        this.scene3D = new THREE.Scene();
+        this.scene3D.background = new THREE.Color(0x0a0a0a);
+        this.scene3D.fog = new THREE.Fog(0x0a0a0a, 100, 1000);
+        
+        // Camera
+        this.camera3D = new THREE.PerspectiveCamera(
+            75,
+            this.canvas3D.width / this.canvas3D.height,
+            0.1,
+            10000
+        );
+        this.camera3D.position.set(100, 100, 100);
+        this.camera3D.lookAt(0, 0, 0);
+        
+        // Renderer
+        this.renderer3D = new THREE.WebGLRenderer({
+            canvas: this.canvas3D,
+            antialias: true
+        });
+        this.renderer3D.setSize(this.canvas3D.width, this.canvas3D.height);
+        this.renderer3D.shadowMap.enabled = true;
+        this.renderer3D.shadowMap.type = THREE.PCFSoftShadowMap;
+        
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        this.scene3D.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(100, 200, 50);
+        directionalLight.castShadow = true;
+        this.scene3D.add(directionalLight);
+        
+        // Grid
+        const gridHelper = new THREE.GridHelper(1000, 50, 0x00d4aa, 0x00d4aa);
+        gridHelper.material.opacity = 0.2;
+        gridHelper.material.transparent = true;
+        this.scene3D.add(gridHelper);
+        
+        // Axes
+        const axesHelper = new THREE.AxesHelper(100);
+        this.scene3D.add(axesHelper);
+        
+        // Camera controls variables
+        this.camera3DRotating = false;
+        this.camera3DPanning = false;
+        this.camera3DStartX = 0;
+        this.camera3DStartY = 0;
+    }
+    
+    // Initialize UI
+    initializeLayers() {
+        this.layers.set(0, {
+            id: 0,
+            name: 'Layer 0',
+            color: '#ffffff',
+            visible: true,
+            locked: false,
+            lineWidth: 2,
+            lineType: 'solid'
+        });
+    }
+    
+    // UI wrapper methods
+    updateUI() {
+        this.ui.updateUI();
+    }
+    
+    updateStatus(message) {
+        this.ui.updateStatus(message);
+    }
+    
+    showDynamicInput(label, point) {
+        this.ui.showDynamicInput(label, point);
+    }
+    
+    showInputDialog(shapeType) {
+        this.ui.showInputDialog(shapeType);
+    }
+    
+    cancelInputDialog() {
+        this.ui.cancelInputDialog();
+    }
+    
+    confirmInputDialog() {
+        this.ui.confirmInputDialog();
+    }
+    
+    showContextMenu(x, y) {
+        this.ui.showContextMenu(x, y);
+    }
+    
+    showProperties() {
+        this.ui.showProperties();
+    }
+    
+    togglePropertiesPanel() {
+        this.ui.togglePropertiesPanel();
+    }
+    
+    toggleSnapMenu() {
+        this.ui.toggleSnapMenu();
+    }
+    
+    toggleColorDropdown() {
+        this.ui.toggleColorDropdown();
+    }
+    
+    // Coordinate transformations
+    screenToWorld(x, y) {
+        return {
+            x: (x - this.panX) / this.zoom,
+            y: (y - this.panY) / this.zoom
+        };
+    }
+    
+    worldToScreen(x, y) {
+        return {
+            x: x * this.zoom + this.panX,
+            y: y * this.zoom + this.panY
+        };
+    }
+    
+    // Mouse events
+    onMouseDown(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        if (e.button === 0) { // Left click
+            if (this.currentTool === 'pan' || e.shiftKey) {
+                this.startPanning(x, y);
+            } else if (this.currentTool === 'select') {
+                this.handleSelection(x, y, e.ctrlKey);
+            } else if (this.currentTool === 'polar-array-center' && this.pendingOperation) {
+                const world = this.screenToWorld(x, y);
+                const snapPoint = this.getSnapPoint(world.x, world.y);
+                this.executePolarArray(snapPoint);
+            } else {
+                this.handleDrawing(x, y);
+            }
+        } else if (e.button === 1) { // Middle click
+            this.startPanning(x, y);
+        } else if (e.button === 2) { // Right click
+            if (this.isDrawing && this.currentTool === 'polyline') {
+                this.finishPolyline();
+            } else {
+                this.showContextMenu(e.clientX, e.clientY);
+            }
+        }
+    }
+    
+    onMouseMove(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        this.mouseX = e.clientX - rect.left;
+        this.mouseY = e.clientY - rect.top;
+        
+        const world = this.screenToWorld(this.mouseX, this.mouseY);
+        this.worldX = world.x;
+        this.worldY = world.y;
+        
+        // Update coordinates display
+        this.ui.updateCoordinates(this.worldX, this.worldY, 0);
+        
+        // Update crosshair only in 2D mode
+        if (this.mode === '2D') {
+            this.ui.updateCrosshair(this.mouseX, this.mouseY);
+        }
+        
+        if (this.isPanning) {
+            this.updatePanning();
+        } else if (this.isSelecting) {
+            this.updateSelection();
+        } else if (this.isDrawing) {
+            this.updateDrawingPreview();
+        }
+        
+        // Update snap indicator
+        if (this.snapEnabled && this.mode === '2D') {
+            const snapPoint = this.getSnapPoint(world.x, world.y);
+            if (snapPoint.type) {
+                const screen = this.worldToScreen(snapPoint.x, snapPoint.y);
+                this.ui.updateSnapIndicator(snapPoint, screen);
+            } else {
+                this.ui.updateSnapIndicator(null, null);
+            }
+        }
+        
+        this.render();
+    }
+    
+    onMouseUp(e) {
+        this.isPanning = false;
+        this.canvas.style.cursor = this.currentTool === 'pan' ? 'grab' : 'none';
+        
+        if (this.isSelecting) {
+            this.finishSelection();
+        }
+    }
+    
+    onWheel(e) {
+        e.preventDefault();
+        
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const worldBefore = this.screenToWorld(this.mouseX, this.mouseY);
+        
+        this.zoom *= delta;
+        this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom));
+        
+        const worldAfter = this.screenToWorld(this.mouseX, this.mouseY);
+        
+        this.panX += (worldAfter.x - worldBefore.x) * this.zoom;
+        this.panY += (worldAfter.y - worldBefore.y) * this.zoom;
+        
+        this.render();
+    }
+    
+    // 3D Mouse events
+    on3DMouseDown(e) {
+        if (e.button === 0) {
+            this.camera3DRotating = true;
+        } else if (e.button === 1) {
+            this.camera3DPanning = true;
+        }
+        this.camera3DStartX = e.clientX;
+        this.camera3DStartY = e.clientY;
+    }
+    
+    on3DMouseMove(e) {
+        if (this.camera3DRotating) {
+            const deltaX = e.clientX - this.camera3DStartX;
+            const deltaY = e.clientY - this.camera3DStartY;
+            
+            const spherical = new THREE.Spherical();
+            spherical.setFromVector3(this.camera3D.position);
+            spherical.theta -= deltaX * 0.01;
+            spherical.phi += deltaY * 0.01;
+            spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+            
+            this.camera3D.position.setFromSpherical(spherical);
+            this.camera3D.lookAt(0, 0, 0);
+            
+            this.camera3DStartX = e.clientX;
+            this.camera3DStartY = e.clientY;
+            this.render3D();
+        } else if (this.camera3DPanning) {
+            const deltaX = (e.clientX - this.camera3DStartX) * 0.5;
+            const deltaY = (e.clientY - this.camera3DStartY) * 0.5;
+            
+            const right = new THREE.Vector3();
+            this.camera3D.getWorldDirection(new THREE.Vector3());
+            right.crossVectors(this.camera3D.up, this.camera3D.getWorldDirection(new THREE.Vector3())).normalize();
+            
+            this.camera3D.position.add(right.multiplyScalar(-deltaX));
+            this.camera3D.position.add(this.camera3D.up.clone().multiplyScalar(deltaY));
+            
+            this.camera3DStartX = e.clientX;
+            this.camera3DStartY = e.clientY;
+            this.render3D();
+        }
+    }
+    
+    on3DMouseUp(e) {
+        this.camera3DRotating = false;
+        this.camera3DPanning = false;
+    }
+    
+    on3DWheel(e) {
+        e.preventDefault();
+        const scale = e.deltaY > 0 ? 1.1 : 0.9;
+        this.camera3D.position.multiplyScalar(scale);
+        this.render3D();
+    }
+    
+    onKeyDown(e) {
+        // ESC key cancels current operation
+        if (e.key === 'Escape') {
+            this.cancelCurrentOperation();
+            return;
+        }
+        
+        if (e.target.tagName === 'INPUT') return;
+        
+        switch (e.key) {
+            case 'Delete':
+                this.deleteSelected();
+                break;
+            case 'Enter':
+                if (this.isDrawing && this.currentTool === 'polyline') {
+                    this.finishPolyline();
+                }
+                break;
+        }
+        
+        if (e.ctrlKey) {
+            switch (e.key.toLowerCase()) {
+                case 'z':
+                    e.preventDefault();
+                    this.undo();
+                    break;
+                case 'y':
+                    e.preventDefault();
+                    this.redo();
+                    break;
+                case 'a':
+                    e.preventDefault();
+                    this.selectAll();
+                    break;
+                case 'c':
+                    e.preventDefault();
+                    this.copySelected();
+                    break;
+                case 'v':
+                    e.preventDefault();
+                    this.pasteClipboard();
+                    break;
+            }
+        }
+    }
+    
+    onKeyUp(e) {
+        // Handle key up if needed
+    }
+    
+    // Tool handling
+    setTool(tool) {
+        this.currentTool = tool;
+        this.cancelCurrentOperation();
+        
+        // Update UI
+        this.ui.updateActiveTool(tool);
+        
+        // Update cursor
+        this.canvas.style.cursor = tool === 'pan' ? 'grab' : 'none';
+        
+        // Update status
+        this.updateStatus(`${tool.toUpperCase()} tool activated`);
+        
+        // Show input dialog for shapes with dimensions
+        if (['line', 'rectangle', 'circle'].includes(tool)) {
+            this.showInputDialog(tool);
+        }
+    }
+    
+    handleDrawing(x, y) {
+        const world = this.screenToWorld(x, y);
+        const snapPoint = this.getSnapPoint(world.x, world.y);
+        
+        switch (this.currentTool) {
+            case 'line':
+                this.drawLine(snapPoint);
+                break;
+            case 'polyline':
+                this.drawPolyline(snapPoint);
+                break;
+            case 'rectangle':
+                this.drawRectangle(snapPoint);
+                break;
+            case 'circle':
+                this.drawCircle(snapPoint);
+                break;
+            case 'arc':
+                this.drawArc(snapPoint);
+                break;
+            case 'ellipse':
+                this.drawEllipse(snapPoint);
+                break;
+            case 'text':
+                this.drawText(snapPoint);
+                break;
+            case 'move':
+            case 'copy':
+            case 'rotate':
+            case 'scale':
+            case 'mirror':
+                this.handleModifyTool(snapPoint);
+                break;
+            case 'trim':
+                this.handleTrim(snapPoint);
+                break;
+            case 'extend':
+                this.handleExtend(snapPoint);
+                break;
+            case 'offset':
+                this.handleOffset(snapPoint);
+                break;
+            case 'dimension':
+            case 'dimension-angular':
+            case 'dimension-radius':
+            case 'dimension-diameter':
+                this.handleDimension(snapPoint);
+                break;
+        }
+    }
+    
+    // Drawing functions - Wrapper functions to Tools
+    drawLine(point) {
+        return Tools.drawLine(point);
+    }
+    
+    drawPolyline(point) {
+        return Tools.drawPolyline(point);
+    }
+    
+    finishPolyline() {
+        return Tools.finishPolyline();
+    }
+    
+    drawRectangle(point) {
+        return Tools.drawRectangle(point);
+    }
+    
+    drawCircle(point) {
+        return Tools.drawCircle(point);
+    }
+    
+    drawArc(point) {
+        return Tools.drawArc(point);
+    }
+    
+    drawEllipse(point) {
+        return Tools.drawEllipse(point);
+    }
+    
+    drawText(point) {
+        return Tools.drawText(point);
+    }
+    
+    // Modify tools - Wrapper functions to Tools
+    handleModifyTool(point) {
+        if (this.selectedShapes.size === 0) {
+            this.updateStatus('Select objects first');
+            return;
+        }
+        
+        switch (this.currentTool) {
+            case 'move':
+                this.moveStart(point);
+                break;
+            case 'copy':
+                this.copyStart(point);
+                break;
+            case 'rotate':
+                this.rotateStart(point);
+                break;
+            case 'scale':
+                this.scaleStart(point);
+                break;
+            case 'mirror':
+                this.mirrorStart(point);
+                break;
+        }
+    }
+    
+    // Wrapper functions for modify tools
+    moveStart(point) {
+        return Tools.moveStart(point);
+    }
+    
+    copyStart(point) {
+        return Tools.copyStart(point);
+    }
+    
+    rotateStart(point) {
+        return Tools.rotateStart(point);
+    }
+    
+    scaleStart(point) {
+        return Tools.scaleStart(point);
+    }
+    
+    mirrorStart(point) {
+        return Tools.mirrorStart(point);
+    }
+    
+    handleTrim(point) {
+        return Tools.handleTrim(point);
+    }
+    
+    handleExtend(point) {
+        return Tools.handleExtend(point);
+    }
+    
+    handleOffset(point) {
+        return Tools.handleOffset(point);
+    }
+    
+    // Dimension handling
+    handleDimension(point) {
+        const dimType = this.currentTool;
+        
+        switch (dimType) {
+            case 'dimension': // Linear dimension
+                this.drawLinearDimension(point);
+                break;
+            case 'dimension-angular':
+                this.drawAngularDimension(point);
+                break;
+            case 'dimension-radius':
+                this.drawRadiusDimension(point);
+                break;
+            case 'dimension-diameter':
+                this.drawDiameterDimension(point);
+                break;
+        }
+    }
+    
+    drawLinearDimension(point) {
+        if (!this.isDrawing) {
+            this.isDrawing = true;
+            this.drawingPoints = [point];
+            this.updateStatus('Specify second point');
+        } else if (this.drawingPoints.length === 1) {
+            this.drawingPoints.push(point);
+            this.updateStatus('Specify dimension line position');
+        } else {
+            const p1 = this.drawingPoints[0];
+            const p2 = this.drawingPoints[1];
+            const distance = this.distance(p1.x, p1.y, p2.x, p2.y);
+            
+            // Calculate dimension line position
+            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+            const perpAngle = angle + Math.PI / 2;
+            
+            // Determine offset from points to dimension line
+            const offsetDist = this.distance(
+                (p1.x + p2.x) / 2,
+                (p1.y + p2.y) / 2,
+                point.x,
+                point.y
+            );
+            
+            const offsetX = Math.cos(perpAngle) * offsetDist;
+            const offsetY = Math.sin(perpAngle) * offsetDist;
+            
+            // Check which side of the line the point is on
+            const cross = (point.x - p1.x) * (p2.y - p1.y) - (point.y - p1.y) * (p2.x - p1.x);
+            const side = cross > 0 ? 1 : -1;
+            
+            const dimension = {
+                type: 'dimension-linear',
+                start: p1,
+                end: p2,
+                offset: offsetDist * side,
+                text: this.formatValue(distance),
+                color: this.currentColor,
+                layerId: this.currentLayerId,
+                id: this.generateId()
+            };
+            
+            this.addShape(dimension);
+            this.finishDrawing();
+        }
+    }
+    
+    drawAngularDimension(point) {
+        if (!this.isDrawing) {
+            this.isDrawing = true;
+            this.drawingPoints = [point];
+            this.updateStatus('Specify second line start point');
+        } else if (this.drawingPoints.length === 1) {
+            this.drawingPoints.push(point);
+            this.updateStatus('Specify second line end point');
+        } else if (this.drawingPoints.length === 2) {
+            this.drawingPoints.push(point);
+            this.updateStatus('Specify dimension arc position');
+        } else {
+            // Calculate angle between two lines
+            const center = this.drawingPoints[0];
+            const p1 = this.drawingPoints[1];
+            const p2 = this.drawingPoints[2];
+            
+            const angle1 = Math.atan2(p1.y - center.y, p1.x - center.x);
+            const angle2 = Math.atan2(p2.y - center.y, p2.x - center.x);
+            
+            let angleDiff = angle2 - angle1;
+            if (angleDiff < 0) angleDiff += 2 * Math.PI;
+            
+            const angleDegrees = angleDiff * 180 / Math.PI;
+            
+            const dimension = {
+                type: 'dimension-angular',
+                center: center,
+                startAngle: angle1,
+                endAngle: angle2,
+                radius: this.distance(center.x, center.y, point.x, point.y),
+                text: angleDegrees.toFixed(1) + '°',
+                color: this.currentColor,
+                layerId: this.currentLayerId,
+                id: this.generateId()
+            };
+            
+            this.addShape(dimension);
+            this.finishDrawing();
+        }
+    }
+    
+    drawRadiusDimension(point) {
+        const world = this.screenToWorld(this.mouseX, this.mouseY);
+        const shape = this.getShapeAt(world.x, world.y);
+        
+        if (shape && (shape.type === 'circle' || shape.type === 'arc')) {
+            const dimension = {
+                type: 'dimension-radius',
+                center: shape.center,
+                endPoint: point,
+                radius: shape.radius,
+                text: 'R' + this.formatValue(shape.radius),
+                color: this.currentColor,
+                layerId: this.currentLayerId,
+                id: this.generateId()
+            };
+            
+            this.addShape(dimension);
+            this.updateStatus('Radius dimension added');
+        } else {
+            this.updateStatus('Select a circle or arc');
+        }
+    }
+    
+    drawDiameterDimension(point) {
+        const world = this.screenToWorld(this.mouseX, this.mouseY);
+        const shape = this.getShapeAt(world.x, world.y);
+        
+        if (shape && shape.type === 'circle') {
+            const angle = Math.atan2(point.y - shape.center.y, point.x - shape.center.x);
+            
+            const dimension = {
+                type: 'dimension-diameter',
+                center: shape.center,
+                angle: angle,
+                radius: shape.radius,
+                text: 'Ø' + this.formatValue(shape.radius * 2),
+                color: this.currentColor,
+                layerId: this.currentLayerId,
+                id: this.generateId()
+            };
+            
+            this.addShape(dimension);
+            this.updateStatus('Diameter dimension added');
+        } else {
+            this.updateStatus('Select a circle');
+        }
+    }
+    
+    // Shape transformations
+    copyShapeProperties(dest, src) {
+        Object.keys(src).forEach(key => {
+            if (key !== 'id') {
+                dest[key] = JSON.parse(JSON.stringify(src[key]));
+            }
+        });
+    }
+    
+    translateShape(shape, dx, dy) {
+        switch (shape.type) {
+            case 'line':
+                shape.start.x += dx;
+                shape.start.y += dy;
+                shape.end.x += dx;
+                shape.end.y += dy;
+                break;
+            case 'rectangle':
+                shape.start.x += dx;
+                shape.start.y += dy;
+                shape.end.x += dx;
+                shape.end.y += dy;
+                break;
+            case 'circle':
+            case 'arc':
+            case 'ellipse':
+                shape.center.x += dx;
+                shape.center.y += dy;
+                break;
+            case 'polyline':
+                shape.points.forEach(p => {
+                    p.x += dx;
+                    p.y += dy;
+                });
+                break;
+            case 'polygon':
+                shape.points.forEach(p => {
+                    p.x += dx;
+                    p.y += dy;
+                });
+                break;
+            case 'text':
+                shape.position.x += dx;
+                shape.position.y += dy;
+                break;
+            case 'dimension-linear':
+                shape.start.x += dx;
+                shape.start.y += dy;
+                shape.end.x += dx;
+                shape.end.y += dy;
+                break;
+            case 'dimension-angular':
+            case 'dimension-radius':
+            case 'dimension-diameter':
+                shape.center.x += dx;
+                shape.center.y += dy;
+                if (shape.endPoint) {
+                    shape.endPoint.x += dx;
+                    shape.endPoint.y += dy;
+                }
+                break;
+        }
+    }
+    
+    rotateShape(shape, center, angle) {
+        const rotatePoint = (p) => {
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            const dx = p.x - center.x;
+            const dy = p.y - center.y;
+            return {
+                x: center.x + dx * cos - dy * sin,
+                y: center.y + dx * sin + dy * cos
+            };
+        };
+        
+        switch (shape.type) {
+            case 'line':
+                shape.start = rotatePoint(shape.start);
+                shape.end = rotatePoint(shape.end);
+                break;
+            case 'rectangle':
+                const corners = [
+                    { x: shape.start.x, y: shape.start.y },
+                    { x: shape.end.x, y: shape.start.y },
+                    { x: shape.end.x, y: shape.end.y },
+                    { x: shape.start.x, y: shape.end.y }
+                ];
+                const rotatedCorners = corners.map(rotatePoint);
+                shape.start = {
+                    x: Math.min(...rotatedCorners.map(c => c.x)),
+                    y: Math.min(...rotatedCorners.map(c => c.y))
+                };
+                shape.end = {
+                    x: Math.max(...rotatedCorners.map(c => c.x)),
+                    y: Math.max(...rotatedCorners.map(c => c.y))
+                };
+                break;
+            case 'circle':
+            case 'ellipse':
+                shape.center = rotatePoint(shape.center);
+                break;
+            case 'arc':
+                shape.center = rotatePoint(shape.center);
+                shape.startAngle += angle;
+                shape.endAngle += angle;
+                break;
+            case 'polyline':
+                shape.points = shape.points.map(rotatePoint);
+                break;
+            case 'polygon':
+                shape.points = shape.points.map(rotatePoint);
+                break;
+            case 'text':
+                shape.position = rotatePoint(shape.position);
+                break;
+        }
+    }
+    
+    scaleShape(shape, center, scale) {
+        const scalePoint = (p) => ({
+            x: center.x + (p.x - center.x) * scale,
+            y: center.y + (p.y - center.y) * scale
+        });
+        
+        switch (shape.type) {
+            case 'line':
+                shape.start = scalePoint(shape.start);
+                shape.end = scalePoint(shape.end);
+                break;
+            case 'rectangle':
+                shape.start = scalePoint(shape.start);
+                shape.end = scalePoint(shape.end);
+                break;
+            case 'circle':
+            case 'arc':
+                shape.center = scalePoint(shape.center);
+                shape.radius *= scale;
+                break;
+            case 'ellipse':
+                shape.center = scalePoint(shape.center);
+                shape.radiusX *= scale;
+                shape.radiusY *= scale;
+                break;
+            case 'polyline':
+                shape.points = shape.points.map(scalePoint);
+                break;
+            case 'polygon':
+                shape.points = shape.points.map(scalePoint);
+                break;
+            case 'text':
+                shape.position = scalePoint(shape.position);
+                shape.fontSize *= scale;
+                break;
+        }
+    }
+    
+    mirrorShape(shape, mirrorLine) {
+        const mirrorPoint = (p) => {
+            const dx = mirrorLine.end.x - mirrorLine.start.x;
+            const dy = mirrorLine.end.y - mirrorLine.start.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            
+            if (len === 0) return p;
+            
+            const nx = dx / len;
+            const ny = dy / len;
+            
+            const px = p.x - mirrorLine.start.x;
+            const py = p.y - mirrorLine.start.y;
+            
+            const dot = px * nx + py * ny;
+            const projX = mirrorLine.start.x + dot * nx;
+            const projY = mirrorLine.start.y + dot * ny;
+            
+            return {
+                x: 2 * projX - p.x,
+                y: 2 * projY - p.y
+            };
+        };
+        
+        switch (shape.type) {
+            case 'line':
+                shape.start = mirrorPoint(shape.start);
+                shape.end = mirrorPoint(shape.end);
+                break;
+            case 'rectangle':
+                const tempStart = mirrorPoint(shape.start);
+                const tempEnd = mirrorPoint(shape.end);
+                shape.start = {
+                    x: Math.min(tempStart.x, tempEnd.x),
+                    y: Math.min(tempStart.y, tempEnd.y)
+                };
+                shape.end = {
+                    x: Math.max(tempStart.x, tempEnd.x),
+                    y: Math.max(tempStart.y, tempEnd.y)
+                };
+                break;
+            case 'circle':
+            case 'ellipse':
+                shape.center = mirrorPoint(shape.center);
+                break;
+            case 'arc':
+                shape.center = mirrorPoint(shape.center);
+                // Mirror angles
+                const startPoint = {
+                    x: shape.center.x + shape.radius * Math.cos(shape.startAngle),
+                    y: shape.center.y + shape.radius * Math.sin(shape.startAngle)
+                };
+                const endPoint = {
+                    x: shape.center.x + shape.radius * Math.cos(shape.endAngle),
+                    y: shape.center.y + shape.radius * Math.sin(shape.endAngle)
+                };
+                const mirroredStart = mirrorPoint(startPoint);
+                const mirroredEnd = mirrorPoint(endPoint);
+                shape.startAngle = Math.atan2(
+                    mirroredEnd.y - shape.center.y,
+                    mirroredEnd.x - shape.center.x
+                );
+                shape.endAngle = Math.atan2(
+                    mirroredStart.y - shape.center.y,
+                    mirroredStart.x - shape.center.x
+                );
+                break;
+            case 'polyline':
+                shape.points = shape.points.map(mirrorPoint);
+                break;
+            case 'polygon':
+                shape.points = shape.points.map(mirrorPoint);
+                break;
+            case 'text':
+                shape.position = mirrorPoint(shape.position);
+                break;
+        }
+    }
+    
+    // Selection
+    handleSelection(x, y, ctrlKey) {
+        const world = this.screenToWorld(x, y);
+        const shape = this.getShapeAt(world.x, world.y);
+        
+        if (shape) {
+            if (ctrlKey) {
+                // Toggle selection
+                if (this.selectedShapes.has(shape)) {
+                    this.selectedShapes.delete(shape);
+                } else {
+                    this.selectedShapes.add(shape);
+                }
+            } else {
+                // Replace selection
+                if (!this.selectedShapes.has(shape)) {
+                    this.selectedShapes.clear();
+                    this.selectedShapes.add(shape);
+                }
+            }
+            this.ui.updatePropertiesPanel();
+        } else {
+            if (!ctrlKey) {
+                this.selectedShapes.clear();
+            }
+            this.isSelecting = true;
+            this.selectionStart = { x, y };
+        }
+        
+        this.render();
+    }
+    
+    updateSelection() {
+        this.ui.updateSelectionBox(
+            this.selectionStart.x, 
+            this.selectionStart.y, 
+            this.mouseX, 
+            this.mouseY
+        );
+    }
+    
+    finishSelection() {
+        this.isSelecting = false;
+        this.ui.hideSelectionBox();
+        
+        const minScreen = {
+            x: Math.min(this.selectionStart.x, this.mouseX),
+            y: Math.min(this.selectionStart.y, this.mouseY)
+        };
+        const maxScreen = {
+            x: Math.max(this.selectionStart.x, this.mouseX),
+            y: Math.max(this.selectionStart.y, this.mouseY)
+        };
+        
+        const minWorld = this.screenToWorld(minScreen.x, minScreen.y);
+        const maxWorld = this.screenToWorld(maxScreen.x, maxScreen.y);
+        
+        this.shapes.forEach(shape => {
+            const layer = this.layers.get(shape.layerId);
+            if (!layer || !layer.visible || layer.locked) return;
+            
+            if (this.isShapeInRect(shape, minWorld, maxWorld)) {
+                this.selectedShapes.add(shape);
+            }
+        });
+        
+        this.ui.updatePropertiesPanel();
+        this.render();
+    }
+    
+    getShapeAt(x, y) {
+        const tolerance = 5 / this.zoom;
+        
+        for (let i = this.shapes.length - 1; i >= 0; i--) {
+            const shape = this.shapes[i];
+            const layer = this.layers.get(shape.layerId);
+            
+            if (!layer || !layer.visible || layer.locked) continue;
+            
+            if (this.isPointOnShape(x, y, shape, tolerance)) {
+                return shape;
+            }
+        }
+        return null;
+    }
+    
+    isPointOnShape(x, y, shape, tolerance) {
+        switch (shape.type) {
+            case 'line':
+                return this.geo.isPointOnLine(x, y, shape.start, shape.end, tolerance);
+            case 'rectangle':
+                return this.isPointOnRectangle(x, y, shape, tolerance);
+            case 'circle':
+                return Math.abs(this.distance(x, y, shape.center.x, shape.center.y) - shape.radius) < tolerance;
+            case 'polyline':
+                for (let i = 0; i < shape.points.length - 1; i++) {
+                    if (this.geo.isPointOnLine(x, y, shape.points[i], shape.points[i + 1], tolerance)) {
+                        return true;
+                    }
+                }
+                return false;
+            case 'polygon':
+                for (let i = 0; i < shape.points.length; i++) {
+                    const next = (i + 1) % shape.points.length;
+                    if (this.geo.isPointOnLine(x, y, shape.points[i], shape.points[next], tolerance)) {
+                        return true;
+                    }
+                }
+                return false;
+            case 'arc':
+                const dist = this.distance(x, y, shape.center.x, shape.center.y);
+                if (Math.abs(dist - shape.radius) > tolerance) return false;
+                const angle = Math.atan2(y - shape.center.y, x - shape.center.x);
+                return this.isAngleInArc(angle, shape.startAngle, shape.endAngle);
+            case 'ellipse':
+                return this.isPointOnEllipse(x, y, shape, tolerance);
+            case 'text':
+                const textWidth = shape.text.length * 8;
+                const textHeight = shape.fontSize || 16;
+                return x >= shape.position.x && x <= shape.position.x + textWidth &&
+                       y >= shape.position.y - textHeight && y <= shape.position.y;
+            case 'dimension-linear':
+            case 'dimension-angular':
+            case 'dimension-radius':
+            case 'dimension-diameter':
+                // Simplified check for dimensions
+                return false;
+        }
+        return false;
+    }
+    
+    isPointOnRectangle(x, y, rect, tolerance) {
+        const corners = [
+            { x: rect.start.x, y: rect.start.y },
+            { x: rect.end.x, y: rect.start.y },
+            { x: rect.end.x, y: rect.end.y },
+            { x: rect.start.x, y: rect.end.y }
+        ];
+        
+        for (let i = 0; i < 4; i++) {
+            if (this.geo.isPointOnLine(x, y, corners[i], corners[(i + 1) % 4], tolerance)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    isPointOnEllipse(x, y, ellipse, tolerance) {
+        const dx = x - ellipse.center.x;
+        const dy = y - ellipse.center.y;
+        const normalized = (dx * dx) / (ellipse.radiusX * ellipse.radiusX) + 
+                          (dy * dy) / (ellipse.radiusY * ellipse.radiusY);
+        return Math.abs(normalized - 1) < tolerance / Math.min(ellipse.radiusX, ellipse.radiusY);
+    }
+    
+    isAngleInArc(angle, startAngle, endAngle) {
+        angle = (angle + 2 * Math.PI) % (2 * Math.PI);
+        startAngle = (startAngle + 2 * Math.PI) % (2 * Math.PI);
+        endAngle = (endAngle + 2 * Math.PI) % (2 * Math.PI);
+        
+        if (startAngle <= endAngle) {
+            return angle >= startAngle && angle <= endAngle;
+        } else {
+            return angle >= startAngle || angle <= endAngle;
+        }
+    }
+    
+    isShapeInRect(shape, min, max) {
+        const bounds = this.getShapeBounds(shape);
+        return !(bounds.maxX < min.x || bounds.minX > max.x || 
+                bounds.maxY < min.y || bounds.minY > max.y);
+    }
+    
+    getShapeBounds(shape) {
+        let minX = Infinity, minY = Infinity;
+        let maxX = -Infinity, maxY = -Infinity;
+        
+        const updateBounds = (x, y) => {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        };
+        
+        switch (shape.type) {
+            case 'line':
+                updateBounds(shape.start.x, shape.start.y);
+                updateBounds(shape.end.x, shape.end.y);
+                break;
+            case 'rectangle':
+                updateBounds(shape.start.x, shape.start.y);
+                updateBounds(shape.end.x, shape.end.y);
+                break;
+            case 'circle':
+                updateBounds(shape.center.x - shape.radius, shape.center.y - shape.radius);
+                updateBounds(shape.center.x + shape.radius, shape.center.y + shape.radius);
+                break;
+            case 'arc':
+                updateBounds(shape.center.x - shape.radius, shape.center.y - shape.radius);
+                updateBounds(shape.center.x + shape.radius, shape.center.y + shape.radius);
+                break;
+            case 'ellipse':
+                updateBounds(shape.center.x - shape.radiusX, shape.center.y - shape.radiusY);
+                updateBounds(shape.center.x + shape.radiusX, shape.center.y + shape.radiusY);
+                break;
+            case 'polyline':
+            case 'polygon':
+                shape.points.forEach(p => updateBounds(p.x, p.y));
+                break;
+            case 'text':
+                updateBounds(shape.position.x, shape.position.y);
+                updateBounds(shape.position.x + shape.text.length * 8, shape.position.y - 16);
+                break;
+        }
+        
+        return { minX, minY, maxX, maxY };
+    }
+    
+    // Snap system
+    getSnapPoint(x, y) {
+        if (!this.snapEnabled) return { x, y };
+        
+        let bestSnap = null;
+        let bestDistance = Infinity;
+        const snapRadius = 10 / this.zoom;
+        
+        // Grid snap
+        if (this.snapSettings.grid && this.gridEnabled) {
+            const gridX = Math.round(x / this.gridSize) * this.gridSize;
+            const gridY = Math.round(y / this.gridSize) * this.gridSize;
+            const dist = this.distance(x, y, gridX, gridY);
+            
+            if (dist < snapRadius && dist < bestDistance) {
+                bestDistance = dist;
+                bestSnap = { x: gridX, y: gridY, type: 'Grid' };
+            }
+        }
+        
+        // Object snaps
+        for (const shape of this.shapes) {
+            const layer = this.layers.get(shape.layerId);
+            if (!layer || !layer.visible) continue;
+            
+            // Skip selected shapes when moving/copying
+            if ((this.currentTool === 'move' || this.currentTool === 'copy') && 
+                this.isDrawing && this.selectedShapes.has(shape)) {
+                continue;
+            }
+            
+            // Endpoint snap
+            if (this.snapSettings.endpoint) {
+                const endpoints = this.getShapeEndpoints(shape);
+                for (const point of endpoints) {
+                    const dist = this.distance(x, y, point.x, point.y);
+                    if (dist < snapRadius && dist < bestDistance) {
+                        bestDistance = dist;
+                        bestSnap = { ...point, type: 'Endpoint' };
+                    }
+                }
+            }
+            
+            // Midpoint snap
+            if (this.snapSettings.midpoint) {
+                const midpoints = this.getShapeMidpoints(shape);
+                for (const point of midpoints) {
+                    const dist = this.distance(x, y, point.x, point.y);
+                    if (dist < snapRadius && dist < bestDistance) {
+                        bestDistance = dist;
+                        bestSnap = { ...point, type: 'Midpoint' };
+                    }
+                }
+            }
+            
+            // Center snap
+            if (this.snapSettings.center) {
+                const center = this.getShapeCenter(shape);
+                if (center) {
+                    const dist = this.distance(x, y, center.x, center.y);
+                    if (dist < snapRadius && dist < bestDistance) {
+                        bestDistance = dist;
+                        bestSnap = { ...center, type: 'Center' };
+                    }
+                }
+            }
+            
+            // Intersection snap
+            if (this.snapSettings.intersection) {
+                for (const otherShape of this.shapes) {
+                    if (shape === otherShape) continue;
+                    const intersections = this.getShapeIntersections(shape, otherShape);
+                    for (const point of intersections) {
+                        const dist = this.distance(x, y, point.x, point.y);
+                        if (dist < snapRadius && dist < bestDistance) {
+                            bestDistance = dist;
+                            bestSnap = { ...point, type: 'Intersection' };
+                        }
+                    }
+                }
+            }
+            
+            // Perpendicular snap
+            if (this.snapSettings.perpendicular && this.isDrawing && this.drawingPoints.length > 0) {
+                const perpPoint = this.geo.getPerpendicularPoint(this.drawingPoints[0], { x, y }, shape);
+                if (perpPoint) {
+                    const dist = this.distance(x, y, perpPoint.x, perpPoint.y);
+                    if (dist < snapRadius && dist < bestDistance) {
+                        bestDistance = dist;
+                        bestSnap = { ...perpPoint, type: 'Perpendicular' };
+                    }
+                }
+            }
+            
+            // Tangent snap
+            if (this.snapSettings.tangent && shape.type === 'circle') {
+                const tangentPoints = this.getTangentPoints({ x, y }, shape);
+                for (const point of tangentPoints) {
+                    const dist = this.distance(x, y, point.x, point.y);
+                    if (dist < snapRadius && dist < bestDistance) {
+                        bestDistance = dist;
+                        bestSnap = { ...point, type: 'Tangent' };
+                    }
+                }
+            }
+            
+            // Nearest snap
+            if (this.snapSettings.nearest) {
+                const nearestPoint = this.getNearestPointOnShape({ x, y }, shape);
+                if (nearestPoint) {
+                    const dist = this.distance(x, y, nearestPoint.x, nearestPoint.y);
+                    if (dist < snapRadius && dist < bestDistance) {
+                        bestDistance = dist;
+                        bestSnap = { ...nearestPoint, type: 'Nearest' };
+                    }
+                }
+            }
+        }
+        
+        // Ortho mode
+        if (this.orthoEnabled && this.isDrawing && this.drawingPoints.length > 0) {
+            const lastPoint = this.drawingPoints[this.drawingPoints.length - 1];
+            const dx = x - lastPoint.x;
+            const dy = y - lastPoint.y;
+            
+            if (Math.abs(dx) > Math.abs(dy)) {
+                bestSnap = { x: x, y: lastPoint.y, type: 'Ortho' };
+            } else {
+                bestSnap = { x: lastPoint.x, y: y, type: 'Ortho' };
+            }
+        }
+        
+        // Polar tracking
+        if (this.polarEnabled && this.isDrawing && this.drawingPoints.length > 0) {
+            const lastPoint = this.drawingPoints[this.drawingPoints.length - 1];
+            const angle = Math.atan2(y - lastPoint.y, x - lastPoint.x);
+            const distance = this.distance(x, y, lastPoint.x, lastPoint.y);
+            
+            // Snap to 15-degree increments
+            const snapAngle = Math.round(angle / (Math.PI / 12)) * (Math.PI / 12);
+            const angleDiff = Math.abs(angle - snapAngle);
+            
+            if (angleDiff < Math.PI / 36) { // Within 5 degrees
+                const snapX = lastPoint.x + distance * Math.cos(snapAngle);
+                const snapY = lastPoint.y + distance * Math.sin(snapAngle);
+                bestSnap = { x: snapX, y: snapY, type: 'Polar' };
+            }
+        }
+        
+        return bestSnap || { x, y };
+    }
+    
+    getShapeEndpoints(shape) {
+        switch (shape.type) {
+            case 'line':
+                return [shape.start, shape.end];
+            case 'rectangle':
+                return [
+                    { x: shape.start.x, y: shape.start.y },
+                    { x: shape.end.x, y: shape.start.y },
+                    { x: shape.end.x, y: shape.end.y },
+                    { x: shape.start.x, y: shape.end.y }
+                ];
+            case 'polyline':
+                return shape.points;
+            case 'polygon':
+                return shape.points;
+            case 'arc':
+                return [
+                    {
+                        x: shape.center.x + shape.radius * Math.cos(shape.startAngle),
+                        y: shape.center.y + shape.radius * Math.sin(shape.startAngle)
+                    },
+                    {
+                        x: shape.center.x + shape.radius * Math.cos(shape.endAngle),
+                        y: shape.center.y + shape.radius * Math.sin(shape.endAngle)
+                    }
+                ];
+            default:
+                return [];
+        }
+    }
+    
+    getShapeMidpoints(shape) {
+        switch (shape.type) {
+            case 'line':
+                return [{
+                    x: (shape.start.x + shape.end.x) / 2,
+                    y: (shape.start.y + shape.end.y) / 2
+                }];
+            case 'rectangle':
+                return [
+                    { x: (shape.start.x + shape.end.x) / 2, y: shape.start.y },
+                    { x: shape.end.x, y: (shape.start.y + shape.end.y) / 2 },
+                    { x: (shape.start.x + shape.end.x) / 2, y: shape.end.y },
+                    { x: shape.start.x, y: (shape.start.y + shape.end.y) / 2 }
+                ];
+            case 'polyline':
+                const midpoints = [];
+                for (let i = 0; i < shape.points.length - 1; i++) {
+                    midpoints.push({
+                        x: (shape.points[i].x + shape.points[i + 1].x) / 2,
+                        y: (shape.points[i].y + shape.points[i + 1].y) / 2
+                    });
+                }
+                return midpoints;
+            case 'polygon':
+                const polyMidpoints = [];
+                for (let i = 0; i < shape.points.length; i++) {
+                    const next = (i + 1) % shape.points.length;
+                    polyMidpoints.push({
+                        x: (shape.points[i].x + shape.points[next].x) / 2,
+                        y: (shape.points[i].y + shape.points[next].y) / 2
+                    });
+                }
+                return polyMidpoints;
+            case 'arc':
+                const midAngle = (shape.startAngle + shape.endAngle) / 2;
+                return [{
+                    x: shape.center.x + shape.radius * Math.cos(midAngle),
+                    y: shape.center.y + shape.radius * Math.sin(midAngle)
+                }];
+            default:
+                return [];
+        }
+    }
+    
+    getShapeCenter(shape) {
+        switch (shape.type) {
+            case 'circle':
+            case 'arc':
+            case 'ellipse':
+                return shape.center;
+            case 'rectangle':
+                return {
+                    x: (shape.start.x + shape.end.x) / 2,
+                    y: (shape.start.y + shape.end.y) / 2
+                };
+            case 'line':
+                return {
+                    x: (shape.start.x + shape.end.x) / 2,
+                    y: (shape.start.y + shape.end.y) / 2
+                };
+            case 'polygon':
+                let sumX = 0, sumY = 0;
+                shape.points.forEach(p => {
+                    sumX += p.x;
+                    sumY += p.y;
+                });
+                return {
+                    x: sumX / shape.points.length,
+                    y: sumY / shape.points.length
+                };
+            default:
+                return null;
+        }
+    }
+    
+    getShapeIntersections(shape1, shape2) {
+        const intersections = [];
+        
+        if (shape1.type === 'line' && shape2.type === 'line') {
+            const intersection = this.geo.lineLineIntersection(
+                shape1.start, shape1.end,
+                shape2.start, shape2.end
+            );
+            if (intersection) intersections.push(intersection);
+        } else if (shape1.type === 'line' && shape2.type === 'circle') {
+            const lineCircle = this.geo.lineCircleIntersection(
+                shape1.start, shape1.end,
+                shape2.center, shape2.radius
+            );
+            intersections.push(...lineCircle);
+        } else if (shape1.type === 'circle' && shape2.type === 'line') {
+            const lineCircle = this.geo.lineCircleIntersection(
+                shape2.start, shape2.end,
+                shape1.center, shape1.radius
+            );
+            intersections.push(...lineCircle);
+        } else if (shape1.type === 'circle' && shape2.type === 'circle') {
+            const circleCircle = this.geo.circleCircleIntersection(
+                shape1.center, shape1.radius,
+                shape2.center, shape2.radius
+            );
+            intersections.push(...circleCircle);
+        }
+        
+        return intersections;
+    }
+    
+    getTangentPoints(fromPoint, circle) {
+        const tangents = [];
+        const dist = this.distance(fromPoint.x, fromPoint.y, circle.center.x, circle.center.y);
+        
+        if (dist > circle.radius) {
+            const angle = Math.asin(circle.radius / dist);
+            const baseAngle = Math.atan2(circle.center.y - fromPoint.y, circle.center.x - fromPoint.x);
+            
+            tangents.push({
+                x: circle.center.x + circle.radius * Math.cos(baseAngle - angle + Math.PI / 2),
+                y: circle.center.y + circle.radius * Math.sin(baseAngle - angle + Math.PI / 2)
+            });
+            
+            tangents.push({
+                x: circle.center.x + circle.radius * Math.cos(baseAngle + angle - Math.PI / 2),
+                y: circle.center.y + circle.radius * Math.sin(baseAngle + angle - Math.PI / 2)
+            });
+        }
+        
+        return tangents;
+    }
+    
+    getNearestPointOnShape(point, shape) {
+        switch (shape.type) {
+            case 'line':
+                return this.geo.getNearestPointOnLine(point, shape.start, shape.end);
+            case 'circle':
+                const angle = Math.atan2(point.y - shape.center.y, point.x - shape.center.x);
+                return {
+                    x: shape.center.x + shape.radius * Math.cos(angle),
+                    y: shape.center.y + shape.radius * Math.sin(angle)
+                };
+            case 'rectangle':
+                let nearestPoint = null;
+                let minDist = Infinity;
+                
+                const corners = [
+                    { x: shape.start.x, y: shape.start.y },
+                    { x: shape.end.x, y: shape.start.y },
+                    { x: shape.end.x, y: shape.end.y },
+                    { x: shape.start.x, y: shape.end.y }
+                ];
+                
+                for (let i = 0; i < 4; i++) {
+                    const p = this.geo.getNearestPointOnLine(point, corners[i], corners[(i + 1) % 4]);
+                    const dist = this.distance(point.x, point.y, p.x, p.y);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestPoint = p;
+                    }
+                }
+                return nearestPoint;
+            default:
+                return null;
+        }
+    }
+    
+    // Panning
+    startPanning(x, y) {
+        this.isPanning = true;
+        this.panStartX = x;
+        this.panStartY = y;
+        this.canvas.style.cursor = 'grabbing';
+    }
+    
+    updatePanning() {
+        const dx = this.mouseX - this.panStartX;
+        const dy = this.mouseY - this.panStartY;
+        
+        this.panX += dx;
+        this.panY += dy;
+        
+        this.panStartX = this.mouseX;
+        this.panStartY = this.mouseY;
+    }
+    
+    // Drawing preview
+    updateDrawingPreview() {
+        if (!this.isDrawing || this.drawingPoints.length === 0) return;
+        
+        const world = this.screenToWorld(this.mouseX, this.mouseY);
+        const snapPoint = this.getSnapPoint(world.x, world.y);
+        
+        switch (this.currentTool) {
+            case 'line':
+                this.tempShape = {
+                    type: 'line',
+                    start: this.drawingPoints[0],
+                    end: snapPoint,
+                    color: this.currentColor,
+                    lineWidth: this.currentLineWidth,
+                    lineType: this.currentLineType
+                };
+                break;
+                
+            case 'rectangle':
+                this.tempShape = {
+                    type: 'rectangle',
+                    start: this.drawingPoints[0],
+                    end: snapPoint,
+                    color: this.currentColor,
+                    lineWidth: this.currentLineWidth,
+                    lineType: this.currentLineType
+                };
+                break;
+                
+            case 'circle':
+                const radius = this.distance(
+                    this.drawingPoints[0].x,
+                    this.drawingPoints[0].y,
+                    snapPoint.x,
+                    snapPoint.y
+                );
+                this.tempShape = {
+                    type: 'circle',
+                    center: this.drawingPoints[0],
+                    radius: radius,
+                    color: this.currentColor,
+                    lineWidth: this.currentLineWidth,
+                    lineType: this.currentLineType
+                };
+                break;
+                
+            case 'polyline':
+                this.tempShape = {
+                    type: 'polyline',
+                    points: [...this.drawingPoints, snapPoint],
+                    color: this.currentColor,
+                    lineWidth: this.currentLineWidth,
+                    lineType: this.currentLineType
+                };
+                break;
+                
+            case 'arc':
+                if (this.drawingPoints.length === 2) {
+                    const arc = this.geo.calculateArcFrom3Points(
+                        this.drawingPoints[0],
+                        this.drawingPoints[1],
+                        snapPoint
+                    );
+                    if (arc) {
+                        this.tempShape = {
+                            type: 'arc',
+                            center: arc.center,
+                            radius: arc.radius,
+                            startAngle: arc.startAngle,
+                            endAngle: arc.endAngle,
+                            color: this.currentColor,
+                            lineWidth: this.currentLineWidth,
+                            lineType: this.currentLineType
+                        };
+                    }
+                }
+                break;
+                
+            case 'ellipse':
+                if (this.drawingPoints.length === 1) {
+                    this.tempShape = {
+                        type: 'ellipse',
+                        center: this.drawingPoints[0],
+                        radiusX: Math.abs(snapPoint.x - this.drawingPoints[0].x),
+                        radiusY: Math.abs(snapPoint.y - this.drawingPoints[0].y),
+                        color: this.currentColor,
+                        lineWidth: this.currentLineWidth,
+                        lineType: this.currentLineType
+                    };
+                }
+                break;
+                
+            case 'move':
+            case 'copy':
+                if (Tools.modifyState.originalShapes.length > 0) {
+                    const dx = snapPoint.x - this.drawingPoints[0].x;
+                    const dy = snapPoint.y - this.drawingPoints[0].y;
+                    this.tempShapes = Tools.modifyState.originalShapes.map(shape => {
+                        const temp = this.cloneShape(shape);
+                        this.translateShape(temp, dx, dy);
+                        return temp;
+                    });
+                }
+                break;
+                
+            case 'rotate':
+                if (Tools.modifyState.originalShapes.length > 0) {
+                    const center = this.drawingPoints[0];
+                    const angle = Math.atan2(
+                        snapPoint.y - center.y,
+                        snapPoint.x - center.x
+                    );
+                    this.tempShapes = Tools.modifyState.originalShapes.map(shape => {
+                        const temp = this.cloneShape(shape);
+                        this.rotateShape(temp, center, angle);
+                        return temp;
+                    });
+                }
+                break;
+                
+            case 'scale':
+                if (Tools.modifyState.originalShapes.length > 0) {
+                    const center = this.drawingPoints[0];
+                    const distance = this.distance(center.x, center.y, snapPoint.x, snapPoint.y);
+                    const scale = distance / Tools.modifyState.baseDistance;
+                    this.tempShapes = Tools.modifyState.originalShapes.map(shape => {
+                        const temp = this.cloneShape(shape);
+                        this.scaleShape(temp, center, scale);
+                        return temp;
+                    });
+                }
+                break;
+                
+            case 'mirror':
+                if (this.drawingPoints.length === 1) {
+                    this.tempShape = {
+                        type: 'line',
+                        start: this.drawingPoints[0],
+                        end: snapPoint,
+                        color: '#00d4aa',
+                        lineWidth: 1,
+                        lineType: 'dashed'
+                    };
+                }
+                break;
+                
+            case 'dimension':
+                if (this.drawingPoints.length === 2) {
+                    // Show dimension preview
+                    const p1 = this.drawingPoints[0];
+                    const p2 = this.drawingPoints[1];
+                    const distance = this.distance(p1.x, p1.y, p2.x, p2.y);
+                    
+                    this.tempShape = {
+                        type: 'dimension-linear',
+                        start: p1,
+                        end: p2,
+                        offset: 20,
+                        text: this.formatValue(distance),
+                        color: this.currentColor
+                    };
+                }
+                break;
+        }
+    }
+    
+    // Dynamic input
+    applyDynamicInput() {
+        const field = document.getElementById('dynamicField');
+        const parsedValue = this.parseUserInput(field.value);
+        
+        if (parsedValue !== null) {
+            const value = this.toUserUnits(parsedValue); // حول للوحدة الحالية للعرض
+            
+            switch (this.currentTool) {
+                case 'rotate':
+                    if (this.drawingPoints.length === 1) {
+                        const angle = value * Math.PI / 180;
+                        const endPoint = {
+                            x: this.drawingPoints[0].x + 100 * Math.cos(angle),
+                            y: this.drawingPoints[0].y + 100 * Math.sin(angle)
+                        };
+                        this.rotateStart(endPoint);
+                    }
+                    break;
+                    
+                case 'scale':
+                    if (this.drawingPoints.length === 1) {
+                        const endPoint = {
+                            x: this.drawingPoints[0].x + Tools.modifyState.baseDistance * value,
+                            y: this.drawingPoints[0].y
+                        };
+                        this.scaleStart(endPoint);
+                    }
+                    break;
+                    
+                case 'offset':
+                    Tools.updateOffsetDistance(parsedValue); // استخدم القيمة بالوحدات الداخلية
+                    if (this.drawingPoints.length === 1) {
+                        this.handleOffset(this.drawingPoints[0]);
+                    }
+                    break;
+            }
+        }
+        
+        this.ui.hideDynamicInput();
+    }
+    
+    // Zoom window
+    zoomWindow() {
+        this.isZoomWindow = true;
+        this.updateStatus('Specify first corner of zoom window');
+        this.ui.showZoomWindow();
+    }
+    
+    onZoomWindowStart(e) {
+        if (!this.isZoomWindow) return;
+        
+        const rect = this.canvas.getBoundingClientRect();
+        this.zoomWindowStart = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        this.isZoomWindowDragging = true;
+    }
+    
+    onZoomWindowMove(e) {
+        if (!this.isZoomWindowDragging) return;
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const currentX = e.clientX - rect.left;
+        const currentY = e.clientY - rect.top;
+        
+        this.ui.updateZoomBox(
+            this.zoomWindowStart.x,
+            this.zoomWindowStart.y,
+            currentX,
+            currentY
+        );
+    }
+    
+    onZoomWindowEnd(e) {
+        if (!this.isZoomWindowDragging) return;
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const endX = e.clientX - rect.left;
+        const endY = e.clientY - rect.top;
+        
+        const minScreen = {
+            x: Math.min(this.zoomWindowStart.x, endX),
+            y: Math.min(this.zoomWindowStart.y, endY)
+        };
+        const maxScreen = {
+            x: Math.max(this.zoomWindowStart.x, endX),
+            y: Math.max(this.zoomWindowStart.y, endY)
+        };
+        
+        if (maxScreen.x - minScreen.x > 5 && maxScreen.y - minScreen.y > 5) {
+            const minWorld = this.screenToWorld(minScreen.x, minScreen.y);
+            const maxWorld = this.screenToWorld(maxScreen.x, maxScreen.y);
+            
+            const width = maxWorld.x - minWorld.x;
+            const height = maxWorld.y - minWorld.y;
+            
+            const zoomX = this.canvas.width / width;
+            const zoomY = this.canvas.height / height;
+            this.zoom = Math.min(zoomX, zoomY) * 0.9;
+            
+            const centerX = (minWorld.x + maxWorld.x) / 2;
+            const centerY = (minWorld.y + maxWorld.y) / 2;
+            
+            this.panX = this.canvas.width / 2 - centerX * this.zoom;
+            this.panY = this.canvas.height / 2 - centerY * this.zoom;
+            
+            this.render();
+        }
+        
+        this.isZoomWindow = false;
+        this.isZoomWindowDragging = false;
+        this.ui.hideZoomWindow();
+        this.updateStatus('READY');
+    }
+    
+    // Rendering
+    render() {
+        if (this.mode === '2D') {
+            this.render2D();
+        } else {
+            this.render3D();
+        }
+    }
+    
+    render2D() {
+        // Clear canvas
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Save context
+        this.ctx.save();
+        
+        // Apply transformations
+        this.ctx.translate(this.panX, this.panY);
+        this.ctx.scale(this.zoom, this.zoom);
+        
+        // Draw grid
+        if (this.gridEnabled) {
+            this.drawGrid();
+        }
+        
+        // Draw shapes by layer
+        for (const [layerId, layer] of this.layers) {
+            if (!layer.visible) continue;
+            
+            for (const shape of this.shapes) {
+                if (shape.layerId === layerId) {
+                    const isSelected = this.selectedShapes.has(shape);
+                    this.drawShape(shape, isSelected, layer);
+                }
+            }
+        }
+        
+        // Draw temporary shape
+        if (this.tempShape) {
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.5;
+            this.drawShape(this.tempShape, false);
+            this.ctx.restore();
+        }
+        
+        // Draw temporary shapes (for move, copy, etc.)
+        if (this.tempShapes) {
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.5;
+            this.tempShapes.forEach(shape => this.drawShape(shape, false));
+            this.ctx.restore();
+        }
+        
+        // Restore context
+        this.ctx.restore();
+    }
+    
+    render3D() {
+        if (this.renderer3D && this.scene3D && this.camera3D) {
+            this.renderer3D.render(this.scene3D, this.camera3D);
+        }
+    }
+    
+    drawGrid() {
+        this.ctx.save();
+        
+        const viewport = {
+            left: -this.panX / this.zoom,
+            top: -this.panY / this.zoom,
+            right: (this.canvas.width - this.panX) / this.zoom,
+            bottom: (this.canvas.height - this.panY) / this.zoom
+        };
+        
+        // Dynamic grid sizing
+        const viewSize = Math.max(viewport.right - viewport.left, viewport.bottom - viewport.top);
+        let gridSize = this.gridSize;
+        
+        if (this.zoom < 0.1) gridSize = 1000;
+        else if (this.zoom < 0.5) gridSize = 100;
+        else if (this.zoom < 1) gridSize = 50;
+        else if (this.zoom < 2) gridSize = 20;
+        else if (this.zoom < 5) gridSize = 10;
+        else gridSize = 5;
+        
+        // Store current grid size for snapping
+        this.gridSize = gridSize;
+        
+        // Minor grid
+        this.ctx.strokeStyle = 'rgba(0, 212, 170, 0.05)';
+        this.ctx.lineWidth = 0.5 / this.zoom;
+        
+        const minorSize = gridSize / 5;
+        const startX = Math.floor(viewport.left / minorSize) * minorSize;
+        const endX = Math.ceil(viewport.right / minorSize) * minorSize;
+        const startY = Math.floor(viewport.top / minorSize) * minorSize;
+        const endY = Math.ceil(viewport.bottom / minorSize) * minorSize;
+        
+        for (let x = startX; x <= endX; x += minorSize) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, viewport.top);
+            this.ctx.lineTo(x, viewport.bottom);
+            this.ctx.stroke();
+        }
+        
+        for (let y = startY; y <= endY; y += minorSize) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(viewport.left, y);
+            this.ctx.lineTo(viewport.right, y);
+            this.ctx.stroke();
+        }
+        
+        // Major grid
+        this.ctx.strokeStyle = 'rgba(0, 212, 170, 0.1)';
+        this.ctx.lineWidth = 1 / this.zoom;
+        
+        const majorStartX = Math.floor(viewport.left / gridSize) * gridSize;
+        const majorEndX = Math.ceil(viewport.right / gridSize) * gridSize;
+        const majorStartY = Math.floor(viewport.top / gridSize) * gridSize;
+        const majorEndY = Math.ceil(viewport.bottom / gridSize) * gridSize;
+        
+        for (let x = majorStartX; x <= majorEndX; x += gridSize) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, viewport.top);
+            this.ctx.lineTo(x, viewport.bottom);
+            this.ctx.stroke();
+        }
+        
+        for (let y = majorStartY; y <= majorEndY; y += gridSize) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(viewport.left, y);
+            this.ctx.lineTo(viewport.right, y);
+            this.ctx.stroke();
+        }
+        
+        // Axes
+        this.ctx.strokeStyle = 'rgba(0, 212, 170, 0.3)';
+        this.ctx.lineWidth = 2 / this.zoom;
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(viewport.left, 0);
+        this.ctx.lineTo(viewport.right, 0);
+        this.ctx.stroke();
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, viewport.top);
+        this.ctx.lineTo(0, viewport.bottom);
+        this.ctx.stroke();
+        
+        this.ctx.restore();
+    }
+    
+    drawShape(shape, isSelected = false, layer = null) {
+        this.ctx.save();
+        
+        // Use layer properties if available
+        if (layer) {
+            this.ctx.strokeStyle = shape.color || layer.color;
+            this.ctx.lineWidth = (shape.lineWidth || layer.lineWidth) / this.zoom;
+            this.ctx.fillStyle = shape.color || layer.color;
+            
+            // Apply line type from layer
+            switch (shape.lineType || layer.lineType) {
+                case 'dashed':
+                    this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
+                    break;
+                case 'dotted':
+                    this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
+                    break;
+            }
+        } else {
+            // Use shape properties
+            this.ctx.strokeStyle = shape.color || '#ffffff';
+            this.ctx.lineWidth = (shape.lineWidth || 2) / this.zoom;
+            this.ctx.fillStyle = shape.color || '#ffffff';
+            
+            // Apply line type
+            switch (shape.lineType) {
+                case 'dashed':
+                    this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
+                    break;
+                case 'dotted':
+                    this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
+                    break;
+            }
+        }
+        
+        // Selection effect
+        if (isSelected) {
+            this.ctx.shadowColor = shape.color || '#00d4aa';
+            this.ctx.shadowBlur = 10 / this.zoom;
+        }
+        
+        // Draw shape
+        switch (shape.type) {
+            case 'line':
+                this.ctx.beginPath();
+                this.ctx.moveTo(shape.start.x, shape.start.y);
+                this.ctx.lineTo(shape.end.x, shape.end.y);
+                this.ctx.stroke();
+                break;
+                
+            case 'rectangle':
+                const x = Math.min(shape.start.x, shape.end.x);
+                const y = Math.min(shape.start.y, shape.end.y);
+                const width = Math.abs(shape.end.x - shape.start.x);
+                const height = Math.abs(shape.end.y - shape.start.y);
+                this.ctx.strokeRect(x, y, width, height);
+                break;
+                
+            case 'circle':
+                this.ctx.beginPath();
+                this.ctx.arc(shape.center.x, shape.center.y, shape.radius, 0, Math.PI * 2);
+                this.ctx.stroke();
+                break;
+                
+            case 'arc':
+                this.ctx.beginPath();
+                this.ctx.arc(shape.center.x, shape.center.y, shape.radius,
+                             shape.startAngle, shape.endAngle);
+                this.ctx.stroke();
+                break;
+                
+            case 'ellipse':
+                this.ctx.beginPath();
+                this.ctx.ellipse(shape.center.x, shape.center.y,
+                                 shape.radiusX, shape.radiusY, 0, 0, Math.PI * 2);
+                this.ctx.stroke();
+                break;
+                
+            case 'polyline':
+                this.ctx.beginPath();
+                this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                for (let i = 1; i < shape.points.length; i++) {
+                    this.ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                }
+                this.ctx.stroke();
+                break;
+                
+            case 'polygon':
+                this.ctx.beginPath();
+                this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                for (let i = 1; i < shape.points.length; i++) {
+                    this.ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                }
+                this.ctx.closePath();
+                this.ctx.stroke();
+                break;
+                
+            case 'text':
+                this.ctx.font = `${shape.fontSize}px Arial`;
+                this.ctx.fillText(shape.text, shape.position.x, shape.position.y);
+                break;
+                
+            case 'dimension-linear':
+                this.drawLinearDimensionShape(shape);
+                break;
+                
+            case 'dimension-angular':
+                this.drawAngularDimensionShape(shape);
+                break;
+                
+            case 'dimension-radius':
+                this.drawRadiusDimensionShape(shape);
+                break;
+                
+            case 'dimension-diameter':
+                this.drawDiameterDimensionShape(shape);
+                break;
+        }
+        
+        // Draw selection handles
+        if (isSelected && !shape.type.startsWith('dimension')) {
+            this.drawSelectionHandles(shape);
+        }
+        
+        this.ctx.restore();
+    }
+    
+    drawLinearDimensionShape(dim) {
+        const angle = Math.atan2(dim.end.y - dim.start.y, dim.end.x - dim.start.x);
+        const perpAngle = angle + Math.PI / 2;
+        
+        const offset = Math.abs(dim.offset);
+        const side = dim.offset > 0 ? 1 : -1;
+        
+        // Calculate dimension line points
+        const dimStart = {
+            x: dim.start.x + Math.cos(perpAngle) * offset * side,
+            y: dim.start.y + Math.sin(perpAngle) * offset * side
+        };
+        const dimEnd = {
+            x: dim.end.x + Math.cos(perpAngle) * offset * side,
+            y: dim.end.y + Math.sin(perpAngle) * offset * side
+        };
+        
+        // Extension lines
+        this.ctx.beginPath();
+        this.ctx.moveTo(dim.start.x, dim.start.y);
+        this.ctx.lineTo(dimStart.x + Math.cos(perpAngle) * this.dimensionSettings.extension * side, 
+                       dimStart.y + Math.sin(perpAngle) * this.dimensionSettings.extension * side);
+        this.ctx.stroke();
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(dim.end.x, dim.end.y);
+        this.ctx.lineTo(dimEnd.x + Math.cos(perpAngle) * this.dimensionSettings.extension * side,
+                       dimEnd.y + Math.sin(perpAngle) * this.dimensionSettings.extension * side);
+        this.ctx.stroke();
+        
+        // Dimension line
+        this.ctx.beginPath();
+        this.ctx.moveTo(dimStart.x, dimStart.y);
+        this.ctx.lineTo(dimEnd.x, dimEnd.y);
+        this.ctx.stroke();
+        
+        // Arrows
+        const arrowSize = this.dimensionSettings.arrowSize / this.zoom;
+        this.drawArrow(dimStart, angle + Math.PI, arrowSize);
+        this.drawArrow(dimEnd, angle, arrowSize);
+        
+        // Text
+        const midX = (dimStart.x + dimEnd.x) / 2;
+        const midY = (dimStart.y + dimEnd.y) / 2;
+        
+        this.ctx.save();
+        this.ctx.font = `${this.dimensionSettings.textHeight / this.zoom}px Arial`;
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        
+        // Background for text
+        const textWidth = this.ctx.measureText(dim.text).width;
+        this.ctx.fillStyle = '#0a0a0a';
+        this.ctx.fillRect(midX - textWidth/2 - 5/this.zoom, 
+                         midY - this.dimensionSettings.textHeight/2/this.zoom - 2/this.zoom,
+                         textWidth + 10/this.zoom,
+                         this.dimensionSettings.textHeight/this.zoom + 4/this.zoom);
+        
+        this.ctx.fillStyle = dim.color;
+        this.ctx.fillText(dim.text, midX, midY);
+        this.ctx.restore();
+    }
+    
+    drawAngularDimensionShape(dim) {
+        // Draw arc
+        this.ctx.beginPath();
+        this.ctx.arc(dim.center.x, dim.center.y, dim.radius, dim.startAngle, dim.endAngle);
+        this.ctx.stroke();
+        
+        // Draw extension lines
+        const startPoint = {
+            x: dim.center.x + dim.radius * Math.cos(dim.startAngle),
+            y: dim.center.y + dim.radius * Math.sin(dim.startAngle)
+        };
+        const endPoint = {
+            x: dim.center.x + dim.radius * Math.cos(dim.endAngle),
+            y: dim.center.y + dim.radius * Math.sin(dim.endAngle)
+        };
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(dim.center.x, dim.center.y);
+        this.ctx.lineTo(startPoint.x, startPoint.y);
+        this.ctx.stroke();
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(dim.center.x, dim.center.y);
+        this.ctx.lineTo(endPoint.x, endPoint.y);
+        this.ctx.stroke();
+        
+        // Draw arrows
+        const arrowSize = this.dimensionSettings.arrowSize / this.zoom;
+        this.drawArrow(startPoint, dim.startAngle + Math.PI/2, arrowSize);
+        this.drawArrow(endPoint, dim.endAngle - Math.PI/2, arrowSize);
+        
+        // Draw text
+        const midAngle = (dim.startAngle + dim.endAngle) / 2;
+        const textX = dim.center.x + (dim.radius + 20/this.zoom) * Math.cos(midAngle);
+        const textY = dim.center.y + (dim.radius + 20/this.zoom) * Math.sin(midAngle);
+        
+        this.ctx.save();
+        this.ctx.font = `${this.dimensionSettings.textHeight / this.zoom}px Arial`;
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = dim.color;
+        this.ctx.fillText(dim.text, textX, textY);
+        this.ctx.restore();
+    }
+    
+    drawRadiusDimensionShape(dim) {
+        // Draw leader line
+        this.ctx.beginPath();
+        this.ctx.moveTo(dim.center.x, dim.center.y);
+        this.ctx.lineTo(dim.endPoint.x, dim.endPoint.y);
+        this.ctx.stroke();
+        
+        // Draw arrow at circle
+        const angle = Math.atan2(dim.endPoint.y - dim.center.y, dim.endPoint.x - dim.center.x);
+        const arrowPoint = {
+            x: dim.center.x + dim.radius * Math.cos(angle),
+            y: dim.center.y + dim.radius * Math.sin(angle)
+        };
+        const arrowSize = this.dimensionSettings.arrowSize / this.zoom;
+        this.drawArrow(arrowPoint, angle + Math.PI, arrowSize);
+        
+        // Draw text
+        this.ctx.save();
+        this.ctx.font = `${this.dimensionSettings.textHeight / this.zoom}px Arial`;
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = dim.color;
+        this.ctx.fillText(dim.text, dim.endPoint.x + 5/this.zoom, dim.endPoint.y);
+        this.ctx.restore();
+    }
+    
+    drawDiameterDimensionShape(dim) {
+        // Draw diameter line
+        const p1 = {
+            x: dim.center.x - dim.radius * Math.cos(dim.angle),
+            y: dim.center.y - dim.radius * Math.sin(dim.angle)
+        };
+        const p2 = {
+            x: dim.center.x + dim.radius * Math.cos(dim.angle),
+            y: dim.center.y + dim.radius * Math.sin(dim.angle)
+        };
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(p1.x, p1.y);
+        this.ctx.lineTo(p2.x, p2.y);
+        this.ctx.stroke();
+        
+        // Draw arrows
+        const arrowSize = this.dimensionSettings.arrowSize / this.zoom;
+        this.drawArrow(p1, dim.angle + Math.PI, arrowSize);
+        this.drawArrow(p2, dim.angle, arrowSize);
+        
+        // Draw text
+        const midX = dim.center.x;
+        const midY = dim.center.y;
+        
+        this.ctx.save();
+        this.ctx.font = `${this.dimensionSettings.textHeight / this.zoom}px Arial`;
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        
+        // Background for text
+        const textWidth = this.ctx.measureText(dim.text).width;
+        this.ctx.fillStyle = '#0a0a0a';
+        this.ctx.fillRect(midX - textWidth/2 - 5/this.zoom, 
+                         midY - this.dimensionSettings.textHeight/2/this.zoom - 2/this.zoom,
+                         textWidth + 10/this.zoom,
+                         this.dimensionSettings.textHeight/this.zoom + 4/this.zoom);
+        
+        this.ctx.fillStyle = dim.color;
+        this.ctx.fillText(dim.text, midX, midY);
+        this.ctx.restore();
+    }
+    
+    drawArrow(point, angle, size) {
+        this.ctx.save();
+        this.ctx.translate(point.x, point.y);
+        this.ctx.rotate(angle);
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, 0);
+        this.ctx.lineTo(-size, -size/2);
+        this.ctx.lineTo(-size, size/2);
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        this.ctx.restore();
+    }
+    
+    drawSelectionHandles(shape) {
+        this.ctx.save();
+        this.ctx.fillStyle = '#00d4aa';
+        const size = 6 / this.zoom;
+        
+        const drawHandle = (x, y) => {
+            this.ctx.fillRect(x - size/2, y - size/2, size, size);
+        };
+        
+        switch (shape.type) {
+            case 'line':
+                drawHandle(shape.start.x, shape.start.y);
+                drawHandle(shape.end.x, shape.end.y);
+                drawHandle((shape.start.x + shape.end.x) / 2, (shape.start.y + shape.end.y) / 2);
+                break;
+                
+            case 'rectangle':
+                drawHandle(shape.start.x, shape.start.y);
+                drawHandle(shape.end.x, shape.start.y);
+                drawHandle(shape.end.x, shape.end.y);
+                drawHandle(shape.start.x, shape.end.y);
+                // Midpoint handles
+                drawHandle((shape.start.x + shape.end.x) / 2, shape.start.y);
+                drawHandle(shape.end.x, (shape.start.y + shape.end.y) / 2);
+                drawHandle((shape.start.x + shape.end.x) / 2, shape.end.y);
+                drawHandle(shape.start.x, (shape.start.y + shape.end.y) / 2);
+                break;
+                
+            case 'circle':
+                drawHandle(shape.center.x + shape.radius, shape.center.y);
+                drawHandle(shape.center.x - shape.radius, shape.center.y);
+                drawHandle(shape.center.x, shape.center.y + shape.radius);
+                drawHandle(shape.center.x, shape.center.y - shape.radius);
+                break;
+                
+            case 'polyline':
+            case 'polygon':
+                shape.points.forEach(p => drawHandle(p.x, p.y));
+                break;
+        }
+        
+        this.ctx.restore();
+    }
+    
+    // History
+    recordState() {
+        this.history = this.history.slice(0, this.historyIndex + 1);
+        this.history.push({
+            shapes: JSON.parse(JSON.stringify(this.shapes)),
+            selectedShapes: Array.from(this.selectedShapes).map(s => s.id)
+        });
+        this.historyIndex++;
+        
+        if (this.history.length > 50) {
+            this.history.shift();
+            this.historyIndex--;
+        }
+    }
+    
+    undo() {
+        if (this.historyIndex > 0) {
+            this.historyIndex--;
+            const state = this.history[this.historyIndex];
+            this.shapes = JSON.parse(JSON.stringify(state.shapes));
+            
+            this.selectedShapes.clear();
+            for (const id of state.selectedShapes) {
+                const shape = this.shapes.find(s => s.id === id);
+                if (shape) this.selectedShapes.add(shape);
+            }
+            
+            this.updateUI();
+            this.render();
+        }
+    }
+    
+    redo() {
+        if (this.historyIndex < this.history.length - 1) {
+            this.historyIndex++;
+            const state = this.history[this.historyIndex];
+            this.shapes = JSON.parse(JSON.stringify(state.shapes));
+            
+            this.selectedShapes.clear();
+            for (const id of state.selectedShapes) {
+                const shape = this.shapes.find(s => s.id === id);
+                if (shape) this.selectedShapes.add(shape);
+            }
+            
+            this.updateUI();
+            this.render();
+        }
+    }
+    
+    // Operations
+    selectAll() {
+        this.selectedShapes.clear();
+        this.shapes.forEach(shape => {
+            const layer = this.layers.get(shape.layerId);
+            if (layer && layer.visible && !layer.locked) {
+                this.selectedShapes.add(shape);
+            }
+        });
+        this.ui.updatePropertiesPanel();
+        this.render();
+    }
+    
+    deselectAll() {
+        this.selectedShapes.clear();
+        this.ui.updatePropertiesPanel();
+        this.render();
+    }
+    
+    selectSimilar() {
+        if (this.selectedShapes.size === 0) return;
+        
+        const referenceShape = Array.from(this.selectedShapes)[0];
+        const similar = this.shapes.filter(shape => 
+            shape.type === referenceShape.type && 
+            shape.layerId === referenceShape.layerId &&
+            !this.selectedShapes.has(shape)
+        );
+        
+        similar.forEach(shape => this.selectedShapes.add(shape));
+        this.ui.updatePropertiesPanel();
+        this.render();
+    }
+    
+    deleteSelected() {
+        if (this.selectedShapes.size > 0) {
+            this.recordState();
+            
+            this.selectedShapes.forEach(shape => {
+                const index = this.shapes.indexOf(shape);
+                if (index !== -1) {
+                    this.shapes.splice(index, 1);
+                }
+            });
+            
+            this.selectedShapes.clear();
+            this.updateUI();
+            this.render();
+        }
+    }
+    
+    copySelected() {
+        this.clipboard = Array.from(this.selectedShapes).map(shape => 
+            this.cloneShape(shape)
+        );
+        this.updateStatus(`Copied ${this.clipboard.length} objects`);
+    }
+    
+    pasteClipboard() {
+        if (this.clipboard.length > 0) {
+            this.recordState();
+            this.selectedShapes.clear();
+            
+            const offset = 20 / this.zoom;
+            
+            this.clipboard.forEach(shape => {
+                const newShape = this.cloneShape(shape);
+                newShape.id = this.generateId();
+                this.translateShape(newShape, offset, offset);
+                this.shapes.push(newShape);
+                this.selectedShapes.add(newShape);
+            });
+            
+            this.updateUI();
+            this.render();
+        }
+    }
+    
+    repeatLastCommand() {
+        if (this.lastTool) {
+            this.setTool(this.lastTool);
+        }
+    }
+    
+    // View operations
+    zoomExtents() {
+        if (this.shapes.length === 0) return;
+        
+        let minX = Infinity, minY = Infinity;
+        let maxX = -Infinity, maxY = -Infinity;
+        
+        this.shapes.forEach(shape => {
+            const bounds = this.getShapeBounds(shape);
+            minX = Math.min(minX, bounds.minX);
+            minY = Math.min(minY, bounds.minY);
+            maxX = Math.max(maxX, bounds.maxX);
+            maxY = Math.max(maxY, bounds.maxY);
+        });
+        
+        const padding = 50;
+        const width = maxX - minX;
+        const height = maxY - minY;
+        
+        const zoomX = (this.canvas.width - padding * 2) / width;
+        const zoomY = (this.canvas.height - padding * 2) / height;
+        this.zoom = Math.min(zoomX, zoomY, 2);
+        
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        
+        this.panX = this.canvas.width / 2 - centerX * this.zoom;
+        this.panY = this.canvas.height / 2 - centerY * this.zoom;
+        
+        this.render();
+    }
+    
+    setViewMode(mode) {
+        this.mode = mode;
+        this.ui.updateViewMode(mode);
+        this.render();
+        this.updateStatus(`Switched to ${mode} mode`);
+    }
+    
+    set3DView(view) {
+        switch (view) {
+            case 'top':
+                this.camera3D.position.set(0, 300, 0);
+                this.camera3D.lookAt(0, 0, 0);
+                break;
+            case 'front':
+                this.camera3D.position.set(0, 0, 300);
+                this.camera3D.lookAt(0, 0, 0);
+                break;
+            case 'iso':
+                this.camera3D.position.set(200, 200, 200);
+                this.camera3D.lookAt(0, 0, 0);
+                break;
+        }
+        this.render3D();
+    }
+    
+    // Settings
+    setColor(color) {
+        this.currentColor = color;
+        
+        const layer = this.layers.get(this.currentLayerId);
+        if (layer) {
+            layer.color = color;
+        }
+        
+        // Update color preview
+        this.ui.updateColorDisplay(color);
+        
+        this.render();
+    }
+    
+    setLineWidth(width) {
+        this.currentLineWidth = parseInt(width);
+        const layer = this.layers.get(this.currentLayerId);
+        if (layer) {
+            layer.lineWidth = this.currentLineWidth;
+        }
+        
+        // Update display
+        this.ui.updateLineWidthDisplay(width);
+        
+        this.render();
+    }
+    
+    setLineType(type) {
+        this.currentLineType = type;
+        const layer = this.layers.get(this.currentLayerId);
+        if (layer) {
+            layer.lineType = type;
+        }
+        this.render();
+    }
+    
+    toggleGrid() {
+        this.gridEnabled = !this.gridEnabled;
+        this.ui.updateBottomToolbar();
+        this.render();
+    }
+    
+    toggleSnap() {
+        this.snapEnabled = !this.snapEnabled;
+        this.ui.updateBottomToolbar();
+    }
+    
+    toggleOrtho() {
+        this.orthoEnabled = !this.orthoEnabled;
+        this.ui.updateBottomToolbar();
+    }
+    
+    togglePolar() {
+        this.polarEnabled = !this.polarEnabled;
+        this.ui.updateBottomToolbar();
+    }
+    
+    toggleSnapSetting(type) {
+        this.snapSettings[type] = !this.snapSettings[type];
+        const element = document.getElementById('snap' + type.charAt(0).toUpperCase() + type.slice(1));
+        if (element) {
+            element.classList.toggle('active', this.snapSettings[type]);
+        }
+        
+        // Update snap enabled state
+        const anySnapActive = Object.values(this.snapSettings).some(v => v);
+        this.snapEnabled = anySnapActive;
+        
+        this.ui.updateBottomToolbar();
+        
+        // Prevent menu from closing
+        event.stopPropagation();
+    }
+    
+    // Layer management
+    addLayer() {
+        const id = Date.now();
+        const name = `Layer ${this.layers.size}`;
+        this.layers.set(id, {
+            id: id,
+            name: name,
+            color: '#ffffff',
+            visible: true,
+            locked: false,
+            lineWidth: 2,
+            lineType: 'solid'
+        });
+        this.ui.updateLayersList();
+    }
+    
+    setCurrentLayer(id) {
+        this.currentLayerId = id;
+        const layer = this.layers.get(id);
+        if (layer) {
+            this.currentColor = layer.color;
+            this.currentLineWidth = layer.lineWidth;
+            this.currentLineType = layer.lineType;
+            
+            // Update UI elements
+            this.setColor(layer.color);
+            document.getElementById('lineWidthSlider').value = layer.lineWidth;
+            document.getElementById('lineWidthValue').textContent = layer.lineWidth;
+            document.getElementById('lineTypeSelect').value = layer.lineType;
+        }
+        this.ui.updateLayersList();
+        this.updateUI();
+    }
+    
+    toggleLayerVisibility(id) {
+        const layer = this.layers.get(id);
+        if (layer) {
+            layer.visible = !layer.visible;
+            this.ui.updateLayersList();
+            this.render();
+        }
+    }
+    
+    toggleLayerLock(id) {
+        const layer = this.layers.get(id);
+        if (layer) {
+            layer.locked = !layer.locked;
+            this.ui.updateLayersList();
+        }
+    }
+    
+    renameLayer(id, name) {
+        const layer = this.layers.get(id);
+        if (layer) {
+            layer.name = name;
+        }
+    }
+    
+    changeLayerColor(id) {
+        const color = prompt('Enter color (hex):', '#ffffff');
+        if (color && /^#[0-9A-F]{6}$/i.test(color)) {
+            const layer = this.layers.get(id);
+            if (layer) {
+                layer.color = color;
+                if (id === this.currentLayerId) {
+                    this.currentColor = color;
+                    this.setColor(color);
+                }
+                this.ui.updateLayersList();
+                this.render();
+            }
+        }
+    }
+    
+    // Commands
+    executeCommand(command) {
+        const cmd = command.toLowerCase().trim();
+        
+        // تحقق من أمر تغيير الوحدات
+        if (cmd.startsWith('units ')) {
+            const unit = cmd.substring(6).trim();
+            this.changeUnits(unit);
+            return;
+        }
+        
+        const commands = {
+            'line': () => this.setTool('line'),
+            'l': () => this.setTool('line'),
+            'circle': () => this.setTool('circle'),
+            'c': () => this.setTool('circle'),
+            'rectangle': () => this.setTool('rectangle'),
+            'rect': () => this.setTool('rectangle'),
+            'r': () => this.setTool('rectangle'),
+            'polyline': () => this.setTool('polyline'),
+            'pl': () => this.setTool('polyline'),
+            'arc': () => this.setTool('arc'),
+            'a': () => this.setTool('arc'),
+            'ellipse': () => this.setTool('ellipse'),
+            'el': () => this.setTool('ellipse'),
+            'move': () => this.setTool('move'),
+            'm': () => this.setTool('move'),
+            'copy': () => this.setTool('copy'),
+            'co': () => this.setTool('copy'),
+            'rotate': () => this.setTool('rotate'),
+            'ro': () => this.setTool('rotate'),
+            'scale': () => this.setTool('scale'),
+            'sc': () => this.setTool('scale'),
+            'mirror': () => this.setTool('mirror'),
+            'mi': () => this.setTool('mirror'),
+            'trim': () => this.setTool('trim'),
+            'tr': () => this.setTool('trim'),
+            'extend': () => this.setTool('extend'),
+            'ex': () => this.setTool('extend'),
+            'offset': () => this.setTool('offset'),
+            'of': () => this.setTool('offset'),
+            'delete': () => this.deleteSelected(),
+            'del': () => this.deleteSelected(),
+            'undo': () => this.undo(),
+            'u': () => this.undo(),
+            'redo': () => this.redo(),
+            'zoom': () => this.zoomExtents(),
+            'z': () => this.zoomExtents(),
+            'zw': () => this.zoomWindow(),
+            'pan': () => this.setTool('pan'),
+            'p': () => this.setTool('pan'),
+            'select': () => this.setTool('select'),
+            'sel': () => this.setTool('select'),
+            'grid': () => this.toggleGrid(),
+            'snap': () => this.toggleSnap(),
+            'ortho': () => this.toggleOrtho(),
+            'polar': () => this.togglePolar(),
+            'units': () => this.showUnitsDialog(),
+            'help': () => this.showHelp(),
+            'f1': () => this.showHelp(),
+            // Boolean operations
+            'union': () => this.performUnion(),
+            'difference': () => this.performDifference(),
+            'diff': () => this.performDifference(),
+            'intersection': () => this.performIntersection(),
+            'int': () => this.performIntersection(),
+            'xor': () => this.performXor(),
+            // Advanced operations
+            'fillet': () => this.createFillet(),
+            'fi': () => this.createFillet(),
+            'chamfer': () => this.createChamfer(),
+            'ch': () => this.createChamfer(),
+            'array': () => this.createRectangularArray(),
+            'ar': () => this.createRectangularArray(),
+            'polar-array': () => this.createPolarArray(),
+            'pa': () => this.createPolarArray(),
+            'hatch': () => this.createHatch(),
+            'h': () => this.createHatch()
+        };
+        
+        if (commands[cmd]) {
+            commands[cmd]();
+            this.lastCommand = cmd;
+        } else {
+            this.updateStatus(`Unknown command: ${cmd}`);
+        }
+    }
+    
+    showHelp() {
+        alert(`TyrexCAD Commands:
+        
+Drawing:
+- LINE (L) - Draw line
+- CIRCLE (C) - Draw circle
+- RECTANGLE (R) - Draw rectangle
+- POLYLINE (PL) - Draw polyline
+- ARC (A) - Draw arc
+- ELLIPSE (EL) - Draw ellipse
+
+Modify:
+- MOVE (M) - Move objects
+- COPY (CO) - Copy objects
+- ROTATE (RO) - Rotate objects
+- SCALE (SC) - Scale objects
+- MIRROR (MI) - Mirror objects
+- TRIM (TR) - Trim objects
+- EXTEND (EX) - Extend objects
+- OFFSET (OF) - Offset objects
+
+Boolean Operations:
+- UNION - Unite selected shapes
+- DIFFERENCE (DIFF) - Subtract shapes
+- INTERSECTION (INT) - Intersect shapes
+- XOR - Exclusive OR of shapes
+
+Advanced:
+- FILLET (FI) - Round corners
+- CHAMFER (CH) - Bevel corners
+- ARRAY (AR) - Rectangular array
+- POLAR-ARRAY (PA) - Circular array
+- HATCH (H) - Fill with pattern
+
+View:
+- ZOOM (Z) - Zoom extents
+- ZW - Zoom window
+- PAN (P) - Pan view
+
+Edit:
+- DELETE (DEL) - Delete selected
+- UNDO (U) - Undo last action
+- REDO - Redo action
+
+Settings:
+- GRID - Toggle grid
+- SNAP - Toggle snap
+- ORTHO - Toggle orthogonal mode
+- POLAR - Toggle polar tracking
+- UNITS - Show available units
+- UNITS <unit> - Change units (e.g., units mm, units in)
+
+Units Input:
+- You can enter values with units: 100mm, 10cm, 1m, 12in, 1ft
+- If no unit is specified, the current unit is used
+
+Other:
+- ESC - Cancel current operation`);
+    }
+    
+    showUnitsDialog() {
+        const availableUnits = this.units.getAvailableUnits();
+        const unitGroups = {
+            'Metric': this.units.getUnitsByCategory('metric'),
+            'Imperial': this.units.getUnitsByCategory('imperial'),
+            'Typography': this.units.getUnitsByCategory('typography')
+        };
+        
+        let message = 'Available units:\n\n';
+        for (const [category, units] of Object.entries(unitGroups)) {
+            message += `${category}:\n`;
+            units.forEach(unit => {
+                const info = this.units.getUnitInfo(unit);
+                message += `  ${info.code} - ${info.name} (${info.symbol})\n`;
+            });
+            message += '\n';
+        }
+        
+        message += `\nCurrent unit: ${this.currentUnit}\n`;
+        message += '\nTo change units, type: units <unit_code>';
+        
+        alert(message);
+    }
+    
+    // File operations
+    newFile() {
+        if (confirm('Create new file? All unsaved changes will be lost.')) {
+            this.shapes = [];
+            this.selectedShapes.clear();
+            this.history = [];
+            this.historyIndex = -1;
+            this.recordState();
+            this.updateUI();
+            this.render();
+        }
+    }
+    
+    openFile() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        this.loadData(data);
+                    } catch (err) {
+                        alert('Invalid file format');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        };
+        input.click();
+    }
+    
+    saveFile() {
+        const data = {
+            shapes: this.shapes,
+            layers: Array.from(this.layers.entries())
+        };
+        
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'tyrexcad_drawing.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+    
+    exportFile() {
+        // Export to DXF format
+        let dxf = '0\nSECTION\n2\nENTITIES\n';
+        
+        this.shapes.forEach(shape => {
+            switch (shape.type) {
+                case 'line':
+                    dxf += `0\nLINE\n10\n${shape.start.x}\n20\n${shape.start.y}\n11\n${shape.end.x}\n21\n${shape.end.y}\n`;
+                    break;
+                case 'circle':
+                    dxf += `0\nCIRCLE\n10\n${shape.center.x}\n20\n${shape.center.y}\n40\n${shape.radius}\n`;
+                    break;
+                // Add more entity types as needed
+            }
+        });
+        
+        dxf += '0\nENDSEC\n0\nEOF';
+        
+        const blob = new Blob([dxf], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'tyrexcad_export.dxf';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+    
+    loadData(data) {
+        this.shapes = data.shapes || [];
+        this.layers.clear();
+        if (data.layers) {
+            data.layers.forEach(([id, layer]) => {
+                this.layers.set(id, layer);
+            });
+        }
+        this.selectedShapes.clear();
+        this.history = [];
+        this.historyIndex = -1;
+        this.recordState();
+        this.updateUI();
+        this.render();
+    }
+    
+    // Helper functions
+    finishDrawing() {
+        this.isDrawing = false;
+        this.drawingPoints = [];
+        this.tempShape = null;
+        this.tempShapes = null;
+        this.originalShapes = null;
+        this.ui.hideDynamicInput();
+        this.lastTool = this.currentTool;
+        this.updateStatus('READY');
+        
+        // Reset Tools state
+        if (window.Tools) {
+            Tools.resetModifyState();
+        }
+    }
+    
+    cancelCurrentOperation() {
+        this.finishDrawing();
+        this.isPanning = false;
+        this.isSelecting = false;
+        this.isZoomWindow = false;
+        this.pendingOperation = null;
+        this.ui.hideSelectionBox();
+        this.ui.hideZoomWindow();
+        this.updateStatus('READY');
+        this.render();
+    }
+    
+    addShape(shape) {
+        this.shapes.push(shape);
+        this.recordState();
+        this.updateUI();
+        this.render();
+    }
+    
+    cloneShape(shape) {
+        return JSON.parse(JSON.stringify(shape));
+    }
+    
+    distance(x1, y1, x2, y2) {
+        return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+    }
+    
+    generateId() {
+        return `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    //  Helper methods للوحدات
+    /**
+     * تحويل من وحدات المستخدم للوحدات الداخلية
+     * @param {number} value - القيمة في وحدات المستخدم
+     * @param {string} [unit] - الوحدة (اختياري، يستخدم الوحدة الحالية إذا لم تُحدد)
+     * @returns {number} القيمة في الوحدات الداخلية (mm)
+     */
+    toInternalUnits(value, unit = null) {
+        const fromUnit = unit || this.currentUnit;
+        return this.units.toInternal(value, fromUnit);
+    }
+
+    /**
+     * تحويل من الوحدات الداخلية لوحدات المستخدم
+     * @param {number} value - القيمة في الوحدات الداخلية (mm)
+     * @param {string} [unit] - الوحدة المستهدفة (اختياري، يستخدم الوحدة الحالية إذا لم تُحدد)
+     * @returns {number} القيمة في وحدات المستخدم
+     */
+    toUserUnits(value, unit = null) {
+        const toUnit = unit || this.currentUnit;
+        return this.units.fromInternal(value, toUnit);
+    }
+
+    /**
+     * عرض قيمة منسقة بالوحدة الحالية
+     * @param {number} value - القيمة في الوحدات الداخلية (mm)
+     * @param {number} [precision] - عدد المنازل العشرية (اختياري)
+     * @returns {string} القيمة المنسقة مع الوحدة
+     */
+    formatValue(value, precision = null) {
+        const userValue = this.toUserUnits(value);
+        return this.units.format(userValue, this.currentUnit, precision);
+    }
+
+    /**
+     * تحليل مدخلات المستخدم التي قد تحتوي على وحدات
+     * @param {string} input - مدخلات المستخدم
+     * @returns {number|null} القيمة في الوحدات الداخلية أو null
+     */
+    parseUserInput(input) {
+        const parsed = this.units.parseInput(input);
+        
+        if (parsed) {
+            if (parsed.unit) {
+                // المستخدم حدد وحدة
+                return this.units.toInternal(parsed.value, parsed.unit);
+            } else {
+                // لم يحدد وحدة، استخدم الوحدة الحالية
+                return this.toInternalUnits(parsed.value);
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * تغيير وحدة القياس الحالية
+     * @param {string} newUnit - الوحدة الجديدة
+     */
+    changeUnits(newUnit) {
+        if (this.units.isValidUnit(newUnit)) {
+            this.currentUnit = newUnit;
+            
+            // تحديث قيمة grid size بناءً على الوحدة
+            this.updateGridSizeForUnit();
+            
+            this.updateUI();
+            this.render();
+            this.updateStatus(`Units changed to ${this.units.getUnitInfo(newUnit).symbol}`);
+        } else {
+            this.updateStatus(`Invalid unit: ${newUnit}`);
+        }
+    }
+
+    /**
+     * تحديث حجم الشبكة بناءً على الوحدة الحالية
+     */
+    updateGridSizeForUnit() {
+        // اضبط حجم الشبكة الافتراضي بناءً على الوحدة
+        const gridSizes = {
+            'nm': 100,      // 100 nanometers
+            'um': 100,      // 100 micrometers  
+            'mm': 10,       // 10 millimeters
+            'cm': 1,        // 1 centimeter
+            'm': 0.1,       // 0.1 meter
+            'in': 1,        // 1 inch
+            'ft': 0.1,      // 0.1 foot
+            'mil': 100      // 100 mils
+        };
+        
+        const defaultSize = gridSizes[this.currentUnit] || 10;
+        this.gridSize = this.toInternalUnits(defaultSize);
+    }
+    
+    // Animation loop
+    startRenderLoop() {
+        let lastTime = performance.now();
+        let frameCount = 0;
+        
+        const animate = () => {
+            frameCount++;
+            const currentTime = performance.now();
+            
+            if (currentTime - lastTime >= 1000) {
+                document.getElementById('fps').textContent = `${frameCount} FPS`;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+            
+            requestAnimationFrame(animate);
+        };
+        
+        animate();
+    }
+}
+
+// تصدير الـ class للاستخدام العام
+window.TyrexCAD = TyrexCAD;

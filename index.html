@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TyrexCAD Professional</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <i class="fas fa-drafting-compass"></i>
+            </div>
+            <h1>TyrexCAD</h1>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+            <p>Loading Professional CAD System...</p>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div class="app-container">
+        <!-- Title Bar -->
+        <div class="title-bar">
+            <div class="title-bar-left">
+                <span class="app-icon"><i class="fas fa-drafting-compass"></i></span>
+                <span class="app-title">TyrexCAD Professional</span>
+            </div>
+            <div class="title-bar-center">
+                <span class="file-name">Untitled.tcad</span>
+            </div>
+            <div class="title-bar-right">
+                <button class="title-btn minimize"><i class="fas fa-minus"></i></button>
+                <button class="title-btn maximize"><i class="fas fa-square"></i></button>
+                <button class="title-btn close"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+
+        <!-- Menu Bar -->
+        <div class="menu-bar">
+            <div class="menu-item">
+                <span>File</span>
+                <div class="dropdown-menu">
+                    <div class="menu-option" onclick="cad.newFile()">
+                        <span>New</span>
+                        <span class="shortcut">Ctrl+N</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.openFile()">
+                        <span>Open</span>
+                        <span class="shortcut">Ctrl+O</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.saveFile()">
+                        <span>Save</span>
+                        <span class="shortcut">Ctrl+S</span>
+                    </div>
+                    <div class="menu-divider"></div>
+                    <div class="menu-option" onclick="cad.exportFile()">
+                        <span>Export</span>
+                    </div>
+                </div>
+            </div>
+            <div class="menu-item">
+                <span>Edit</span>
+                <div class="dropdown-menu">
+                    <div class="menu-option" onclick="cad.undo()">
+                        <span>Undo</span>
+                        <span class="shortcut">Ctrl+Z</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.redo()">
+                        <span>Redo</span>
+                        <span class="shortcut">Ctrl+Y</span>
+                    </div>
+                    <div class="menu-divider"></div>
+                    <div class="menu-option" onclick="cad.copySelected()">
+                        <span>Copy</span>
+                        <span class="shortcut">Ctrl+C</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.pasteClipboard()">
+                        <span>Paste</span>
+                        <span class="shortcut">Ctrl+V</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.deleteSelected()">
+                        <span>Delete</span>
+                        <span class="shortcut">Del</span>
+                    </div>
+                    <div class="menu-divider"></div>
+                    <div class="menu-option" onclick="cad.selectAll()">
+                        <span>Select All</span>
+                        <span class="shortcut">Ctrl+A</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.deselectAll()">
+                        <span>Deselect All</span>
+                        <span class="shortcut">Esc</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.selectSimilar()">
+                        <span>Select Similar</span>
+                    </div>
+                </div>
+            </div>
+            <div class="menu-item">
+                <span>View</span>
+                <div class="dropdown-menu">
+                    <div class="menu-option" onclick="cad.zoomExtents()">
+                        <span>Zoom Extents</span>
+                        <span class="shortcut">Z</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.zoomWindow()">
+                        <span>Zoom Window</span>
+                        <span class="shortcut">ZW</span>
+                    </div>
+                    <div class="menu-divider"></div>
+                    <div class="menu-option" onclick="cad.setViewMode('2D')">
+                        <span>2D View</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.setViewMode('3D')">
+                        <span>3D View</span>
+                    </div>
+                    <div class="menu-divider"></div>
+                    <div class="menu-option" onclick="cad.toggleGrid()">
+                        <span>Toggle Grid</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.togglePropertiesPanel()">
+                        <span>Properties Panel</span>
+                    </div>
+                </div>
+            </div>
+            <div class="menu-item">
+                <span>Tools</span>
+                <div class="dropdown-menu">
+                    <div class="menu-option" onclick="cad.showUnitsDialog()">
+                        <span>Units</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.toggleSnap()">
+                        <span>Toggle Snap</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.toggleOrtho()">
+                        <span>Toggle Ortho</span>
+                    </div>
+                    <div class="menu-option" onclick="cad.togglePolar()">
+                        <span>Toggle Polar</span>
+                    </div>
+                </div>
+            </div>
+            <div class="menu-item">
+                <span>Help</span>
+                <div class="dropdown-menu">
+                    <div class="menu-option" onclick="cad.showHelp()">
+                        <span>Command Reference</span>
+                        <span class="shortcut">F1</span>
+                    </div>
+                    <div class="menu-option">
+                        <span>About TyrexCAD</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ribbon Toolbar -->
+        <div class="ribbon">
+            <div class="ribbon-tabs">
+                <div class="ribbon-tab active" data-tab="home">Home</div>
+                <div class="ribbon-tab" data-tab="draw">Draw</div>
+                <div class="ribbon-tab" data-tab="modify">Modify</div>
+                <div class="ribbon-tab" data-tab="advanced">Advanced</div>
+                <div class="ribbon-tab" data-tab="dimension">Dimension</div>
+                <div class="ribbon-tab" data-tab="3d">3D</div>
+            </div>
+            
+            <div class="ribbon-content">
+                <!-- Home Tab -->
+                <div class="ribbon-panel active" id="home-tab">
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.undo()">
+                                <i class="fas fa-undo"></i>
+                                <span>Undo</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.redo()">
+                                <i class="fas fa-redo"></i>
+                                <span>Redo</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.copySelected()">
+                                <i class="fas fa-copy"></i>
+                                <span>Copy</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.pasteClipboard()">
+                                <i class="fas fa-paste"></i>
+                                <span>Paste</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Edit</div>
+                    </div>
+                    
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.setTool('select')">
+                                <i class="fas fa-mouse-pointer"></i>
+                                <span>Select</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.deleteSelected()">
+                                <i class="fas fa-trash"></i>
+                                <span>Delete</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Selection</div>
+                    </div>
+                    
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.zoomExtents()">
+                                <i class="fas fa-expand"></i>
+                                <span>Zoom All</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('pan')">
+                                <i class="fas fa-hand-paper"></i>
+                                <span>Pan</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.zoomWindow()">
+                                <i class="fas fa-search-plus"></i>
+                                <span>Zoom Win</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Navigate</div>
+                    </div>
+                </div>
+                
+                <!-- Draw Tab -->
+                <div class="ribbon-panel" id="draw-tab">
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.setTool('line')">
+                                <i class="fas fa-minus"></i>
+                                <span>Line</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('polyline')">
+                                <i class="fas fa-project-diagram"></i>
+                                <span>Polyline</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('circle')">
+                                <i class="far fa-circle"></i>
+                                <span>Circle</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('arc')">
+                                <i class="fas fa-bezier-curve"></i>
+                                <span>Arc</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Basic</div>
+                    </div>
+                    
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.setTool('rectangle')">
+                                <i class="far fa-square"></i>
+                                <span>Rectangle</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('ellipse')">
+                                <i class="fas fa-egg"></i>
+                                <span>Ellipse</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('text')">
+                                <i class="fas fa-font"></i>
+                                <span>Text</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Shapes</div>
+                    </div>
+                </div>
+                
+                <!-- Modify Tab -->
+                <div class="ribbon-panel" id="modify-tab">
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.setTool('move')">
+                                <i class="fas fa-arrows-alt"></i>
+                                <span>Move</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('copy')">
+                                <i class="fas fa-clone"></i>
+                                <span>Copy</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('rotate')">
+                                <i class="fas fa-sync-alt"></i>
+                                <span>Rotate</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('scale')">
+                                <i class="fas fa-expand-arrows-alt"></i>
+                                <span>Scale</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Transform</div>
+                    </div>
+                    
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.setTool('mirror')">
+                                <i class="fas fa-adjust"></i>
+                                <span>Mirror</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('trim')">
+                                <i class="fas fa-cut"></i>
+                                <span>Trim</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('extend')">
+                                <i class="fas fa-arrows-alt-h"></i>
+                                <span>Extend</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('offset')">
+                                <i class="fas fa-layer-group"></i>
+                                <span>Offset</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Edit</div>
+                    </div>
+                </div>
+                
+                <!-- Advanced Tab -->
+                <div class="ribbon-panel" id="advanced-tab">
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.performUnion()">
+                                <i class="fas fa-plus-circle"></i>
+                                <span>Union</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.performDifference()">
+                                <i class="fas fa-minus-circle"></i>
+                                <span>Difference</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.performIntersection()">
+                                <i class="fas fa-times-circle"></i>
+                                <span>Intersect</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.performXor()">
+                                <i class="fas fa-exchange-alt"></i>
+                                <span>XOR</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Boolean</div>
+                    </div>
+                    
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.createFillet()">
+                                <i class="fas fa-curve"></i>
+                                <span>Fillet</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.createChamfer()">
+                                <i class="fas fa-slash"></i>
+                                <span>Chamfer</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.performAdvancedOffset()">
+                                <i class="fas fa-arrow-alt-circle-right"></i>
+                                <span>Adv Offset</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.createHatch()">
+                                <i class="fas fa-th"></i>
+                                <span>Hatch</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Features</div>
+                    </div>
+                    
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.createRectangularArray()">
+                                <i class="fas fa-th-large"></i>
+                                <span>Array</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.createPolarArray()">
+                                <i class="fas fa-circle-notch"></i>
+                                <span>Polar Array</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.simplifyShape()">
+                                <i class="fas fa-compress"></i>
+                                <span>Simplify</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.smoothPolyline()">
+                                <i class="fas fa-wave-square"></i>
+                                <span>Smooth</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Arrays</div>
+                    </div>
+                    
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.createConvexHull()">
+                                <i class="fas fa-draw-polygon"></i>
+                                <span>Convex Hull</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.triangulatePolygon()">
+                                <i class="fas fa-vector-square"></i>
+                                <span>Triangulate</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Analysis</div>
+                    </div>
+                </div>
+                
+                <!-- Dimension Tab -->
+                <div class="ribbon-panel" id="dimension-tab">
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.setTool('dimension')">
+                                <i class="fas fa-ruler-horizontal"></i>
+                                <span>Linear</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('dimension-angular')">
+                                <i class="fas fa-drafting-compass"></i>
+                                <span>Angular</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('dimension-radius')">
+                                <i class="fas fa-ruler-combined"></i>
+                                <span>Radius</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.setTool('dimension-diameter')">
+                                <i class="fas fa-ruler"></i>
+                                <span>Diameter</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Dimensions</div>
+                    </div>
+                </div>
+                
+                <!-- 3D Tab -->
+                <div class="ribbon-panel" id="3d-tab">
+                    <div class="ribbon-section">
+                        <div class="ribbon-tools">
+                            <div class="ribbon-tool" onclick="cad.setViewMode('3D')">
+                                <i class="fas fa-cube"></i>
+                                <span>3D View</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.set3DView('iso')">
+                                <i class="fas fa-cube"></i>
+                                <span>Isometric</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.set3DView('top')">
+                                <i class="fas fa-arrow-down"></i>
+                                <span>Top</span>
+                            </div>
+                            <div class="ribbon-tool" onclick="cad.set3DView('front')">
+                                <i class="fas fa-arrow-right"></i>
+                                <span>Front</span>
+                            </div>
+                        </div>
+                        <div class="ribbon-label">Views</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Sidebar -->
+            <div class="sidebar left">
+                <div class="panel layers-panel">
+                    <div class="panel-header">
+                        <span>Layers</span>
+                        <button class="panel-btn" onclick="cad.addLayer()">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    <div class="panel-content">
+                        <div id="layersList" class="layers-list"></div>
+                    </div>
+                </div>
+                
+                <div class="panel settings-panel">
+                    <div class="panel-header">
+                        <span>Drawing Settings</span>
+                    </div>
+                    <div class="panel-content">
+                        <div class="setting-row">
+                            <label>Line Width:</label>
+                            <input type="range" id="lineWidthSlider" min="1" max="10" value="2" 
+                                   onchange="cad.setLineWidth(this.value)">
+                            <span id="lineWidthValue">2</span>
+                        </div>
+                        <div class="setting-row">
+                            <label>Line Type:</label>
+                            <select id="lineTypeSelect" onchange="cad.setLineType(this.value)">
+                                <option value="solid">Solid</option>
+                                <option value="dashed">Dashed</option>
+                                <option value="dotted">Dotted</option>
+                            </select>
+                        </div>
+                        <div class="setting-row">
+                            <label>Color:</label>
+                            <div class="color-selector" onclick="cad.toggleColorDropdown()">
+                                <div id="currentColorPreview" style="background: #00d4aa;"></div>
+                                <span id="currentColorText">#00d4aa</span>
+                            </div>
+                            <div id="colorDropdown" class="color-dropdown">
+                                <div id="colorGrid" class="color-grid"></div>
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <label>Units:</label>
+                            <select id="unitsSelect" onchange="cad.changeUnits(this.value)">
+                                <option value="mm">Millimeters (mm)</option>
+                                <option value="cm">Centimeters (cm)</option>
+                                <option value="m">Meters (m)</option>
+                                <option value="in">Inches (in)</option>
+                                <option value="ft">Feet (ft)</option>
+                                <option value="mil">Mils (mil)</option>
+                                <option value="um">Micrometers (μm)</option>
+                                <option value="nm">Nanometers (nm)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Canvas Area -->
+            <div class="canvas-area">
+                <div id="canvasContainer" class="canvas-container">
+                    <canvas id="mainCanvas"></canvas>
+                    <canvas id="canvas3D" style="display: none;"></canvas>
+                    
+                    <!-- 3D Controls -->
+                    <div id="controls3D" class="controls-3d">
+                        <div class="control-info">
+                            <i class="fas fa-mouse"></i> Left: Rotate | Middle: Pan | Scroll: Zoom
+                        </div>
+                    </div>
+                    
+                    <!-- View Controls -->
+                    <div class="view-controls">
+                        <button class="view-btn active" onclick="cad.setViewMode('2D')">2D</button>
+                        <button class="view-btn" onclick="cad.setViewMode('3D')">3D</button>
+                    </div>
+                    
+                    <!-- Crosshair -->
+                    <div id="crosshair" class="crosshair">
+                        <div class="crosshair-h"></div>
+                        <div class="crosshair-v"></div>
+                    </div>
+                    
+                    <!-- Selection Box -->
+                    <div id="selectionBox" class="selection-box"></div>
+                    
+                    <!-- Zoom Window -->
+                    <div id="zoomWindowOverlay" class="zoom-window-overlay">
+                        <div id="zoomWindowBox" class="zoom-window-box"></div>
+                    </div>
+                    
+                    <!-- Snap Indicator -->
+                    <div id="snapIndicator" class="snap-indicator">
+                        <div class="snap-marker"></div>
+                        <div id="snapLabel" class="snap-label"></div>
+                    </div>
+                    
+                    <!-- Dynamic Input -->
+                    <div id="dynamicInput" class="dynamic-input">
+                        <label id="dynamicLabel"></label>
+                        <input type="text" id="dynamicField">
+                    </div>
+                    
+                    <!-- Input Dialog -->
+                    <div id="inputDialog" class="input-dialog">
+                        <div class="input-dialog-header">
+                            <span id="inputDialogTitle"></span>
+                            <button class="input-dialog-close" onclick="cad.cancelInputDialog()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="inputDialogContent" class="input-dialog-content"></div>
+                        <div class="input-dialog-buttons">
+                            <button class="btn-secondary" onclick="cad.cancelInputDialog()">Cancel</button>
+                            <button class="btn-primary" onclick="cad.confirmInputDialog()">OK</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Context Menu -->
+                    <div id="contextMenu" class="context-menu">
+                        <div class="context-option" onclick="cad.repeatLastCommand()">
+                            <span>Repeat Last</span>
+                            <span class="shortcut">Enter</span>
+                        </div>
+                        <div class="context-divider"></div>
+                        <div class="context-option" onclick="cad.copySelected()">
+                            <span>Copy</span>
+                            <span class="shortcut">Ctrl+C</span>
+                        </div>
+                        <div class="context-option" onclick="cad.pasteClipboard()">
+                            <span>Paste</span>
+                            <span class="shortcut">Ctrl+V</span>
+                        </div>
+                        <div class="context-option" onclick="cad.deleteSelected()">
+                            <span>Delete</span>
+                            <span class="shortcut">Del</span>
+                        </div>
+                        <div class="context-divider"></div>
+                        <div class="context-option" onclick="cad.showProperties()">
+                            <span>Properties</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Command Line -->
+                <div class="command-line">
+                    <span class="command-prompt">Command:</span>
+                    <input type="text" id="commandInput" placeholder="Type command or coordinates">
+                </div>
+            </div>
+
+            <!-- Right Sidebar -->
+            <div class="sidebar right">
+                <div id="propertiesPanel" class="panel properties-panel collapsed">
+                    <div class="panel-header" onclick="cad.togglePropertiesPanel()">
+                        <span>Properties</span>
+                        <i class="fas fa-chevron-left"></i>
+                    </div>
+                    <div class="panel-content">
+                        <div class="property-group">
+                            <h4>Selected Object</h4>
+                            <div class="property-row">
+                                <span class="property-label">Type:</span>
+                                <span id="propType" class="property-value">None</span>
+                            </div>
+                        </div>
+                        <div id="specificProperties" class="property-group"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-left">
+                <span id="coordinates" class="status-item">X: 0.00, Y: 0.00, Z: 0.00</span>
+                <span id="statusMode" class="status-item">READY</span>
+            </div>
+            <div class="status-center">
+                <span id="statusTool" class="status-item">SELECT</span>
+                <span id="statusLayer" class="status-item">Layer 0</span>
+                <span id="statusObjects" class="status-item">0 Objects</span>
+            </div>
+            <div class="status-right">
+                <button id="snapButton" class="status-btn" onclick="cad.toggleSnapMenu()">
+                    <i class="fas fa-magnet"></i>
+                    SNAP: <span id="statusSnap">ON</span>
+                </button>
+                <div id="snapMenu" class="snap-menu">
+                    <div class="snap-option" id="snapGrid" onclick="cad.toggleSnapSetting('grid')">
+                        <i class="fas fa-th"></i> Grid
+                    </div>
+                    <div class="snap-option" id="snapEndpoint" onclick="cad.toggleSnapSetting('endpoint')">
+                        <i class="fas fa-dot-circle"></i> Endpoint
+                    </div>
+                    <div class="snap-option" id="snapMidpoint" onclick="cad.toggleSnapSetting('midpoint')">
+                        <i class="fas fa-minus"></i> Midpoint
+                    </div>
+                    <div class="snap-option" id="snapCenter" onclick="cad.toggleSnapSetting('center')">
+                        <i class="far fa-circle"></i> Center
+                    </div>
+                    <div class="snap-option" id="snapIntersection" onclick="cad.toggleSnapSetting('intersection')">
+                        <i class="fas fa-times"></i> Intersection
+                    </div>
+                    <div class="snap-option" id="snapPerpendicular" onclick="cad.toggleSnapSetting('perpendicular')">
+                        <i class="fas fa-ruler-vertical"></i> Perpendicular
+                    </div>
+                    <div class="snap-option" id="snapTangent" onclick="cad.toggleSnapSetting('tangent')">
+                        <i class="fas fa-circle-notch"></i> Tangent
+                    </div>
+                    <div class="snap-option" id="snapNearest" onclick="cad.toggleSnapSetting('nearest')">
+                        <i class="fas fa-crosshairs"></i> Nearest
+                    </div>
+                </div>
+                <button id="gridButton" class="status-btn" onclick="cad.toggleGrid()">
+                    <i class="fas fa-border-all"></i>
+                    GRID: <span id="statusGrid">ON</span>
+                </button>
+                <button id="orthoButton" class="status-btn" onclick="cad.toggleOrtho()">
+                    <i class="fas fa-ruler-horizontal"></i>
+                    ORTHO: <span id="statusOrtho">OFF</span>
+                </button>
+                <button id="polarButton" class="status-btn" onclick="cad.togglePolar()">
+                    <i class="fas fa-location-arrow"></i>
+                    POLAR: <span id="statusPolar">OFF</span>
+                </button>
+                <span id="fps" class="status-item">60 FPS</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="js/core/UnitsSystem.js"></script>
+    <script src="js/geometry/Geometry.js"></script>
+    <script src="js/geometry/GeometryAdvanced.js"></script>
+    <script src="js/tools/Tools.js"></script>
+    <script src="js/ui/UI.js"></script>
+    <script src="js/TyrexCAD.js"></script>
+    <script>
+        // Initialize CAD system
+        let cad;
+        window.addEventListener('DOMContentLoaded', () => {
+            cad = new TyrexCAD();
+            window.cad = cad; // Make globally accessible
+            
+            // Initialize ribbon tabs
+            const tabs = document.querySelectorAll('.ribbon-tab');
+            const panels = document.querySelectorAll('.ribbon-panel');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // Remove active from all
+                    tabs.forEach(t => t.classList.remove('active'));
+                    panels.forEach(p => p.classList.remove('active'));
+                    
+                    // Add active to clicked
+                    tab.classList.add('active');
+                    const panelId = tab.dataset.tab + '-tab';
+                    document.getElementById(panelId).classList.add('active');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
