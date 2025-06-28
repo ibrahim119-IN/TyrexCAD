@@ -4,6 +4,7 @@ import * as THREE from 'three';
 // Import core files as side effects (they register themselves globally)
 import './core/Geometry.js';
 import './core/Units.js';
+import './core/GripsController.js';
 import './ui/UI.js';
 import './core/TyrexCAD.js';
 import './geometry/GeometryAdvanced.js'; // ← تحميل GeometryAdvanced

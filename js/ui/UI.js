@@ -1915,7 +1915,80 @@ updateStatus(message) {
     }
 }
 
+/**
+ * عرض قائمة سياق مخصصة
+ * @param {Array} items - عناصر القائمة
+ * @param {number} x - موقع X على الشاشة
+ * @param {number} y - موقع Y على الشاشة
+ */
+showContextMenu(items, x, y) {
+    // إخفاء أي قائمة سابقة
+    this.hideContextMenu();
+    
+    const menu = document.createElement('div');
+    menu.className = 'grips-context-menu';
+    menu.style.position = 'absolute';
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    menu.style.zIndex = '1000';
+    
+    items.forEach(item => {
+        if (item.separator) {
+            const separator = document.createElement('div');
+            separator.className = 'context-menu-separator';
+            menu.appendChild(separator);
+        } else {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'context-menu-item';
+            
+            if (item.enabled === false) {
+                menuItem.classList.add('disabled');
+            }
+            
+            menuItem.innerHTML = `
+                <i class="fas ${item.icon}"></i>
+                <span>${item.label}</span>
+            `;
+            
+            if (item.enabled !== false) {
+                menuItem.onclick = () => {
+                    this.hideContextMenu();
+                    item.action();
+                };
+            }
+            
+            menu.appendChild(menuItem);
+        }
+    });
+    
+    document.body.appendChild(menu);
+    this.currentContextMenu = menu;
+    
+    // إخفاء عند النقر خارج القائمة
+    setTimeout(() => {
+        document.addEventListener('click', this.hideContextMenuHandler);
+    }, 0);
+}
 
+/**
+ * إخفاء قائمة السياق
+ */
+hideContextMenu() {
+    if (this.currentContextMenu) {
+        this.currentContextMenu.remove();
+        this.currentContextMenu = null;
+        document.removeEventListener('click', this.hideContextMenuHandler);
+    }
+}
+
+/**
+ * معالج إخفاء القائمة
+ */
+hideContextMenuHandler = (e) => {
+    if (this.currentContextMenu && !this.currentContextMenu.contains(e.target)) {
+        this.hideContextMenu();
+    }
+}
 
 }
 

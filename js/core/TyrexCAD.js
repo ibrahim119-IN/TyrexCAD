@@ -57,9 +57,6 @@ class TyrexCAD {
         this.isZoomWindow = false;
         this.selectionStart = null;
         this.selectionEnd = null;
-        this.selectionStartWorld = null;
-        this.selectionEndWorld = null;
-        this.selectionDirection = null;
         
         // Settings
         this.gridEnabled = true;
@@ -145,7 +142,7 @@ class TyrexCAD {
         this.selectionMode = 'window'; // 'window' or 'crossing'
         this.selectionDirection = null; // 'ltr' or 'rtl'
         
-        // Preview state - تأكد من التهيئة قبل استخدامها
+        // Preview state
         this.previewShapes = new Set(); // الأشكال في Preview
         this.lastPreviewUpdate = 0; // لتحسين الأداء
         
@@ -159,6 +156,11 @@ class TyrexCAD {
         
         // Hover state
         this.hoveredShape = null;
+        
+        // Grips system
+        this.gripsController = null;
+        this.gripsVisible = true;
+        this.lastClickTime = 0; // لدعم double-click
         
         this.init();
     }
@@ -189,6 +191,10 @@ class TyrexCAD {
         
         this.updateUI();
         this.startRenderLoop();
+        
+        // تهيئة نظام Grips
+        this.gripsController = new GripsController(this);
+        console.log('✅ Grips controller initialized');
         
         // Hide loading screen
         setTimeout(() => {
@@ -404,9 +410,7 @@ class TyrexCAD {
     }
     
     updateStatus(message) {
-        if (this.ui && typeof this.ui.updateStatus === 'function') {
-            this.ui.updateStatus(message);
-        }
+        this.ui.updateStatus(message);
     }
     
     showDynamicInput(label, point) {
@@ -510,6 +514,24 @@ class TyrexCAD {
         // Update crosshair only in 2D mode
         if (this.mode === '2D') {
             this.ui.updateCrosshair(this.mouseX, this.mouseY);
+        }
+        
+        // تحديث grips إذا كنا في select mode
+        if (this.currentTool === 'select' && this.gripsController && !this.isSelecting && !this.isPanning) {
+            if (this.gripsController.draggedGrip) {
+                // تحديث السحب
+                this.gripsController.updateDrag(world);
+            } else {
+                // تحديث hover
+                this.gripsController.updateHover(world, this.selectedShapes);
+                
+                // تحديث المؤشر بناءً على الحالة
+                if (!this.gripsController.hoveredGrip) {
+                    // لا يوجد grip - تحقق من الشكل
+                    const shape = this.getShapeAt(world.x, world.y);
+                    this.canvas.style.cursor = shape ? 'pointer' : 'default';
+                }
+            }
         }
         
         if (this.isPanning) {
@@ -794,8 +816,6 @@ class TyrexCAD {
         this.isSelecting = false;
         this.selectionStart = null;
         this.selectionEnd = null;
-        this.selectionStartWorld = null;
-        this.selectionEndWorld = null;
         this.selectionDirection = null;
         this.hoveredShape = null;
         
@@ -1142,49 +1162,49 @@ class TyrexCAD {
     // Selection
     handleSelection(x, y, ctrlKey) {
         const world = this.screenToWorld(x, y);
+        
+        // التحقق من grip أولاً إذا كان select mode
+        if (this.currentTool === 'select' && this.gripsController) {
+            const grip = this.gripsController.findGripAt(world, this.selectedShapes);
+            
+            if (grip) {
+                // بدء سحب grip
+                this.gripsController.startDrag(grip, world);
+                return;
+            }
+        }
+        
+        // باقي كود handleSelection الموجود...
         const shape = this.getShapeAt(world.x, world.y);
         
         if (shape) {
-            // نقرة على شكل - تراكمي دائماً (مثل AutoCAD)
             if (ctrlKey && this.selectedShapes.has(shape)) {
-                // Ctrl + click على شكل محدد = إلغاء تحديده
                 this.selectedShapes.delete(shape);
             } else {
-                // أضف للتحديد (تراكمي)
                 this.selectedShapes.add(shape);
             }
             this.ui.updatePropertiesPanel();
         } else {
-            // نقرة في الفراغ
-            if (!this.isSelecting) {
-                // بداية selection box جديد
-                if (!ctrlKey) {
-                    // بدون Ctrl = مسح التحديد السابق
-                    this.selectedShapes.clear();
-                }
-                this.isSelecting = true;
-                this.selectionStart = { x, y };
-                this.selectionEnd = { x, y };
-                this.selectionDirection = null;
-                this.previewShapes.clear();
-                
-                // إظهار selection box
-                const box = document.getElementById('selectionBox');
-                if (box) {
-                    box.style.display = 'block';
-                    box.style.left = x + 'px';
-                    box.style.top = y + 'px';
-                    box.style.width = '0px';
-                    box.style.height = '0px';
-                }
-                
-                // تحديث Status
-                this.updateStatus('Specify opposite corner');
-            } else {
-                // نهاية selection box
-                this.finishSelection();
-                this.updateStatus('READY');
+            if (!ctrlKey) {
+                this.selectedShapes.clear();
             }
+            this.isSelecting = true;
+            this.selectionStart = { x, y };
+            this.selectionEnd = { x, y };
+            this.selectionDirection = null;
+            this.previewShapes.clear();
+            
+            // إظهار selection box
+            const box = document.getElementById('selectionBox');
+            if (box) {
+                box.style.display = 'block';
+                box.style.left = x + 'px';
+                box.style.top = y + 'px';
+                box.style.width = '0px';
+                box.style.height = '0px';
+            }
+            
+            this.updateStatus('Specify opposite corner');
         }
         
         this.render();
@@ -1193,34 +1213,20 @@ class TyrexCAD {
     updateSelection() {
         if (!this.isSelecting) return;
         
-        // التحقق من وجود نقطة البداية
-        if (!this.selectionStartWorld) {
-            this.isSelecting = false;
-            return;
-        }
-        
         const box = document.getElementById('selectionBox');
-        if (!box) {
-            return;
-        }
         
-        // تحديث نقطة النهاية في world coordinates
-        const worldEnd = this.screenToWorld(this.mouseX, this.mouseY);
-        this.selectionEndWorld = { x: worldEnd.x, y: worldEnd.y };
-        
-        // تحويل من world إلى screen للعرض
-        const startScreen = this.worldToScreen(this.selectionStartWorld.x, this.selectionStartWorld.y);
-        const endScreen = this.worldToScreen(this.selectionEndWorld.x, this.selectionEndWorld.y);
+        // تحديث نقطة النهاية
+        this.selectionEnd = { x: this.mouseX, y: this.mouseY };
         
         // حسابات الصندوق
-        const x = Math.min(startScreen.x, endScreen.x);
-        const y = Math.min(startScreen.y, endScreen.y);
-        const width = Math.abs(endScreen.x - startScreen.x);
-        const height = Math.abs(endScreen.y - startScreen.y);
+        const x = Math.min(this.selectionStart.x, this.selectionEnd.x);
+        const y = Math.min(this.selectionStart.y, this.selectionEnd.y);
+        const width = Math.abs(this.selectionEnd.x - this.selectionStart.x);
+        const height = Math.abs(this.selectionEnd.y - this.selectionStart.y);
         
         // تحديد الاتجاه
         if (!this.selectionDirection && width > 5) {
-            this.selectionDirection = endScreen.x > startScreen.x ? 'ltr' : 'rtl';
+            this.selectionDirection = this.selectionEnd.x > this.selectionStart.x ? 'ltr' : 'rtl';
             this.selectionMode = this.selectionDirection === 'ltr' ? 'window' : 'crossing';
         }
         
@@ -1230,17 +1236,38 @@ class TyrexCAD {
         box.style.width = width + 'px';
         box.style.height = height + 'px';
         
-        // الألوان الثابتة (بدون تكيف مع الزووم)
+        // تحديث الألوان وحجم الخط بناءً على الزووم
+        const lineWidth = Math.max(1, 2 / Math.sqrt(this.zoom));
+        
         if (this.selectionMode === 'crossing') {
             box.style.borderColor = this.crossingBoxColor;
             box.style.backgroundColor = 'rgba(0, 255, 0, 0.05)';
             box.style.borderStyle = 'dashed';
-            box.style.borderWidth = '1px';
+            box.style.borderWidth = lineWidth + 'px';
+            // للخط المتقطع نحتاج dash pattern يتكيف مع الزووم
+            const dashSize = Math.max(4, 8 / Math.sqrt(this.zoom));
+            box.style.backgroundImage = `repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent ${dashSize}px,
+                ${this.crossingBoxColor} ${dashSize}px,
+                ${this.crossingBoxColor} ${dashSize * 2}px
+            ), repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent ${dashSize}px,
+                ${this.crossingBoxColor} ${dashSize}px,
+                ${this.crossingBoxColor} ${dashSize * 2}px
+            )`;
+            box.style.backgroundSize = `${dashSize * 2}px ${lineWidth}px, ${lineWidth}px ${dashSize * 2}px`;
+            box.style.backgroundPosition = 'top, left';
+            box.style.backgroundRepeat = 'repeat-x, repeat-y';
         } else {
             box.style.borderColor = this.windowBoxColor;
             box.style.backgroundColor = 'rgba(0, 153, 255, 0.05)';
             box.style.borderStyle = 'solid';
-            box.style.borderWidth = '1px';
+            box.style.borderWidth = lineWidth + 'px';
+            box.style.backgroundImage = 'none';
         }
         
         // تحديث Preview (محسّن للأداء)
@@ -1256,17 +1283,18 @@ class TyrexCAD {
     updateSelectionPreview() {
         this.previewShapes.clear();
         
-        if (!this.selectionStartWorld || !this.selectionEndWorld) return;
+        if (!this.selectionStart || !this.selectionEnd) return;
+        
+        const rect = {
+            x1: Math.min(this.selectionStart.x, this.selectionEnd.x),
+            y1: Math.min(this.selectionStart.y, this.selectionEnd.y),
+            x2: Math.max(this.selectionStart.x, this.selectionEnd.x),
+            y2: Math.max(this.selectionStart.y, this.selectionEnd.y)
+        };
         
         const worldRect = {
-            min: {
-                x: Math.min(this.selectionStartWorld.x, this.selectionEndWorld.x),
-                y: Math.min(this.selectionStartWorld.y, this.selectionEndWorld.y)
-            },
-            max: {
-                x: Math.max(this.selectionStartWorld.x, this.selectionEndWorld.x),
-                y: Math.max(this.selectionStartWorld.y, this.selectionEndWorld.y)
-            }
+            min: this.screenToWorld(rect.x1, rect.y1),
+            max: this.screenToWorld(rect.x2, rect.y2)
         };
         
         const isWindowMode = this.selectionMode === 'window';
@@ -1383,35 +1411,19 @@ class TyrexCAD {
     }
     
     finishSelection() {
-        if (!this.isSelecting) return;
-        
         this.isSelecting = false;
-        
-        const box = document.getElementById('selectionBox');
-        if (box) {
-            box.style.display = 'none';
-        }
+        document.getElementById('selectionBox').style.display = 'none';
         
         // نقل الأشكال من preview للـ selection الفعلي (إضافة وليس استبدال)
-        if (this.previewShapes) {
-            for (const shape of this.previewShapes) {
-                this.selectedShapes.add(shape);
-            }
-            this.previewShapes.clear();
+        for (const shape of this.previewShapes) {
+            this.selectedShapes.add(shape);
         }
         
-        // تنظيف متغيرات selection
+        this.previewShapes.clear();
         this.selectionDirection = null;
         this.selectionStart = null;
         this.selectionEnd = null;
-        this.selectionStartWorld = null;
-        this.selectionEndWorld = null;
-        
-        // تحديث UI
-        if (this.ui && typeof this.ui.updatePropertiesPanel === 'function') {
-            this.ui.updatePropertiesPanel();
-        }
-        
+        this.ui.updatePropertiesPanel();
         this.render();
     }
     
@@ -3190,24 +3202,7 @@ Other:
     }
     
     cancelCurrentOperation() {
-        // إذا كان selection جاري، أنهيه بدلاً من إلغائه
-        if (this.isSelecting) {
-            this.isSelecting = false;
-            this.selectionStart = null;
-            this.selectionEnd = null;
-            this.selectionStartWorld = null;
-            this.selectionEndWorld = null;
-            this.selectionDirection = null;
-            this.previewShapes.clear();
-            
-            const box = document.getElementById('selectionBox');
-            if (box) box.style.display = 'none';
-            
-            this.render();
-            return;
-        }
-        
-        // تنظيف العمليات الأخرى
+        // تنظيف العمليات
         this.cleanupCurrentOperation();
         
         // أخبر ToolsManager عن الإلغاء

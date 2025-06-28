@@ -165,36 +165,59 @@ class Geometry {
      * @param {Object} p1 - First point {x, y}
      * @param {Object} p2 - Second point {x, y}
      * @param {Object} p3 - Third point {x, y}
-     * @returns {Object|null} Arc parameters {center, radius, startAngle, endAngle} or null if collinear
+     * @returns {Object|null} Arc parameters {center, radius, startAngle, endAngle, clockwise} or null if collinear
      */
     static calculateArcFrom3Points(p1, p2, p3) {
-        const ax = p1.x, ay = p1.y;
-        const bx = p2.x, by = p2.y;
-        const cx = p3.x, cy = p3.y;
+        // التحقق من أن النقاط ليست على خط واحد
+        const area = (p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y);
+        if (Math.abs(area) < 0.001) {
+            return null;
+        }
         
-        const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+        // حساب مركز الدائرة المارة بالنقاط الثلاث
+        const a = p1.x - p2.x;
+        const b = p1.y - p2.y;
+        const c = p1.x - p3.x;
+        const d = p1.y - p3.y;
+        const e = ((p1.x * p1.x - p2.x * p2.x) + (p1.y * p1.y - p2.y * p2.y)) / 2.0;
+        const f = ((p1.x * p1.x - p3.x * p3.x) + (p1.y * p1.y - p3.y * p3.y)) / 2.0;
+        const det = a * d - b * c;
         
-        // Check if points are collinear
-        if (Math.abs(d) < 0.001) return null;
+        if (Math.abs(det) < 0.001) {
+            return null;
+        }
         
-        // Calculate center of circle
-        const ux = ((ax * ax + ay * ay) * (by - cy) + 
-                   (bx * bx + by * by) * (cy - ay) + 
-                   (cx * cx + cy * cy) * (ay - by)) / d;
-        const uy = ((ax * ax + ay * ay) * (cx - bx) + 
-                   (bx * bx + by * by) * (ax - cx) + 
-                   (cx * cx + cy * cy) * (bx - ax)) / d;
+        const cx = (e * d - b * f) / det;
+        const cy = (a * f - e * c) / det;
         
-        const center = { x: ux, y: uy };
+        // حساب نصف القطر
+        const radius = Math.sqrt((p1.x - cx) * (p1.x - cx) + (p1.y - cy) * (p1.y - cy));
         
-        // Calculate radius
-        const radius = Math.sqrt((ax - ux) * (ax - ux) + (ay - uy) * (ay - uy));
+        // حساب الزوايا
+        let angle1 = Math.atan2(p1.y - cy, p1.x - cx);
+        let angle2 = Math.atan2(p2.y - cy, p2.x - cx);
+        let angle3 = Math.atan2(p3.y - cy, p3.x - cx);
         
-        // Calculate angles
-        const startAngle = Math.atan2(ay - uy, ax - ux);
-        const endAngle = Math.atan2(cy - uy, cx - ux);
+        // تطبيع الزوايا
+        if (angle1 < 0) angle1 += 2 * Math.PI;
+        if (angle2 < 0) angle2 += 2 * Math.PI;
+        if (angle3 < 0) angle3 += 2 * Math.PI;
         
-        return { center, radius, startAngle, endAngle };
+        // تحديد اتجاه القوس
+        let startAngle = angle1;
+        let endAngle = angle3;
+        
+        // التحقق من أن النقطة الوسطى على القوس
+        const crossProduct = (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
+        const clockwise = crossProduct < 0;
+        
+        return {
+            center: { x: cx, y: cy },
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise
+        };
     }
     
     /**
@@ -277,6 +300,76 @@ class Geometry {
      */
     static angle(x1, y1, x2, y2) {
         return Math.atan2(y2 - y1, x2 - x1);
+    }
+    
+    /**
+     * حساب المسافة من نقطة إلى خط
+     * @param {Object} point - النقطة {x, y}
+     * @param {Object} lineStart - بداية الخط {x, y}
+     * @param {Object} lineEnd - نهاية الخط {x, y}
+     * @returns {number} المسافة
+     */
+    static pointToLineDistance(point, lineStart, lineEnd) {
+        const A = point.x - lineStart.x;
+        const B = point.y - lineStart.y;
+        const C = lineEnd.x - lineStart.x;
+        const D = lineEnd.y - lineStart.y;
+        
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        let param = -1;
+        
+        if (lenSq !== 0) {
+            param = dot / lenSq;
+        }
+        
+        let xx, yy;
+        
+        if (param < 0) {
+            xx = lineStart.x;
+            yy = lineStart.y;
+        } else if (param > 1) {
+            xx = lineEnd.x;
+            yy = lineEnd.y;
+        } else {
+            xx = lineStart.x + param * C;
+            yy = lineStart.y + param * D;
+        }
+        
+        const dx = point.x - xx;
+        const dy = point.y - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    /**
+     * إسقاط نقطة على خط
+     * @param {Object} point - النقطة المراد إسقاطها
+     * @param {Object} lineStart - بداية الخط
+     * @param {Object} lineEnd - نهاية الخط
+     * @returns {Object} نقطة الإسقاط {x, y}
+     */
+    static projectPointToLine(point, lineStart, lineEnd) {
+        const A = point.x - lineStart.x;
+        const B = point.y - lineStart.y;
+        const C = lineEnd.x - lineStart.x;
+        const D = lineEnd.y - lineStart.y;
+        
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        
+        if (lenSq === 0) {
+            return { x: lineStart.x, y: lineStart.y };
+        }
+        
+        let param = dot / lenSq;
+        
+        // قصر النقطة على الخط
+        param = Math.max(0, Math.min(1, param));
+        
+        return {
+            x: lineStart.x + param * C,
+            y: lineStart.y + param * D
+        };
     }
 }
 

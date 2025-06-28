@@ -1578,3 +1578,132 @@ body {
     border: 1px dashed #00ff00;
     background: rgba(0, 255, 0, 0.05);
 }
+
+
+/* Grips Context Menu */
+.grips-context-menu {
+    background: #1a1a1a;
+    border: 1px solid #00d4aa;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 212, 170, 0.15);
+    min-width: 180px;
+    padding: 4px 0;
+    font-size: 14px;
+}
+
+.grips-context-menu .context-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+}
+
+.grips-context-menu .context-menu-item:hover {
+    background: rgba(0, 212, 170, 0.1);
+    color: #00d4aa;
+}
+
+.grips-context-menu .context-menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.grips-context-menu .context-menu-item.disabled:hover {
+    background: transparent;
+    color: #ffffff;
+}
+
+.grips-context-menu .context-menu-separator {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+}
+
+/* Grips visual effects */
+.canvas-container {
+    position: relative;
+}
+
+/* تأثيرات بصرية للـ grips */
+@keyframes grip-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+/* مؤشر الماوس */
+.canvas-container.grip-hover {
+    cursor: move !important;
+}
+
+/* تأثير التوهج */
+.grip-glow {
+    filter: drop-shadow(0 0 4px rgba(0, 212, 170, 0.8));
+}
+
+/* Edge grip styles */
+.edge-grip {
+    opacity: 0.8;
+    transition: all 0.2s ease;
+}
+
+.edge-grip:hover {
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+/* معاينة الأشكال أثناء السحب */
+.shape-preview {
+    stroke-dasharray: 5, 5;
+    animation: dash-animation 0.5s linear infinite;
+}
+
+@keyframes dash-animation {
+    0% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: 10; }
+}
+
+/* تأثيرات الـ double-click */
+.double-click-effect {
+    animation: double-click-pulse 0.3s ease-out;
+}
+
+@keyframes double-click-pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* شريط الحالة للـ grips */
+.status-bar.grips-active {
+    background: linear-gradient(90deg, #0a0a0a 0%, rgba(0, 212, 170, 0.05) 100%);
+}
+
+/* تلميحات الأدوات */
+.grip-tooltip {
+    position: absolute;
+    background: #1a1a1a;
+    border: 1px solid #00d4aa;
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 1001;
+    white-space: nowrap;
+}
+
+.grip-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #00d4aa;
+}
