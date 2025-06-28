@@ -1,0 +1,312 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build output
+dist/
+dist-ssr/
+*.local
+.output/
+.nuxt/
+
+# Vite
+.vite/
+vite.config.js.timestamp-*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+.ionide/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+config.env
+
+# Parcel cache
+.cache/
+.parcel-cache/
+
+# Next.js
+.next/
+out/
+
+# Nuxt.js
+.nuxt/
+dist/
+
+# Gatsby files
+.cache/
+public/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.tmp/
+.temp/
+tmp/
+temp/
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+node_modules/
+
+# Optional npm cache directory
+.npm/
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn files
+.yarn-integrity
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Lock files (uncomment if you don't want to commit lock files)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Production builds
+build/
+dist/
+*.production.js
+
+# Debug files
+debug/
+*.map
+
+# Backup files
+*.bak
+*.backup
+backup/
+
+# CAD specific files (if any)
+*.dwl
+*.dwl2
+*.bak
+*.sv$
+*_recover.*
+
+# User-specific files
+*.user
+*.userosscache
+*.sln.docstates
+
+# Performance reports
+lighthouse-report.html
+.lighthouseci/
+
+# Bundle analyzer
+stats.html
+report.html
+
+# Custom ignore patterns for TyrexCAD
+/exports/
+/user-drawings/
+/temp-files/
+*.draft.js
+.sandbox/
+
+# Ignore large binary files
+*.psd
+*.ai
+*.sketch
+*.fig
+*.xd
+
+# Security
+.npmrc
+.yarnrc
+certificates/
+*.pem
+*.key
+*.cert
+
+# Documentation build
+docs/_build/
+docs/.vuepress/dist/
+
+# Storybook
+.storybook/
+storybook-static/
+
+# PWA files
+**/workbox-*.js
+**/workbox-*.js.map
+sw.js
+sw.js.map
+
+# Sentry
+.sentryclirc
+
+# Webpack
+.webpack/
+
+# Rollup
+.rollup.cache/
+
+# PM2
+ecosystem.config.js
+.pm2/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Redis dump
+dump.rdb
+
+# If you're using any of these tools
+.grunt/
+.sass-cache/
+bower_components/
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.idea_modules/
+
+# VS Code Workspace
+*.code-workspace
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+cypress/videos/
+cypress/screenshots/
+e2e/videos/
+e2e/screenshots/
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
