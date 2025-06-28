@@ -1821,7 +1821,105 @@ class UI {
         loadingScreen.style.opacity = '0';
         setTimeout(() => loadingScreen.style.display = 'none', 500);
     }
+
+// ==================== إضافات للتوافق مع الأدوات ====================
+
+/**
+ * عرض حوار إدخال عدد أضلاع المضلع
+ */
+showPolygonDialog(callback) {
+    const sides = parseInt(prompt('Enter number of sides (3-20):', '6'));
+    if (sides && sides >= 3 && sides <= 20) {
+        if (callback) callback(sides);
+    }
 }
+
+/**
+ * تحديث معاينة Chamfer
+ */
+updateChamferPreview() {
+    // Placeholder - سيتم تطويرها لاحقاً
+    if (this.cad.tempShapes && this.cad.tempShapes.length > 0) {
+        this.cad.render();
+    }
+}
+
+/**
+ * عرض نتائج التحليل
+ */
+showAnalysisResult(result) {
+    let message = '';
+    
+    switch(result.type) {
+        case 'distance':
+            message = `Distance: ${result.distance.toFixed(2)} ${this.cad.currentUnit}`;
+            break;
+            
+        case 'area':
+            message = `Total Area: ${result.totalArea.toFixed(2)} ${this.cad.currentUnit}²`;
+            if (result.details && result.details.length > 0) {
+                message += '\n\nDetails:';
+                result.details.forEach((detail, index) => {
+                    message += `\n${index + 1}. ${detail.type}: ${detail.area.toFixed(2)} ${this.cad.currentUnit}²`;
+                });
+            }
+            break;
+            
+        case 'properties':
+            message = 'Shape Properties:\n';
+            if (result.properties) {
+                Object.entries(result.properties).forEach(([key, value]) => {
+                    if (typeof value === 'number') {
+                        message += `\n${key}: ${value.toFixed(2)}`;
+                    } else {
+                        message += `\n${key}: ${value}`;
+                    }
+                });
+            }
+            break;
+            
+        default:
+            message = 'Analysis completed';
+    }
+    
+    // عرض النتيجة في حوار أو في panel
+    alert(message);
+    
+    // يمكن تطوير هذا لعرض النتائج في panel مخصص
+    this.updateStatus(message.split('\n')[0]);
+}
+
+/**
+ * عرض رسالة خطأ
+ */
+showError(message) {
+    // عرض رسالة خطأ مؤقتة
+    const originalStatus = document.getElementById('statusMode').textContent;
+    this.updateStatus(`ERROR: ${message}`);
+    
+    // إرجاع الحالة السابقة بعد 3 ثواني
+    setTimeout(() => {
+        document.getElementById('statusMode').textContent = originalStatus;
+    }, 3000);
+    
+    console.error(message);
+}
+
+/**
+ * تحديث الحالة (إذا لم تكن موجودة)
+ */
+updateStatus(message) {
+    const statusElement = document.getElementById('statusMode');
+    if (statusElement) {
+        statusElement.textContent = message;
+    }
+}
+
+
+
+}
+
+
 
 // تصدير النظام
 window.UI = UI;

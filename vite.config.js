@@ -24,22 +24,21 @@ export default defineConfig({
             },
             
             output: {
-                // تجميع الأدوات في chunk منفصل
+                // تجميع ذكي للملفات
                 manualChunks: {
-                    'tools-base': [
+                    'vendor': ['three'],
+                    'core': [
+                        './js/core/TyrexCAD.js',
+                        './js/core/Geometry.js',
+                        './js/core/Units.js'
+                    ],
+                    'tools': [
                         './js/tools/ToolsManager.js',
                         './js/tools/BaseTool.js'
                     ],
-                    'tools-drawing': [
-                        './js/tools/drawing/index.js'
-                    ],
-                    'tools-modify': [
-                        './js/tools/modify/index.js'
-                    ],
-                    'tools-advanced': [
-                        './js/tools/advanced/index.js'
-                    ],
-                    'vendor': ['three']
+                    'geometry': [
+                        './js/geometry/GeometryAdvanced.js'
+                    ]
                 },
                 
                 // أسماء ملفات واضحة
@@ -51,7 +50,15 @@ export default defineConfig({
         
         // تحسينات الأداء
         target: 'es2015',
-        sourcemap: true
+        sourcemap: true,
+        
+        // تحسين حجم البناء
+        terserOptions: {
+            compress: {
+                drop_console: false, // احتفظ بـ console.log للتطوير
+                drop_debugger: true
+            }
+        }
     },
     
     server: {
@@ -59,14 +66,25 @@ export default defineConfig({
         open: true,
         cors: true,
         hmr: {
-            overlay: false // لتجنب مشاكل مع Canvas
+            overlay: false // تجنب مشاكل Canvas
         }
     },
     
-    // إعدادات إضافية
+    // إعدادات Worker
+    worker: {
+        format: 'es',
+        plugins: []
+    },
+    
+    // تحسين التبعيات
     optimizeDeps: {
         include: ['three'],
-        exclude: ['js/lib/*']
+        exclude: [
+            'js/geometry/GeometryWorker.js', // استبعاد Worker مؤقتاً
+            'js/lib/clipper.js',
+            'js/lib/earcut.min.js',
+            'js/lib/martinez.min.js'
+        ]
     },
     
     // تجاهل تحذيرات معينة

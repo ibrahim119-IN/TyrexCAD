@@ -6,15 +6,21 @@ import './core/Geometry.js';
 import './core/Units.js';
 import './ui/UI.js';
 import './core/TyrexCAD.js';
+import './geometry/GeometryAdvanced.js'; // ← تحميل GeometryAdvanced
 
 // Make THREE global for legacy code
 window.THREE = THREE;
 
-// Create CAD instance immediately
+// Create CAD instance early
 window.cad = new window.TyrexCAD();
+console.log('📐 Creating TyrexCAD instance...');
 
-// Import and initialize app
+// Import and run app
 import { initializeApp } from './app.js';
 
-// Initialize immediately
-initializeApp();
+// Start when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    initializeApp();
+}
