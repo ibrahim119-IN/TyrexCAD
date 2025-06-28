@@ -2,7 +2,7 @@
 
 /**
  * TyrexCAD Tools Manager
- * مدير الأدوات المركزي - نسخة محدثة ومصححة
+ * مدير الأدوات المركزي - نسخة محدثة ومحسنة
  */
 
 export class ToolsManager {
@@ -12,6 +12,9 @@ export class ToolsManager {
         
         // الأدوات المسجلة
         this.tools = new Map();
+        
+        // cache للأدوات المستخدمة بكثرة
+        this.frequentTools = new Map();
         
         // الأداة النشطة حالياً
         this.activeTool = null;
@@ -53,109 +56,62 @@ export class ToolsManager {
     }
     
     /**
-     * تحميل الأدوات المعيارية
+     * تحميل الأدوات المعيارية - نسخة محسنة
      */
     async loadModularTools() {
         this.loadingStatus.attempted = true;
         
         try {
-            // محاولة تحميل مجموعات الأدوات
-            const results = await Promise.allSettled([
-                import('./drawing/index.js'),
-                import('./modify/index.js'),
-                import('./advanced/index.js')
-            ]);
+            // Static imports - أسرع بكثير
+            const { tools: drawingTools } = await import('./drawing/index.js');
+            const { tools: modifyTools } = await import('./modify/index.js');
+            const { tools: advancedTools } = await import('./advanced/index.js');
             
             let loadedCount = 0;
             
-            // معالجة أدوات الرسم
-            if (results[0].status === 'fulfilled') {
-                const drawingModule = results[0].value;
-                
-                // استخدم loadDrawingTools إذا كانت متاحة
-                let tools;
-                if (drawingModule.loadDrawingTools) {
-                    tools = await drawingModule.loadDrawingTools();
-                } else if (drawingModule.tools) {
-                    tools = drawingModule.tools;
-                }
-                
-                if (tools) {
-                    Object.entries(tools).forEach(([name, ToolClass]) => {
-                        if (ToolClass) {
-                            try {
-                                this.registerTool(name, new ToolClass(this, name));
-                                loadedCount++;
-                            } catch (err) {
-                                console.warn(`Failed to register ${name}:`, err);
-                            }
+            // Register drawing tools
+            if (drawingTools) {
+                Object.entries(drawingTools).forEach(([name, ToolClass]) => {
+                    if (ToolClass) {
+                        try {
+                            this.registerTool(name, new ToolClass(this, name));
+                            loadedCount++;
+                        } catch (err) {
+                            console.warn(`Failed to register ${name}:`, err);
                         }
-                    });
-                    console.log(`✅ Loaded ${Object.keys(tools).length} drawing tools`);
-                }
-            } else {
-                console.warn('⚠️ Drawing tools not loaded');
-                this.loadingStatus.errors.push('drawing');
+                    }
+                });
+                console.log(`✅ Loaded ${Object.keys(drawingTools).length} drawing tools`);
             }
             
-            // معالجة أدوات التعديل
-            if (results[1].status === 'fulfilled') {
-                const modifyModule = results[1].value;
-                
-                // استخدم loadModifyTools إذا كانت متاحة
-                let tools;
-                if (modifyModule.loadModifyTools) {
-                    tools = await modifyModule.loadModifyTools();
-                } else if (modifyModule.tools) {
-                    tools = modifyModule.tools;
-                }
-                
-                if (tools) {
-                    Object.entries(tools).forEach(([name, ToolClass]) => {
-                        if (ToolClass) {
-                            try {
-                                this.registerTool(name, new ToolClass(this, name));
-                                loadedCount++;
-                            } catch (err) {
-                                console.warn(`Failed to register ${name}:`, err);
-                            }
+            // Register modify tools
+            if (modifyTools) {
+                Object.entries(modifyTools).forEach(([name, ToolClass]) => {
+                    if (ToolClass) {
+                        try {
+                            this.registerTool(name, new ToolClass(this, name));
+                            loadedCount++;
+                        } catch (err) {
+                            console.warn(`Failed to register ${name}:`, err);
                         }
-                    });
-                    console.log(`✅ Loaded ${Object.keys(tools).length} modify tools`);
-                }
-            } else {
-                console.warn('⚠️ Modify tools not loaded');
-                this.loadingStatus.errors.push('modify');
+                    }
+                });
+                console.log(`✅ Loaded ${Object.keys(modifyTools).length} modify tools`);
             }
             
-            // معالجة الأدوات المتقدمة
-            if (results[2].status === 'fulfilled') {
-                const advancedModule = results[2].value;
-                
-                // استخدم loadAdvancedTools إذا كانت متاحة
-                let tools;
-                if (advancedModule.loadAdvancedTools) {
-                    tools = await advancedModule.loadAdvancedTools();
-                } else if (advancedModule.tools) {
-                    tools = advancedModule.tools;
-                }
-                
-                if (tools) {
-                    Object.entries(tools).forEach(([name, ToolClass]) => {
-                        if (ToolClass) {
-                            try {
-                                this.registerTool(name, new ToolClass(this, name));
-                                loadedCount++;
-                            } catch (err) {
-                                console.warn(`Failed to register ${name}:`, err);
-                            }
+            // Register advanced tools
+            if (advancedTools) {
+                Object.entries(advancedTools).forEach(([name, ToolClass]) => {
+                    if (ToolClass) {
+                        try {
+                            this.registerTool(name, new ToolClass(this, name));
+                            loadedCount++;
+                        } catch (err) {
+                            console.warn(`Failed to register ${name}:`, err);
                         }
-                    });
-                    console.log(`✅ Loaded ${Object.keys(tools).length} advanced tools`);
-                }
-            } else {
-                console.warn('⚠️ Advanced tools not loaded');
-                this.loadingStatus.errors.push('advanced');
+                    }
+                });
+                console.log(`✅ Loaded ${Object.keys(advancedTools).length} advanced tools`);
             }
             
             // إذا لم يتم تحميل أي أدوات، استخدم المدمجة
@@ -462,7 +418,7 @@ export class ToolsManager {
     }
     
     /**
-     * تسجيل أداة جديدة
+     * تسجيل أداة جديدة مع cache للأدوات المستخدمة بكثرة
      */
     registerTool(name, tool) {
         if (!tool || typeof tool !== 'object') {
@@ -471,41 +427,49 @@ export class ToolsManager {
         }
         
         this.tools.set(name, tool);
+        
+        // Cache للأدوات المستخدمة بكثرة
+        const frequentToolNames = ['line', 'circle', 'rectangle', 'move', 'select', 'polyline'];
+        if (frequentToolNames.includes(name)) {
+            this.frequentTools.set(name, tool);
+        }
+        
         console.log(`📌 Registered tool: ${name}`);
     }
     
     /**
-     * تفعيل أداة
+     * تفعيل أداة - نسخة محسنة
      */
     activateTool(name, options = {}) {
-        // إلغاء تفعيل الأداة الحالية
-        if (this.activeTool) {
+        // Fast path للأدوات المستخدمة بكثرة
+        let tool = this.frequentTools.get(name) || this.tools.get(name);
+        
+        if (!tool) {
+            console.warn(`Tool not found: ${name}`);
+            return false;
+        }
+        
+        // إلغاء تفعيل الأداة الحالية إذا كانت مختلفة
+        if (this.activeTool && this.activeTool !== tool) {
             this.activeTool.deactivate();
         }
         
-        // البحث عن الأداة
-        const tool = this.tools.get(name);
-        if (tool) {
-            this.activeTool = tool;
-            
-            // تمرير الخيارات إذا كانت الأداة تدعمها
-            if (tool.setOptions && typeof tool.setOptions === 'function') {
-                tool.setOptions(options);
-            }
-            
-            // تفعيل الأداة
-            tool.activate();
-            
-            // تحديث المؤشر إذا كان مدعوماً
-            if (this.cad && this.cad.canvas) {
-                this.cad.canvas.style.cursor = tool.cursor || 'crosshair';
-            }
-            
-            return true;
+        this.activeTool = tool;
+        
+        // تمرير الخيارات إذا كانت الأداة تدعمها
+        if (tool.setOptions && typeof tool.setOptions === 'function') {
+            tool.setOptions(options);
         }
         
-        console.warn(`Tool not found: ${name}`);
-        return false;
+        // تفعيل الأداة
+        tool.activate();
+        
+        // تحديث المؤشر إذا كان مدعوماً
+        if (this.cad && this.cad.canvas) {
+            this.cad.canvas.style.cursor = tool.cursor || 'crosshair';
+        }
+        
+        return true;
     }
     
     /**
@@ -912,6 +876,7 @@ export class ToolsManager {
     getSystemInfo() {
         return {
             totalTools: this.tools.size,
+            frequentToolsCount: this.frequentTools.size,
             activeTool: this.activeTool ? this.activeTool.name : 'none',
             loadingStatus: this.loadingStatus,
             availableTools: this.getAvailableTools(),

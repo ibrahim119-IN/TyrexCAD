@@ -5,6 +5,35 @@
  * أدوات التعديل
  */
 
+// Import all tools statically
+import { MoveTool } from './MoveTool.js';
+import { CopyTool } from './CopyTool.js';
+import { RotateTool } from './RotateTool.js';
+import { ScaleTool } from './ScaleTool.js';
+import { MirrorTool } from './MirrorTool.js';
+import { TrimTool } from './TrimTool.js';
+import { ExtendTool } from './ExtendTool.js';
+import { OffsetTool } from './OffsetTool.js';
+
+// Direct export
+export const tools = {
+    'move': MoveTool,
+    'copy': CopyTool,
+    'rotate': RotateTool,
+    'scale': ScaleTool,
+    'mirror': MirrorTool,
+    'trim': TrimTool,
+    'extend': ExtendTool,
+    'offset': OffsetTool
+};
+
+// تصدير بالاسم القديم للتوافق
+export const modifyTools = tools;
+
+// Remove console.log in production
+const DEBUG = false;
+DEBUG && console.log(`✅ Loaded ${Object.keys(tools).length} modify tools`);
+
 // تصدير الأدوات بشكل منفصل
 export { MoveTool } from './MoveTool.js';
 export { CopyTool } from './CopyTool.js';
@@ -14,38 +43,3 @@ export { MirrorTool } from './MirrorTool.js';
 export { TrimTool } from './TrimTool.js';
 export { ExtendTool } from './ExtendTool.js';
 export { OffsetTool } from './OffsetTool.js';
-
-// دالة لتحميل الأدوات ديناميكياً
-export async function loadModifyTools() {
-    const tools = {};
-    
-    try {
-        tools.move = (await import('./MoveTool.js')).MoveTool;
-        tools.copy = (await import('./CopyTool.js')).CopyTool;
-        tools.rotate = (await import('./RotateTool.js')).RotateTool;
-        tools.scale = (await import('./ScaleTool.js')).ScaleTool;
-        tools.mirror = (await import('./MirrorTool.js')).MirrorTool;
-        tools.trim = (await import('./TrimTool.js')).TrimTool;
-        tools.extend = (await import('./ExtendTool.js')).ExtendTool;
-        tools.offset = (await import('./OffsetTool.js')).OffsetTool;
-    } catch (error) {
-        console.error('Error loading modify tools:', error);
-    }
-    
-    // إزالة الأدوات الفاشلة
-    Object.keys(tools).forEach(key => {
-        if (!tools[key]) {
-            delete tools[key];
-            console.warn(`⚠️ Modify tool '${key}' failed to load`);
-        }
-    });
-    
-    console.log(`✅ Loaded ${Object.keys(tools).length} modify tools`);
-    return tools;
-}
-
-// تصدير مجموعة الأدوات (متوافق مع الإصدار القديم)
-export const tools = await loadModifyTools();
-
-// تصدير بالاسم القديم للتوافق
-export const modifyTools = tools;

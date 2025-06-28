@@ -5,6 +5,35 @@
  * أدوات الرسم الأساسية
  */
 
+// Import all tools statically
+import { LineTool } from './LineTool.js';
+import { PolylineTool } from './PolylineTool.js';
+import { RectangleTool } from './RectangleTool.js';
+import { CircleTool } from './CircleTool.js';
+import { ArcTool } from './ArcTool.js';
+import { EllipseTool } from './EllipseTool.js';
+import { PolygonTool } from './PolygonTool.js';
+import { TextTool } from './TextTool.js';
+
+// Direct export - no dynamic loading
+export const tools = {
+    'line': LineTool,
+    'polyline': PolylineTool,
+    'rectangle': RectangleTool,
+    'circle': CircleTool,
+    'arc': ArcTool,
+    'ellipse': EllipseTool,
+    'polygon': PolygonTool,
+    'text': TextTool
+};
+
+// تصدير بالاسم القديم للتوافق
+export const drawingTools = tools;
+
+// Remove console.log in production
+const DEBUG = false;
+DEBUG && console.log(`✅ Loaded ${Object.keys(tools).length} drawing tools`);
+
 // تصدير الأدوات بشكل منفصل (للاستيراد المباشر)
 export { LineTool } from './LineTool.js';
 export { PolylineTool } from './PolylineTool.js';
@@ -14,31 +43,3 @@ export { ArcTool } from './ArcTool.js';
 export { EllipseTool } from './EllipseTool.js';
 export { PolygonTool } from './PolygonTool.js';
 export { TextTool } from './TextTool.js';
-
-// دالة لتحميل الأدوات بشكل ديناميكي
-export async function loadDrawingTools() {
-    const tools = {};
-    
-    try {
-        tools.line = (await import('./LineTool.js')).LineTool;
-        tools.polyline = (await import('./PolylineTool.js')).PolylineTool;
-        tools.rectangle = (await import('./RectangleTool.js')).RectangleTool;
-        tools.circle = (await import('./CircleTool.js')).CircleTool;
-        tools.arc = (await import('./ArcTool.js')).ArcTool;
-        tools.ellipse = (await import('./EllipseTool.js')).EllipseTool;
-        tools.polygon = (await import('./PolygonTool.js')).PolygonTool;
-        tools.text = (await import('./TextTool.js')).TextTool;
-    } catch (error) {
-        console.error('Error loading drawing tools:', error);
-    }
-    
-    return tools;
-}
-
-// تصدير مجموعة الأدوات (متوافق مع الإصدار القديم)
-export const tools = await loadDrawingTools();
-
-// تصدير بالاسم القديم للتوافق
-export const drawingTools = tools;
-
-console.log(`✅ Loaded ${Object.keys(tools).length} drawing tools`);
