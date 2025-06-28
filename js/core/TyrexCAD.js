@@ -153,6 +153,7 @@ class TyrexCAD {
         this.selectionColor = '#0099ff'; // أزرق مثل AutoCAD
         this.crossingBoxColor = '#00ff00'; // أخضر للـ crossing
         this.windowBoxColor = '#0099ff'; // أزرق للـ window
+        this.previewColor = '#00d4aa'; // لون المعاينة
         
         // Hover state
         this.hoveredShape = null;
@@ -285,9 +286,15 @@ class TyrexCAD {
         this.canvas.addEventListener('wheel', (e) => {
         if (this.mode === '2D') this.onWheel(e);
         }, { passive: false }); // نحتاج false لاستخدام preventDefault
-        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        this.canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (this.mode === '2D') this.onContextMenu(e);
+        });
         this.canvas.addEventListener('mouseleave', (e) => {
             if (this.mode === '2D') this.onMouseLeave(e);
+        });
+        this.canvas.addEventListener('dblclick', (e) => {
+            if (this.mode === '2D') this.onDoubleClick(e);
         });
         
         // 3D Canvas events
@@ -493,8 +500,6 @@ class TyrexCAD {
         } else if (e.button === 2) { // Right click
             if (this.isDrawing && this.currentTool === 'polyline') {
                 this.delegateToTool('finishPolyline');
-            } else {
-                this.showContextMenu(e.clientX, e.clientY);
             }
         }
     }
@@ -516,24 +521,31 @@ class TyrexCAD {
             this.ui.updateCrosshair(this.mouseX, this.mouseY);
         }
         
-        // تحديث grips إذا كنا في select mode
+        // معالجة Grips في وضع التحديد
         if (this.currentTool === 'select' && this.gripsController && !this.isSelecting && !this.isPanning) {
             if (this.gripsController.draggedGrip) {
                 // تحديث السحب
                 this.gripsController.updateDrag(world);
-            } else {
-                // تحديث hover
+            } else if (this.selectedShapes.size > 0) {
+                // تحديث hover فقط إذا كان هناك أشكال محددة
                 this.gripsController.updateHover(world, this.selectedShapes);
                 
                 // تحديث المؤشر بناءً على الحالة
-                if (!this.gripsController.hoveredGrip) {
+                if (this.gripsController.hoveredGrip) {
+                    this.canvas.style.cursor = 'move';
+                } else {
                     // لا يوجد grip - تحقق من الشكل
                     const shape = this.getShapeAt(world.x, world.y);
                     this.canvas.style.cursor = shape ? 'pointer' : 'default';
                 }
+            } else {
+                // لا توجد أشكال محددة - عرض pointer للأشكال
+                const shape = this.getShapeAt(world.x, world.y);
+                this.canvas.style.cursor = shape ? 'pointer' : 'default';
             }
         }
         
+        // باقي معالجة الأحداث...
         if (this.isPanning) {
             this.updatePanning();
         } else if (this.isSelecting) {
@@ -546,7 +558,7 @@ class TyrexCAD {
         }
         
         // تتبع الشكل تحت الماوس (للـ hover effect)
-        if (this.currentTool === 'select' && !this.isSelecting && !this.isPanning) {
+        if (this.currentTool === 'select' && !this.isSelecting && !this.isPanning && !this.gripsController?.draggedGrip) {
             const newHoveredShape = this.getShapeAt(world.x, world.y);
             if (newHoveredShape !== this.hoveredShape) {
                 this.hoveredShape = newHoveredShape;
@@ -569,6 +581,16 @@ class TyrexCAD {
     }
     
     onMouseUp(e) {
+        // إنهاء سحب Grip إذا كان موجوداً
+        if (this.gripsController && this.gripsController.draggedGrip) {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const world = this.screenToWorld(x, y);
+            
+            this.gripsController.endDrag(world);
+        }
+        
         this.isPanning = false;
         this.canvas.style.cursor = this.currentTool === 'pan' ? 'grab' : 'default';
         
@@ -608,6 +630,44 @@ class TyrexCAD {
         
         // إخفاء snap indicator
         this.ui.updateSnapIndicator(null, null);
+    }
+    
+    // إضافة معالج للنقرة المزدوجة
+    onDoubleClick(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const world = this.screenToWorld(x, y);
+        
+        // معالجة double-click على Grips
+        if (this.currentTool === 'select' && this.gripsController && this.selectedShapes.size > 0) {
+            if (this.gripsController.handleDoubleClick(world)) {
+                return;
+            }
+        }
+        
+        // معالجة double-click العادية
+        // ... باقي الكود ...
+    }
+    
+    // إضافة معالج للنقرة اليمنى
+    onContextMenu(e) {
+        e.preventDefault();
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const world = this.screenToWorld(x, y);
+        
+        // معالجة النقرة اليمنى على Grips
+        if (this.currentTool === 'select' && this.gripsController && this.selectedShapes.size > 0) {
+            if (this.gripsController.handleRightClick(world, e)) {
+                return;
+            }
+        }
+        
+        // القائمة السياقية العادية
+        this.showContextMenu(e.clientX, e.clientY);
     }
     
     // 3D Mouse events
@@ -669,6 +729,12 @@ class TyrexCAD {
     
     onKeyDown(e) {
         if (e.target.tagName === 'INPUT') return;
+        
+        // معالجة اختصارات Grips أولاً
+        if (this.handleGripKeyboard(e)) {
+            e.preventDefault();
+            return;
+        }
         
         switch (e.key) {
             case ' ': // Space bar - تكرار آخر أمر
@@ -733,6 +799,40 @@ class TyrexCAD {
     
     onKeyUp(e) {
         // Handle key up if needed
+    }
+    
+    // إضافة اختصارات لوحة المفاتيح للـ Grips
+    handleGripKeyboard(e) {
+        if (!this.gripsController || !this.gripsController.hoveredGrip) return false;
+        
+        const grip = this.gripsController.hoveredGrip;
+        
+        switch(e.key) {
+            case 'Delete':
+                if (grip.type === 'vertex') {
+                    this.gripsController.removeVertex(grip);
+                    return true;
+                }
+                break;
+                
+            case 'a':
+            case 'A':
+                if (grip.type === 'edge') {
+                    this.gripsController.addVertexAtEdge(grip, grip.point);
+                    return true;
+                }
+                break;
+                
+            case 'c':
+            case 'C':
+                if (grip.type === 'edge') {
+                    this.gripsController.convertEdgeToArc(grip);
+                    return true;
+                }
+                break;
+        }
+        
+        return false;
     }
     
     // Tool handling
@@ -836,15 +936,6 @@ class TyrexCAD {
         this.isZoomWindow = false;
         
         this.updateStatus('READY');
-    }
-    
-    updateCursorForTool(tool) {
-        // احصل على معلومات الأداة من ToolsManager
-        if (this.toolsManager && this.toolsManager.activeTool) {
-            this.canvas.style.cursor = this.toolsManager.activeTool.cursor || 'none';
-        } else {
-            this.canvas.style.cursor = tool === 'pan' ? 'grab' : 'none';
-        }
     }
     
     handleDrawing(x, y) {
@@ -1159,35 +1250,48 @@ class TyrexCAD {
         }
     }
     
-    // Selection
-    handleSelection(x, y, ctrlKey) {
+    // Selection - محدثة لدعم Grips
+    handleSelection(x, y, ctrlKey = false) {
         const world = this.screenToWorld(x, y);
         
-        // التحقق من grip أولاً إذا كان select mode
-        if (this.currentTool === 'select' && this.gripsController) {
+        // أولوية 1: التحقق من Grips أولاً إذا كان هناك أشكال محددة
+        if (this.selectedShapes.size > 0 && this.gripsController) {
             const grip = this.gripsController.findGripAt(world, this.selectedShapes);
             
             if (grip) {
                 // بدء سحب grip
                 this.gripsController.startDrag(grip, world);
+                // منع معالجة التحديد العادي
                 return;
             }
         }
         
-        // باقي كود handleSelection الموجود...
+        // أولوية 2: التحقق من الأشكال
         const shape = this.getShapeAt(world.x, world.y);
         
         if (shape) {
-            if (ctrlKey && this.selectedShapes.has(shape)) {
-                this.selectedShapes.delete(shape);
+            // التحقق من وجود الشكل في التحديد مع Ctrl
+            if (ctrlKey) {
+                if (this.selectedShapes.has(shape)) {
+                    this.selectedShapes.delete(shape);
+                } else {
+                    this.selectedShapes.add(shape);
+                }
             } else {
-                this.selectedShapes.add(shape);
+                // بدون Ctrl: استبدال التحديد
+                if (!this.selectedShapes.has(shape)) {
+                    this.selectedShapes.clear();
+                    this.selectedShapes.add(shape);
+                }
             }
             this.ui.updatePropertiesPanel();
         } else {
+            // النقر في الفراغ
             if (!ctrlKey) {
                 this.selectedShapes.clear();
             }
+            
+            // بدء صندوق التحديد
             this.isSelecting = true;
             this.selectionStart = { x, y };
             this.selectionEnd = { x, y };
@@ -2029,58 +2133,115 @@ class TyrexCAD {
         this.updateStatus('READY');
     }
     
-    // Rendering
+    // Rendering - محدثة لدعم Grips
     render() {
-        if (this.mode === '2D') {
-            this.render2D();
-        } else {
+        if (this.mode === '3D') {
             this.render3D();
+            return;
         }
-    }
-    
-    render2D() {
+        
+        // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Save context state
         this.ctx.save();
         
-        // تحديد الوضع السريع
-        this.fastRenderMode = this.isPanning || this.isZooming;
-        
+        // Apply transformations
         this.ctx.translate(this.panX, this.panY);
         this.ctx.scale(this.zoom, this.zoom);
         
-        if (this.gridEnabled) this.drawGrid();
-        
-        // رسم الأشكال
-        for (const [layerId, layer] of this.layers) {
-            if (!layer.visible) continue;
-            
-            for (const shape of this.shapes) {
-                if (shape.layerId !== layerId) continue;
-                
-                const isSelected = this.selectedShapes.has(shape);
-                const isPreviewed = this.previewShapes.has(shape);
-                const isHovered = shape === this.hoveredShape;
-                
-                this.drawShape(shape, isSelected, isPreviewed, isHovered, layer);
-            }
+        // Draw grid
+        if (this.gridEnabled) {
+            this.drawGrid();
         }
         
-        // رسم الأشكال المؤقتة
+        // Draw shapes
+        this.shapes.forEach(shape => {
+            const isSelected = this.selectedShapes.has(shape);
+            const isHovered = shape === this.hoveredShape && !isSelected;
+            const isPreview = this.previewShapes.has(shape);
+            
+            this.ctx.save();
+            
+            // Apply shape properties
+            this.ctx.strokeStyle = shape.color || this.currentColor;
+            this.ctx.lineWidth = (shape.lineWidth || this.currentLineWidth) / this.zoom;
+            this.ctx.fillStyle = shape.fillColor || 'transparent';
+            
+            // Apply line type
+            if (shape.lineType === 'dashed') {
+                this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
+            } else if (shape.lineType === 'dotted') {
+                this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
+            } else {
+                this.ctx.setLineDash([]);
+            }
+            
+            // Selection/hover effects
+            if (isSelected) {
+                this.ctx.strokeStyle = this.selectionColor;
+                this.ctx.lineWidth = (shape.lineWidth + 1) / this.zoom;
+                
+                // إضافة توهج للأشكال المحددة
+                this.ctx.shadowColor = this.selectionColor;
+                this.ctx.shadowBlur = 10 / this.zoom;
+            } else if (isHovered) {
+                this.ctx.lineWidth = (shape.lineWidth + 0.5) / this.zoom;
+                this.ctx.globalAlpha = 0.8;
+            } else if (isPreview) {
+                this.ctx.globalAlpha = 0.5;
+                this.ctx.strokeStyle = this.previewColor;
+            }
+            
+            // Draw the shape
+            this.drawShape(shape);
+            
+            this.ctx.restore();
+            
+            // رسم Grips للأشكال المحددة
+            if (isSelected && this.gripsController && this.gripsVisible && this.currentTool === 'select') {
+                this.gripsController.drawGrips(shape);
+            }
+        });
+        
+        // Draw temporary shape (معاينة)
         if (this.tempShape) {
             this.ctx.save();
-            this.ctx.globalAlpha = 0.5;
-            this.drawShape(this.tempShape, false, false, false);
+            this.ctx.strokeStyle = this.tempShape.color || this.currentColor;
+            this.ctx.lineWidth = (this.tempShape.lineWidth || this.currentLineWidth) / this.zoom;
+            
+            if (this.tempShape.lineType === 'dashed') {
+                this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
+            }
+            
+            this.ctx.globalAlpha = 0.7;
+            this.drawShape(this.tempShape);
             this.ctx.restore();
         }
         
-        // Draw temporary shapes (for move, copy, etc.)
-        if (this.tempShapes) {
-            this.ctx.save();
-            this.ctx.globalAlpha = 0.5;
-            this.tempShapes.forEach(shape => this.drawShape(shape, false, false, false));
-            this.ctx.restore();
+        // Draw temporary shapes من الأدوات
+        if (this.tempShapes && this.tempShapes.length > 0) {
+            this.tempShapes.forEach(shape => {
+                this.ctx.save();
+                this.ctx.strokeStyle = shape.color || '#00d4aa';
+                this.ctx.lineWidth = (shape.lineWidth || 2) / this.zoom;
+                
+                if (shape.lineType === 'dashed') {
+                    this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
+                }
+                
+                this.ctx.globalAlpha = 0.6;
+                this.drawShape(shape);
+                this.ctx.restore();
+            });
         }
         
+        // Draw selection box
+        if (this.isSelecting) {
+            this.drawSelectionBox();
+        }
+        
+        // Restore context
         this.ctx.restore();
     }
     
@@ -2178,61 +2339,7 @@ class TyrexCAD {
         this.ctx.restore();
     }
     
-    drawShape(shape, isSelected, isPreviewed, isHovered, layer = null) {
-        this.ctx.save();
-        
-        // الستايل الأساسي
-        let strokeColor = shape.color || (layer ? layer.color : '#ffffff');
-        let lineWidth = (shape.lineWidth || (layer ? layer.lineWidth : 2)) / this.zoom;
-        
-        // تغيير اللون فقط عند التحديد (مثل AutoCAD)
-        if (isSelected || isPreviewed) {
-            strokeColor = this.selectionColor;
-            // لا نغير العرض
-        } else if (isHovered && this.currentTool === 'select') {
-            // Hover effect - خفيف
-            this.ctx.globalAlpha = 0.8;
-        }
-        
-        this.ctx.strokeStyle = strokeColor;
-        this.ctx.lineWidth = lineWidth;
-        this.ctx.fillStyle = strokeColor;
-        
-        // تطبيق line type
-        if (layer) {
-            switch (shape.lineType || layer.lineType) {
-                case 'dashed':
-                    this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
-                    break;
-                case 'dotted':
-                    this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
-                    break;
-            }
-        }
-        
-        // رسم الشكل
-        this.drawShapeGeometry(shape);
-        
-        // إضافة highlight للأشكال المحددة أو في preview
-        if ((isSelected || isPreviewed) && !this.fastRenderMode) {
-            this.ctx.save();
-            this.ctx.globalAlpha = 0.3;
-            this.ctx.strokeStyle = this.selectionColor;
-            this.ctx.lineWidth = (lineWidth + 4);
-            this.drawShapeGeometry(shape);
-            this.ctx.restore();
-        }
-        
-        // رسم handles فقط للأشكال المحددة (ليس preview)
-        if (isSelected && !this.fastRenderMode && this.selectedShapes.size < 100) {
-            this.drawSelectionHandles(shape);
-        }
-        
-        this.ctx.restore();
-    }
-    
-    // دالة منفصلة لرسم الشكل
-    drawShapeGeometry(shape) {
+    drawShape(shape) {
         switch (shape.type) {
             case 'line':
                 this.ctx.beginPath();
@@ -2299,6 +2406,14 @@ class TyrexCAD {
                 this.drawDiameterDimensionShape(shape);
                 break;
         }
+    }
+    
+    // رسم صندوق التحديد
+    drawSelectionBox() {
+        if (!this.selectionStart || !this.selectionEnd) return;
+        
+        // لا نرسم في Canvas - نستخدم HTML element بدلاً من ذلك
+        // هذا يوفر أداء أفضل وتحكم أكثر في المظهر
     }
     
     drawLinearDimensionShape(dim) {
@@ -2493,65 +2608,22 @@ class TyrexCAD {
         this.ctx.restore();
     }
     
-    // Handles بسيطة (4 نقاط فقط)
-    drawSelectionHandles(shape) {
-        const bounds = this.getShapeBounds(shape);
-        const size = 3 / this.zoom;
-        
-        this.ctx.fillStyle = this.selectionColor;
-        this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 1 / this.zoom;
-        
-        // دالة لرسم grip واحد
-        const drawGrip = (x, y) => {
-            // مربع أزرق مع حدود بيضاء
-            this.ctx.fillRect(x - size, y - size, size * 2, size * 2);
-            this.ctx.strokeRect(x - size, y - size, size * 2, size * 2);
-        };
-        
-        // رسم grips حسب نوع الشكل
-        switch (shape.type) {
-            case 'line':
-                drawGrip(shape.start.x, shape.start.y);
-                drawGrip(shape.end.x, shape.end.y);
-                drawGrip((shape.start.x + shape.end.x) / 2, (shape.start.y + shape.end.y) / 2);
-                break;
-                
-            case 'rectangle':
-                // الزوايا الأربع
-                drawGrip(shape.start.x, shape.start.y);
-                drawGrip(shape.end.x, shape.start.y);
-                drawGrip(shape.end.x, shape.end.y);
-                drawGrip(shape.start.x, shape.end.y);
-                // نقاط المنتصف
-                drawGrip((shape.start.x + shape.end.x) / 2, shape.start.y);
-                drawGrip(shape.end.x, (shape.start.y + shape.end.y) / 2);
-                drawGrip((shape.start.x + shape.end.x) / 2, shape.end.y);
-                drawGrip(shape.start.x, (shape.start.y + shape.end.y) / 2);
-                break;
-                
-            case 'circle':
-                // أربع نقاط على المحيط
-                drawGrip(shape.center.x + shape.radius, shape.center.y);
-                drawGrip(shape.center.x - shape.radius, shape.center.y);
-                drawGrip(shape.center.x, shape.center.y + shape.radius);
-                drawGrip(shape.center.x, shape.center.y - shape.radius);
-                // المركز
-                drawGrip(shape.center.x, shape.center.y);
-                break;
-                
-            case 'polyline':
-                // grip لكل نقطة
-                shape.points.forEach(p => drawGrip(p.x, p.y));
-                break;
-                
-            default:
-                // 4 زوايا الـ bounding box
-                drawGrip(bounds.minX, bounds.minY);
-                drawGrip(bounds.maxX, bounds.minY);
-                drawGrip(bounds.maxX, bounds.maxY);
-                drawGrip(bounds.minX, bounds.maxY);
+    // إضافة دالة لتبديل عرض Grips
+    toggleGrips() {
+        this.gripsVisible = !this.gripsVisible;
+        this.render();
+        this.updateStatus(`Grips ${this.gripsVisible ? 'enabled' : 'disabled'}`);
+    }
+    
+    // تحديث drawSelectionHandles لتجنب التداخل مع Grips
+    drawSelectionHandles_OLD(shape) {
+        // هذه الدالة القديمة - يمكن إبقاؤها للرجوع إليها
+        // لكن لن يتم استخدامها عند تفعيل نظام Grips الجديد
+        if (this.gripsController && this.gripsVisible) {
+            return; // استخدم نظام Grips الجديد بدلاً من handles القديمة
         }
+        
+        // ... كود handles القديم ...
     }
     
     // History

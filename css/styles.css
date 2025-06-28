@@ -1707,3 +1707,226 @@ body {
     border-right: 5px solid transparent;
     border-top: 5px solid #00d4aa;
 }
+
+
+/* ==================== Grips System Styles ==================== */
+
+/* القائمة السياقية للـ Grips */
+.grips-context-menu {
+    position: fixed;
+    background: #1a1a1a;
+    border: 1px solid #00d4aa;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 212, 170, 0.15);
+    min-width: 180px;
+    padding: 4px 0;
+    font-size: 14px;
+    z-index: 1000;
+}
+
+.grips-context-menu .context-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+}
+
+.grips-context-menu .context-menu-item:hover {
+    background: rgba(0, 212, 170, 0.1);
+    color: #00d4aa;
+}
+
+.grips-context-menu .context-menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.grips-context-menu .context-menu-item.disabled:hover {
+    background: transparent;
+    color: #ffffff;
+}
+
+.grips-context-menu .context-menu-separator {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+}
+
+/* نافذة خصائص Grip */
+.grip-properties-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #1a1a1a;
+    border: 1px solid #00d4aa;
+    border-radius: 8px;
+    padding: 20px;
+    min-width: 300px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 1001;
+}
+
+.grip-properties-dialog h3 {
+    color: #00d4aa;
+    margin-bottom: 16px;
+    font-size: 16px;
+}
+
+.grip-properties-dialog .property-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.grip-properties-dialog label {
+    color: #a0a0a0;
+    font-size: 14px;
+}
+
+.grip-properties-dialog input,
+.grip-properties-dialog select {
+    background: #0a0a0a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    width: 120px;
+}
+
+.grip-properties-dialog input:focus,
+.grip-properties-dialog select:focus {
+    border-color: #00d4aa;
+    outline: none;
+}
+
+.grip-properties-dialog .buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.grip-properties-dialog button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.grip-properties-dialog .btn-ok {
+    background: #00d4aa;
+    color: #0a0a0a;
+}
+
+.grip-properties-dialog .btn-ok:hover {
+    background: #00ffcc;
+}
+
+.grip-properties-dialog .btn-cancel {
+    background: transparent;
+    color: #a0a0a0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.grip-properties-dialog .btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* تأثيرات بصرية للـ Canvas عند استخدام Grips */
+.canvas-container.grip-hover {
+    cursor: move !important;
+}
+
+.canvas-container.grip-dragging {
+    cursor: grabbing !important;
+}
+
+/* شريط المعلومات للـ Grips */
+.grip-info-bar {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(26, 26, 26, 0.9);
+    border: 1px solid #00d4aa;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: #ffffff;
+    display: none;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.grip-info-bar.active {
+    display: block;
+}
+
+/* تأثير التوهج للـ Grips المحددة */
+@keyframes grip-glow {
+    0% { box-shadow: 0 0 5px rgba(0, 212, 170, 0.5); }
+    50% { box-shadow: 0 0 10px rgba(0, 212, 170, 0.8); }
+    100% { box-shadow: 0 0 5px rgba(0, 212, 170, 0.5); }
+}
+
+/* اختصارات لوحة المفاتيح */
+.grip-shortcuts {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(26, 26, 26, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 12px;
+    color: #a0a0a0;
+    display: none;
+}
+
+.grip-shortcuts.visible {
+    display: block;
+}
+
+.grip-shortcuts h4 {
+    color: #00d4aa;
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.grip-shortcuts .shortcut {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.grip-shortcuts .key {
+    background: #0a0a0a;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: #ffffff;
+    font-family: monospace;
+}
+
+/* تحسينات على selection box عند وجود Grips */
+.selection-box.with-grips {
+    border-color: #00d4aa;
+    border-width: 2px;
+}
+
+/* معاينة الأشكال أثناء تعديل Grips */
+.shape-preview-grip {
+    stroke-dasharray: 5, 5;
+    animation: dash-animation 0.5s linear infinite;
+}
+
+@keyframes dash-animation {
+    0% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: 10; }
+}

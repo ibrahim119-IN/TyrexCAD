@@ -1990,6 +1990,61 @@ hideContextMenuHandler = (e) => {
     }
 }
 
+/**
+ * عرض نافذة خصائص Grip
+ */
+showGripPropertiesDialog(content, callback) {
+    // إزالة أي نافذة سابقة
+    const existing = document.querySelector('.grip-properties-dialog');
+    if (existing) existing.remove();
+    
+    // إنشاء النافذة
+    const dialog = document.createElement('div');
+    dialog.className = 'grip-properties-dialog';
+    dialog.innerHTML = `
+        ${content}
+        <div class="buttons">
+            <button class="btn-cancel">Cancel</button>
+            <button class="btn-ok">OK</button>
+        </div>
+    `;
+    
+    // معالجات الأحداث
+    dialog.querySelector('.btn-ok').onclick = () => {
+        callback(true);
+        dialog.remove();
+    };
+    
+    dialog.querySelector('.btn-cancel').onclick = () => {
+        callback(false);
+        dialog.remove();
+    };
+    
+    document.body.appendChild(dialog);
+}
+
+/**
+ * عرض شريط معلومات Grip
+ */
+showGripInfo(message) {
+    let infoBar = document.querySelector('.grip-info-bar');
+    if (!infoBar) {
+        infoBar = document.createElement('div');
+        infoBar.className = 'grip-info-bar';
+        document.body.appendChild(infoBar);
+    }
+    
+    infoBar.textContent = message;
+    infoBar.classList.add('active');
+    
+    clearTimeout(this.gripInfoTimeout);
+    this.gripInfoTimeout = setTimeout(() => {
+        infoBar.classList.remove('active');
+    }, 3000);
+}
+
+
+
 }
 
 
