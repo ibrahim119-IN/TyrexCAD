@@ -2,7 +2,7 @@
 
 /**
  * TyrexCAD Tools Manager
- * مدير الأدوات المركزي
+ * مدير الأدوات المركزي - نسخة محدثة ومصححة
  */
 
 export class ToolsManager {
@@ -23,47 +23,415 @@ export class ToolsManager {
             trimExtendBoundaries: [],
             offsetDistance: 10
         };
+        
+        // حالة التحميل
+        this.loadingStatus = {
+            attempted: false,
+            successful: false,
+            errors: []
+        };
     }
     
     /**
      * تهيئة النظام
      * @param {TyrexCAD} cadInstance - مرجع للنظام الرئيسي
      */
-    init(cadInstance) {
+    async init(cadInstance) {
         this.cad = cadInstance;
-        this.registerTools();
+        console.log('🔧 Initializing Tools Manager...');
+        
+        try {
+            // محاولة تحميل الأدوات المعيارية
+            await this.loadModularTools();
+        } catch (error) {
+            console.warn('⚠️ Failed to load modular tools, using built-in tools:', error);
+            // استخدم الأدوات المدمجة كـ fallback
+            this.loadBuiltInTools();
+        }
+        
+        console.log(`✅ Tools Manager ready with ${this.tools.size} tools`);
     }
     
     /**
-     * تسجيل جميع الأدوات
+     * تحميل الأدوات المعيارية
      */
-    async registerTools() {
-        // Import dynamic للأدوات
-        const { drawingTools } = await import('./drawing/index.js');
-        const { modifyTools } = await import('./modify/index.js');
-        const { advancedTools } = await import('./advanced/index.js');
+    async loadModularTools() {
+        this.loadingStatus.attempted = true;
         
-        // تسجيل أدوات الرسم
-        Object.entries(drawingTools).forEach(([name, ToolClass]) => {
-            this.registerTool(name, ToolClass);
-        });
+        try {
+            // محاولة تحميل مجموعات الأدوات
+            const results = await Promise.allSettled([
+                import('./drawing/index.js').catch(err => ({ error: err, type: 'drawing' })),
+                import('./modify/index.js').catch(err => ({ error: err, type: 'modify' })),
+                import('./advanced/index.js').catch(err => ({ error: err, type: 'advanced' }))
+            ]);
+            
+            let loadedCount = 0;
+            
+            // معالجة أدوات الرسم
+            if (results[0].status === 'fulfilled' && results[0].value.tools) {
+                const { tools } = results[0].value;
+                Object.entries(tools).forEach(([name, ToolClass]) => {
+                    try {
+                        this.registerTool(name, new ToolClass(this.cad));
+                        loadedCount++;
+                    } catch (err) {
+                        console.warn(`Failed to register ${name}:`, err);
+                    }
+                });
+                console.log(`✅ Loaded ${Object.keys(tools).length} drawing tools`);
+            } else {
+                console.warn('⚠️ Drawing tools not loaded');
+                this.loadingStatus.errors.push('drawing');
+            }
+            
+            // معالجة أدوات التعديل
+            if (results[1].status === 'fulfilled' && results[1].value.tools) {
+                const { tools } = results[1].value;
+                Object.entries(tools).forEach(([name, ToolClass]) => {
+                    try {
+                        this.registerTool(name, new ToolClass(this.cad));
+                        loadedCount++;
+                    } catch (err) {
+                        console.warn(`Failed to register ${name}:`, err);
+                    }
+                });
+                console.log(`✅ Loaded ${Object.keys(tools).length} modify tools`);
+            } else {
+                console.warn('⚠️ Modify tools not loaded');
+                this.loadingStatus.errors.push('modify');
+            }
+            
+            // معالجة الأدوات المتقدمة
+            if (results[2].status === 'fulfilled' && results[2].value.tools) {
+                const { tools } = results[2].value;
+                Object.entries(tools).forEach(([name, ToolClass]) => {
+                    try {
+                        this.registerTool(name, new ToolClass(this.cad));
+                        loadedCount++;
+                    } catch (err) {
+                        console.warn(`Failed to register ${name}:`, err);
+                    }
+                });
+                console.log(`✅ Loaded ${Object.keys(tools).length} advanced tools`);
+            } else {
+                console.warn('⚠️ Advanced tools not loaded');
+                this.loadingStatus.errors.push('advanced');
+            }
+            
+            // إذا لم يتم تحميل أي أدوات، استخدم المدمجة
+            if (loadedCount === 0) {
+                throw new Error('No modular tools loaded successfully');
+            }
+            
+            this.loadingStatus.successful = true;
+            
+        } catch (error) {
+            console.error('Failed to load modular tools:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * تحميل الأدوات المدمجة (Fallback)
+     */
+    loadBuiltInTools() {
+        console.log('📦 Loading built-in tools...');
         
-        // تسجيل أدوات التعديل
-        Object.entries(modifyTools).forEach(([name, ToolClass]) => {
-            this.registerTool(name, ToolClass);
-        });
+        // Base Tool Class
+        class BaseTool {
+            constructor(cad) {
+                this.cad = cad;
+                this.name = 'base';
+                this.active = false;
+                this.isDrawing = false;
+            }
+            
+            activate() {
+                this.active = true;
+                this.reset();
+                console.log(`${this.name} tool activated`);
+            }
+            
+            deactivate() {
+                this.active = false;
+                this.reset();
+            }
+            
+            reset() {
+                this.isDrawing = false;
+                this.cad.isDrawing = false;
+                this.cad.tempShape = null;
+                this.cad.drawingPoints = [];
+            }
+            
+            onMouseDown(point) {}
+            onMouseMove(point) {}
+            onMouseUp(point) {}
+            onKeyDown(e) {
+                if (e.key === 'Escape') {
+                    this.reset();
+                    this.cad.render();
+                }
+            }
+        }
         
-        // تسجيل الأدوات المتقدمة
-        Object.entries(advancedTools).forEach(([name, ToolClass]) => {
-            this.registerTool(name, ToolClass);
-        });
+        // Line Tool
+        class LineTool extends BaseTool {
+            constructor(cad) {
+                super(cad);
+                this.name = 'line';
+                this.startPoint = null;
+            }
+            
+            reset() {
+                super.reset();
+                this.startPoint = null;
+            }
+            
+            onMouseDown(point) {
+                if (!this.startPoint) {
+                    this.startPoint = point;
+                    this.cad.isDrawing = true;
+                    this.cad.drawingPoints = [point];
+                    this.cad.updateStatus('Specify second point');
+                } else {
+                    const shape = {
+                        type: 'line',
+                        start: this.startPoint,
+                        end: point,
+                        color: this.cad.currentColor,
+                        lineWidth: this.cad.currentLineWidth,
+                        lineType: this.cad.currentLineType,
+                        layerId: this.cad.currentLayerId,
+                        id: this.cad.generateId()
+                    };
+                    
+                    this.cad.addShape(shape);
+                    this.reset();
+                    this.cad.updateStatus('Line created');
+                }
+            }
+            
+            onMouseMove(point) {
+                if (this.startPoint && this.cad.isDrawing) {
+                    this.cad.tempShape = {
+                        type: 'line',
+                        start: this.startPoint,
+                        end: point,
+                        color: this.cad.currentColor,
+                        lineWidth: this.cad.currentLineWidth,
+                        lineType: this.cad.currentLineType
+                    };
+                    this.cad.render();
+                }
+            }
+        }
+        
+        // Circle Tool
+        class CircleTool extends BaseTool {
+            constructor(cad) {
+                super(cad);
+                this.name = 'circle';
+                this.centerPoint = null;
+            }
+            
+            reset() {
+                super.reset();
+                this.centerPoint = null;
+            }
+            
+            onMouseDown(point) {
+                if (!this.centerPoint) {
+                    this.centerPoint = point;
+                    this.cad.isDrawing = true;
+                    this.cad.drawingPoints = [point];
+                    this.cad.updateStatus('Specify radius');
+                } else {
+                    const radius = this.cad.distance(
+                        this.centerPoint.x, this.centerPoint.y,
+                        point.x, point.y
+                    );
+                    
+                    if (radius > 0.1) {
+                        const shape = {
+                            type: 'circle',
+                            center: this.centerPoint,
+                            radius: radius,
+                            color: this.cad.currentColor,
+                            lineWidth: this.cad.currentLineWidth,
+                            lineType: this.cad.currentLineType,
+                            layerId: this.cad.currentLayerId,
+                            id: this.cad.generateId()
+                        };
+                        
+                        this.cad.addShape(shape);
+                    }
+                    
+                    this.reset();
+                    this.cad.updateStatus('Circle created');
+                }
+            }
+            
+            onMouseMove(point) {
+                if (this.centerPoint && this.cad.isDrawing) {
+                    const radius = this.cad.distance(
+                        this.centerPoint.x, this.centerPoint.y,
+                        point.x, point.y
+                    );
+                    
+                    this.cad.tempShape = {
+                        type: 'circle',
+                        center: this.centerPoint,
+                        radius: radius,
+                        color: this.cad.currentColor,
+                        lineWidth: this.cad.currentLineWidth,
+                        lineType: this.cad.currentLineType
+                    };
+                    this.cad.render();
+                }
+            }
+        }
+        
+        // Rectangle Tool
+        class RectangleTool extends BaseTool {
+            constructor(cad) {
+                super(cad);
+                this.name = 'rectangle';
+                this.startPoint = null;
+            }
+            
+            reset() {
+                super.reset();
+                this.startPoint = null;
+            }
+            
+            onMouseDown(point) {
+                if (!this.startPoint) {
+                    this.startPoint = point;
+                    this.cad.isDrawing = true;
+                    this.cad.drawingPoints = [point];
+                    this.cad.updateStatus('Specify opposite corner');
+                } else {
+                    const shape = {
+                        type: 'rectangle',
+                        start: this.startPoint,
+                        end: point,
+                        color: this.cad.currentColor,
+                        lineWidth: this.cad.currentLineWidth,
+                        lineType: this.cad.currentLineType,
+                        layerId: this.cad.currentLayerId,
+                        id: this.cad.generateId()
+                    };
+                    
+                    this.cad.addShape(shape);
+                    this.reset();
+                    this.cad.updateStatus('Rectangle created');
+                }
+            }
+            
+            onMouseMove(point) {
+                if (this.startPoint && this.cad.isDrawing) {
+                    this.cad.tempShape = {
+                        type: 'rectangle',
+                        start: this.startPoint,
+                        end: point,
+                        color: this.cad.currentColor,
+                        lineWidth: this.cad.currentLineWidth,
+                        lineType: this.cad.currentLineType
+                    };
+                    this.cad.render();
+                }
+            }
+        }
+        
+        // Polyline Tool
+        class PolylineTool extends BaseTool {
+            constructor(cad) {
+                super(cad);
+                this.name = 'polyline';
+                this.points = [];
+            }
+            
+            reset() {
+                super.reset();
+                this.points = [];
+            }
+            
+            onMouseDown(point) {
+                this.points.push(point);
+                this.cad.isDrawing = true;
+                this.cad.drawingPoints = [...this.points];
+                
+                if (this.points.length === 1) {
+                    this.cad.updateStatus('Specify next point (Enter to finish, Esc to cancel)');
+                } else {
+                    this.cad.updateStatus(`Point ${this.points.length} added`);
+                }
+            }
+            
+            onMouseMove(point) {
+                if (this.points.length > 0 && this.cad.isDrawing) {
+                    this.cad.tempShape = {
+                        type: 'polyline',
+                        points: [...this.points, point],
+                        color: this.cad.currentColor,
+                        lineWidth: this.cad.currentLineWidth,
+                        lineType: this.cad.currentLineType
+                    };
+                    this.cad.render();
+                }
+            }
+            
+            onKeyDown(e) {
+                if (e.key === 'Enter' && this.points.length > 1) {
+                    this.finishPolyline();
+                } else if (e.key === 'Escape') {
+                    this.reset();
+                    this.cad.render();
+                    this.cad.updateStatus('Polyline cancelled');
+                }
+            }
+            
+            finishPolyline() {
+                if (this.points.length > 1) {
+                    const shape = {
+                        type: 'polyline',
+                        points: [...this.points],
+                        color: this.cad.currentColor,
+                        lineWidth: this.cad.currentLineWidth,
+                        lineType: this.cad.currentLineType,
+                        layerId: this.cad.currentLayerId,
+                        id: this.cad.generateId()
+                    };
+                    
+                    this.cad.addShape(shape);
+                    this.reset();
+                    this.cad.updateStatus('Polyline created');
+                }
+            }
+        }
+        
+        // تسجيل الأدوات المدمجة
+        this.registerTool('line', new LineTool(this.cad));
+        this.registerTool('circle', new CircleTool(this.cad));
+        this.registerTool('rectangle', new RectangleTool(this.cad));
+        this.registerTool('polyline', new PolylineTool(this.cad));
+        
+        console.log('✅ Loaded 4 built-in tools');
     }
     
     /**
      * تسجيل أداة جديدة
      */
-    registerTool(name, toolClass) {
-        this.tools.set(name, new toolClass(this, name));
+    registerTool(name, tool) {
+        if (!tool || typeof tool !== 'object') {
+            console.error(`Invalid tool for ${name}:`, tool);
+            return;
+        }
+        
+        this.tools.set(name, tool);
+        console.log(`📌 Registered tool: ${name}`);
     }
     
     /**
@@ -75,11 +443,19 @@ export class ToolsManager {
             this.activeTool.deactivate();
         }
         
-        // تفعيل الأداة الجديدة
+        // البحث عن الأداة
         const tool = this.tools.get(name);
         if (tool) {
             this.activeTool = tool;
-            tool.activate(options);
+            
+            // تمرير الخيارات إذا كانت الأداة تدعمها
+            if (tool.setOptions && typeof tool.setOptions === 'function') {
+                tool.setOptions(options);
+            }
+            
+            // تفعيل الأداة
+            tool.activate();
+            
             return true;
         }
         
@@ -98,129 +474,182 @@ export class ToolsManager {
     }
     
     /**
-     * معالجة النقر (للتوافق مع الكود القديم)
+     * الحصول على قائمة الأدوات المتاحة
      */
-    handleClick(point) {
-        if (this.activeTool) {
-            this.activeTool.handleClick(point);
-        }
+    getAvailableTools() {
+        return Array.from(this.tools.keys());
     }
     
     /**
-     * معالجة حركة الماوس
+     * الحصول على معلومات الأداة
      */
-    handleMouseMove(point) {
-        if (this.activeTool) {
-            this.activeTool.handleMouseMove(point);
+    getToolInfo(name) {
+        const tool = this.tools.get(name);
+        if (tool) {
+            return {
+                name: tool.name || name,
+                active: tool === this.activeTool,
+                hasOptions: typeof tool.getOptions === 'function',
+                options: tool.getOptions ? tool.getOptions() : null
+            };
         }
+        return null;
     }
     
-    /**
-     * معالجة ضغط المفاتيح
-     */
-    handleKeyPress(key) {
-        if (this.activeTool) {
-            this.activeTool.handleKeyPress(key);
-        }
-    }
+    // ==================== Wrapper Functions للتوافق مع الكود القديم ====================
     
-    /**
-     * إعادة تعيين حالة التعديل
-     */
-    resetModifyState() {
-        this.modifyState.originalShapes = [];
-        this.modifyState.baseDistance = 50;
-        this.modifyState.trimExtendBoundaries = [];
-        this.modifyState.offsetDistance = 10;
-    }
-    
-    // ==================== Wrapper Functions للتوافق ====================
-    
+    // أدوات الرسم
     drawLine(point) {
-        const tool = this.tools.get('line');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'line') {
+            this.activateTool('line');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     drawPolyline(point) {
-        const tool = this.tools.get('polyline');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'polyline') {
+            this.activateTool('polyline');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     finishPolyline() {
-        const tool = this.tools.get('polyline');
-        if (tool && tool.active) tool.finishPolyline();
+        if (this.activeTool && this.activeTool.name === 'polyline') {
+            if (this.activeTool.finishPolyline) {
+                this.activeTool.finishPolyline();
+            } else if (this.activeTool.onKeyDown) {
+                this.activeTool.onKeyDown({ key: 'Enter' });
+            }
+        }
     }
     
     drawRectangle(point) {
-        const tool = this.tools.get('rectangle');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'rectangle') {
+            this.activateTool('rectangle');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     drawCircle(point) {
-        const tool = this.tools.get('circle');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'circle') {
+            this.activateTool('circle');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     drawArc(point) {
-        const tool = this.tools.get('arc');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'arc') {
+            this.activateTool('arc');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     drawEllipse(point) {
-        const tool = this.tools.get('ellipse');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'ellipse') {
+            this.activateTool('ellipse');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     drawText(point) {
-        const tool = this.tools.get('text');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'text') {
+            this.activateTool('text');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     // أدوات التعديل
     moveStart(point) {
-        const tool = this.tools.get('move');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'move') {
+            this.activateTool('move');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     copyStart(point) {
-        const tool = this.tools.get('copy');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'copy') {
+            this.activateTool('copy');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     rotateStart(point) {
-        const tool = this.tools.get('rotate');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'rotate') {
+            this.activateTool('rotate');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     scaleStart(point) {
-        const tool = this.tools.get('scale');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'scale') {
+            this.activateTool('scale');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     mirrorStart(point) {
-        const tool = this.tools.get('mirror');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'mirror') {
+            this.activateTool('mirror');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     handleTrim(point) {
-        const tool = this.tools.get('trim');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'trim') {
+            this.activateTool('trim');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     handleExtend(point) {
-        const tool = this.tools.get('extend');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'extend') {
+            this.activateTool('extend');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     handleOffset(point) {
-        const tool = this.tools.get('offset');
-        if (tool) tool.onClick(point);
+        if (!this.activeTool || this.activeTool.name !== 'offset') {
+            this.activateTool('offset');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
     }
     
     updateOffsetDistance(distance) {
         this.modifyState.offsetDistance = distance;
-        const tool = this.tools.get('offset');
-        if (tool) tool.options.distance = distance;
+        if (this.activeTool && this.activeTool.name === 'offset' && this.activeTool.setOptions) {
+            this.activeTool.setOptions({ distance: distance });
+        }
     }
     
     // دوال للتوافق مع TyrexCAD.js
@@ -258,5 +687,42 @@ export class ToolsManager {
     
     smoothPolyline(iterations) {
         this.activateTool('smooth-polyline', { iterations });
+    }
+    
+    // ==================== معلومات التطوير ====================
+    
+    /**
+     * الحصول على معلومات حالة النظام
+     */
+    getSystemInfo() {
+        return {
+            totalTools: this.tools.size,
+            activeTool: this.activeTool ? this.activeTool.name : 'none',
+            loadingStatus: this.loadingStatus,
+            availableTools: this.getAvailableTools(),
+            modifyState: this.modifyState
+        };
+    }
+    
+    /**
+     * إعادة تعيين حالة النظام
+     */
+    resetSystem() {
+        this.deactivateCurrentTool();
+        this.resetModifyState();
+        this.cad.cancelCurrentOperation();
+        console.log('🔄 Tools system reset');
+    }
+    
+    /**
+     * إعادة تعيين حالة التعديل
+     */
+    resetModifyState() {
+        this.modifyState = {
+            originalShapes: [],
+            baseDistance: 50,
+            trimExtendBoundaries: [],
+            offsetDistance: 10
+        };
     }
 }

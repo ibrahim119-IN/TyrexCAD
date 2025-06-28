@@ -123,25 +123,9 @@ class TyrexCAD {
         this.init();
     }
 
-    async init() {
-        // تحديث استيراد وتهيئة Tools
-        try {
-            // استيراد نظام Tools الجديد
-            const ToolsModule = await import('../tools/index.js');
-            
-            // تهيئة ToolsManager
-            if (ToolsModule.Tools) {
-                ToolsModule.Tools.init(this);
-                this.toolsManager = ToolsModule.Tools;
-            }
-        } catch (error) {
-            console.error('Failed to load Tools system:', error);
-            // Fallback للنظام القديم إذا فشل التحميل
-            if (window.Tools) {
-                window.Tools.init(this);
-                this.toolsManager = window.Tools;
-            }
-        }
+    init() {
+        // لا تحاول استيراد Tools - سيتم تعيينه من app.js
+        // this.toolsManager سيتم تعيينه من الخارج
         
         // Initialize UI
         this.ui.init();
@@ -155,12 +139,12 @@ class TyrexCAD {
         // Initialize units
         this.changeUnits('mm');
         
-        // تهيئة GeometryAdvanced
-        try {
+        // تهيئة GeometryAdvanced (بدون async)
+        if (window.GeometryAdvanced) {
             this.geometryAdvanced = new GeometryAdvanced();
-            await this.geometryAdvanced.init(this);
-        } catch (error) {
-            console.warn('GeometryAdvanced initialization failed:', error);
+            if (this.geometryAdvanced.init) {
+                this.geometryAdvanced.init(this);
+            }
         }
         
         this.updateUI();
@@ -176,7 +160,7 @@ class TyrexCAD {
     }
     
     // Advanced Geometry Loader
-    async loadAdvancedGeometry() {
+    loadAdvancedGeometry() {
         // إذا كان محملاً بالفعل، أرجعه
         if (this.geometryAdvanced) return this.geometryAdvanced;
         
@@ -189,9 +173,9 @@ class TyrexCAD {
             // إنشاء instance جديد
             this.geometryAdvanced = new GeometryAdvanced();
             
-            // تهيئة مع مرجع CAD
+            // تهيئة مع مرجع CAD (بدون await)
             if (typeof this.geometryAdvanced.init === 'function') {
-                await this.geometryAdvanced.init(this);
+                this.geometryAdvanced.init(this);
             } else {
                 // إضافة مرجع CAD يدوياً
                 this.geometryAdvanced.cad = this;
@@ -3177,8 +3161,8 @@ Other:
      * تطبيق Fillet مع الخيارات من الواجهة
      * @param {Object} options - خيارات Fillet
      */
-    async applyFilletWithOptions(options) {
-        const geo = await this.loadAdvancedGeometry();
+    applyFilletWithOptions(options) {
+        const geo = this.loadAdvancedGeometry();
         if (!geo) {
             this.updateStatus('Advanced geometry not available');
             return;
@@ -3190,7 +3174,7 @@ Other:
         if (options.polyline && selected.length === 1 && selected[0].type === 'polyline') {
             try {
                 this.recordState();
-                const result = await geo.filletPolygon(selected[0], options.radius);
+                const result = geo.filletPolygon(selected[0], options.radius);
                 
                 // استبدل الشكل الأصلي بالنتيجة
                 const index = this.shapes.indexOf(selected[0]);
@@ -3216,7 +3200,7 @@ Other:
                 this.recordState();
                 
                 for (let i = 0; i < selected.length - 1; i++) {
-                    const result = await geo.fillet(selected[i], selected[i + 1], options.radius);
+                    const result = geo.fillet(selected[i], selected[i + 1], options.radius);
                     if (result.success) {
                         // أضف الأشكال الجديدة
                         result.shapes.forEach(s => {
@@ -3251,8 +3235,8 @@ Other:
      * تطبيق Chamfer مع الخيارات من الواجهة
      * @param {Object} options - خيارات Chamfer
      */
-    async applyChamferWithOptions(options) {
-        const geo = await this.loadAdvancedGeometry();
+    applyChamferWithOptions(options) {
+        const geo = this.loadAdvancedGeometry();
         if (!geo) {
             this.updateStatus('Advanced geometry not available');
             return;
@@ -3268,7 +3252,7 @@ Other:
                 const distance2 = options.method === 'distance' ? options.distance2 : options.distance1;
                 
                 for (let i = 0; i < selected.length - 1; i++) {
-                    const result = await geo.chamfer(selected[i], selected[i + 1], distance1, distance2);
+                    const result = geo.chamfer(selected[i], selected[i + 1], distance1, distance2);
                     if (result.success) {
                         // أضف الأشكال الجديدة
                         result.shapes.forEach(s => {
@@ -3301,8 +3285,8 @@ Other:
      * تطبيق Rectangular Array مع الخيارات
      * @param {Object} options - خيارات المصفوفة
      */
-    async applyRectangularArrayWithOptions(options) {
-        const geo = await this.loadAdvancedGeometry();
+    applyRectangularArrayWithOptions(options) {
+        const geo = this.loadAdvancedGeometry();
         if (!geo) {
             this.updateStatus('Advanced geometry not available');
             return;
@@ -3342,8 +3326,8 @@ Other:
      * تطبيق Polar Array مع الخيارات
      * @param {Object} options - خيارات المصفوفة القطبية
      */
-    async applyPolarArrayWithOptions(options) {
-        const geo = await this.loadAdvancedGeometry();
+    applyPolarArrayWithOptions(options) {
+        const geo = this.loadAdvancedGeometry();
         if (!geo) {
             this.updateStatus('Advanced geometry not available');
             return;
@@ -3393,8 +3377,8 @@ Other:
      * تطبيق Path Array مع الخيارات
      * @param {Object} options - خيارات مصفوفة المسار
      */
-    async applyPathArrayWithOptions(options) {
-        const geo = await this.loadAdvancedGeometry();
+    applyPathArrayWithOptions(options) {
+        const geo = this.loadAdvancedGeometry();
         if (!geo) {
             this.updateStatus('Advanced geometry not available');
             return;
@@ -3483,8 +3467,8 @@ Other:
      * تحويل الأشكال المحددة إلى polyline
      * @param {number} segments - عدد القطع
      */
-    async convertToPolyline(segments = 32) {
-        const geo = await this.loadAdvancedGeometry();
+    convertToPolyline(segments = 32) {
+        const geo = this.loadAdvancedGeometry();
         if (!geo) {
             this.updateStatus('Advanced geometry not available');
             return;
@@ -3527,8 +3511,8 @@ Other:
      * تبسيط polylines المحددة
      * @param {number} tolerance - درجة التبسيط
      */
-    async simplifyPolyline(tolerance) {
-        const geo = await this.loadAdvancedGeometry();
+    simplifyPolyline(tolerance) {
+        const geo = this.loadAdvancedGeometry();
         if (!geo) {
             this.updateStatus('Advanced geometry not available');
             return;
@@ -3564,8 +3548,8 @@ Other:
      * تنعيم polylines المحددة
      * @param {number} iterations - عدد التكرارات
      */
-    async smoothPolyline(iterations) {
-        const geo = await this.loadAdvancedGeometry();
+    smoothPolyline(iterations) {
+        const geo = this.loadAdvancedGeometry();
         if (!geo) {
             this.updateStatus('Advanced geometry not available');
             return;
