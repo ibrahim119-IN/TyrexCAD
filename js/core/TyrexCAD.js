@@ -11,6 +11,9 @@ class TyrexCAD {
         // Advanced Geometry library (loaded on demand)
         this.geometryAdvanced = null;
         
+        // Tools Manager reference
+        this.toolsManager = null;
+        
         // Canvas setup
         this.canvas = document.getElementById('mainCanvas');
         this.ctx = this.canvas.getContext('2d');
@@ -120,77 +123,89 @@ class TyrexCAD {
         this.init();
     }
 
-
-
     async init() {
-    // ربط نظام الأدوات
-    if (window.Tools) {
-        window.Tools.init(this);
+        // تحديث استيراد وتهيئة Tools
+        try {
+            // استيراد نظام Tools الجديد
+            const ToolsModule = await import('./js/tools/index.js');
+            
+            // تهيئة ToolsManager
+            if (ToolsModule.Tools) {
+                ToolsModule.Tools.init(this);
+                this.toolsManager = ToolsModule.Tools;
+            }
+        } catch (error) {
+            console.error('Failed to load Tools system:', error);
+            // Fallback للنظام القديم إذا فشل التحميل
+            if (window.Tools) {
+                window.Tools.init(this);
+                this.toolsManager = window.Tools;
+            }
+        }
+        
+        // Initialize UI
+        this.ui.init();
+        
+        // تهيئة Canvas والأحداث
+        this.resizeCanvas();
+        this.setupEventListeners();
+        this.initializeLayers();
+        this.init3D();
+        
+        // Initialize units
+        this.changeUnits('mm');
+        
+        // تهيئة GeometryAdvanced
+        try {
+            this.geometryAdvanced = new GeometryAdvanced();
+            await this.geometryAdvanced.init(this);
+        } catch (error) {
+            console.warn('GeometryAdvanced initialization failed:', error);
+        }
+        
+        this.updateUI();
+        this.startRenderLoop();
+        
+        // Hide loading screen
+        setTimeout(() => {
+            this.ui.hideLoadingScreen();
+        }, 1000);
+        
+        this.recordState();
+        this.ready = true;
     }
-    
-    // Initialize UI
-    this.ui.init();
-    
-    // تهيئة Canvas والأحداث
-    this.resizeCanvas();
-    this.setupEventListeners();
-    this.initializeLayers();
-    this.init3D();
-    
-    // Initialize units
-    this.changeUnits('mm');
-    
-    // تهيئة GeometryAdvanced
-    try {
-        this.geometryAdvanced = new GeometryAdvanced();
-        await this.geometryAdvanced.init(this);
-    } catch (error) {
-        console.warn('GeometryAdvanced initialization failed:', error);
-    }
-    
-    this.updateUI();
-    this.startRenderLoop();
-    
-    // Hide loading screen
-    setTimeout(() => {
-        this.ui.hideLoadingScreen();
-    }, 1000);
-    
-    this.recordState();
-    this.ready = true;
-}
     
     // Advanced Geometry Loader
     async loadAdvancedGeometry() {
-    // إذا كان محملاً بالفعل، أرجعه
-    if (this.geometryAdvanced) return this.geometryAdvanced;
-    
-    try {
-        // تحقق من وجود GeometryAdvanced
-        if (!window.GeometryAdvanced) {
-            throw new Error('GeometryAdvanced module not loaded');
+        // إذا كان محملاً بالفعل، أرجعه
+        if (this.geometryAdvanced) return this.geometryAdvanced;
+        
+        try {
+            // تحقق من وجود GeometryAdvanced
+            if (!window.GeometryAdvanced) {
+                throw new Error('GeometryAdvanced module not loaded');
+            }
+            
+            // إنشاء instance جديد
+            this.geometryAdvanced = new GeometryAdvanced();
+            
+            // تهيئة مع مرجع CAD
+            if (typeof this.geometryAdvanced.init === 'function') {
+                await this.geometryAdvanced.init(this);
+            } else {
+                // إضافة مرجع CAD يدوياً
+                this.geometryAdvanced.cad = this;
+            }
+            
+            console.log('Advanced geometry loaded and initialized successfully');
+            return this.geometryAdvanced;
+            
+        } catch (error) {
+            console.error('Failed to load advanced geometry:', error);
+            this.updateStatus('Advanced geometry module not available: ' + error.message);
+            return null;
         }
-        
-        // إنشاء instance جديد
-        this.geometryAdvanced = new GeometryAdvanced();
-        
-        // تهيئة مع مرجع CAD
-        if (typeof this.geometryAdvanced.init === 'function') {
-            await this.geometryAdvanced.init(this);
-        } else {
-            // إضافة مرجع CAD يدوياً
-            this.geometryAdvanced.cad = this;
-        }
-        
-        console.log('Advanced geometry loaded and initialized successfully');
-        return this.geometryAdvanced;
-        
-    } catch (error) {
-        console.error('Failed to load advanced geometry:', error);
-        this.updateStatus('Advanced geometry module not available: ' + error.message);
-        return null;
     }
-}
     
     resizeCanvas() {
         const container = document.getElementById('canvasContainer');
@@ -425,7 +440,7 @@ class TyrexCAD {
             this.startPanning(x, y);
         } else if (e.button === 2) { // Right click
             if (this.isDrawing && this.currentTool === 'polyline') {
-                this.finishPolyline();
+                this.delegateToTool('finishPolyline');
             } else {
                 this.showContextMenu(e.clientX, e.clientY);
             }
@@ -453,8 +468,10 @@ class TyrexCAD {
             this.updatePanning();
         } else if (this.isSelecting) {
             this.updateSelection();
-        } else if (this.isDrawing) {
-            this.updateDrawingPreview();
+        } else if (this.toolsManager) {
+            // دع ToolsManager يتعامل مع حركة الماوس
+            const snapPoint = this.getSnapPoint(world.x, world.y);
+            this.toolsManager.handleMouseMove(snapPoint);
         }
         
         // Update snap indicator
@@ -563,17 +580,20 @@ class TyrexCAD {
         
         if (e.target.tagName === 'INPUT') return;
         
+        // معالجة المفاتيح الخاصة بالنظام
         switch (e.key) {
             case 'Delete':
                 this.deleteSelected();
                 break;
             case 'Enter':
-                if (this.isDrawing && this.currentTool === 'polyline') {
-                    this.finishPolyline();
+                // دع ToolsManager يتعامل مع Enter
+                if (this.toolsManager) {
+                    this.toolsManager.handleKeyPress('Enter');
                 }
                 break;
         }
         
+        // Ctrl shortcuts
         if (e.ctrlKey) {
             switch (e.key.toLowerCase()) {
                 case 'z':
@@ -598,6 +618,11 @@ class TyrexCAD {
                     break;
             }
         }
+        
+        // مرر المفاتيح الأخرى للأداة النشطة
+        if (this.toolsManager && !e.ctrlKey && !e.altKey) {
+            this.toolsManager.handleKeyPress(e.key);
+        }
     }
     
     onKeyUp(e) {
@@ -606,21 +631,35 @@ class TyrexCAD {
     
     // Tool handling
     setTool(tool) {
-        this.currentTool = tool;
+        // إلغاء العملية الحالية
         this.cancelCurrentOperation();
+        
+        // استخدم ToolsManager
+        if (this.toolsManager) {
+            this.toolsManager.activateTool(tool);
+            this.currentTool = tool;
+        } else {
+            console.error('Tools system not initialized');
+        }
         
         // Update UI
         this.ui.updateActiveTool(tool);
         
         // Update cursor
-        this.canvas.style.cursor = tool === 'pan' ? 'grab' : 'none';
+        this.updateCursorForTool(tool);
         
         // Update status
         this.updateStatus(`${tool.toUpperCase()} tool activated`);
         
-        // Show input dialog for shapes with dimensions
-        if (['line', 'rectangle', 'circle'].includes(tool)) {
-            this.showInputDialog(tool);
+        // لا نحتاج لإظهار input dialog هنا - الأداة ستتعامل معه
+    }
+    
+    updateCursorForTool(tool) {
+        // احصل على معلومات الأداة من ToolsManager
+        if (this.toolsManager && this.toolsManager.activeTool) {
+            this.canvas.style.cursor = this.toolsManager.activeTool.cursor || 'none';
+        } else {
+            this.canvas.style.cursor = tool === 'pan' ? 'grab' : 'none';
         }
     }
     
@@ -628,7 +667,7 @@ class TyrexCAD {
         const world = this.screenToWorld(x, y);
         const snapPoint = this.getSnapPoint(world.x, world.y);
         
-        // معالجة picking point mode
+        // معالجة الحالات الخاصة (picking points, etc.) - تبقى كما هي
         if (this.pickingPointMode) {
             switch (this.pickingPointMode) {
                 case 'polar-center':
@@ -646,7 +685,6 @@ class TyrexCAD {
             return;
         }
         
-        // معالجة selecting path mode
         if (this.selectingPathMode) {
             const shape = this.getShapeAt(world.x, world.y);
             if (shape && (shape.type === 'polyline' || shape.type === 'line' || 
@@ -666,7 +704,6 @@ class TyrexCAD {
             return;
         }
         
-        // معالجة distance analysis
         if (this.distanceAnalysisCallback) {
             const shape = this.getShapeAt(world.x, world.y);
             if (shape) {
@@ -700,994 +737,21 @@ class TyrexCAD {
             return;
         }
         
-        switch (this.currentTool) {
-            case 'line':
-                this.drawLine(snapPoint);
-                break;
-            case 'polyline':
-                this.drawPolyline(snapPoint);
-                break;
-            case 'rectangle':
-                this.drawRectangle(snapPoint);
-                break;
-            case 'circle':
-                this.drawCircle(snapPoint);
-                break;
-            case 'arc':
-                this.drawArc(snapPoint);
-                break;
-            case 'ellipse':
-                this.drawEllipse(snapPoint);
-                break;
-            case 'text':
-                this.drawText(snapPoint);
-                break;
-            case 'move':
-            case 'copy':
-            case 'rotate':
-            case 'scale':
-            case 'mirror':
-                this.handleModifyTool(snapPoint);
-                break;
-            case 'trim':
-                this.handleTrim(snapPoint);
-                break;
-            case 'extend':
-                this.handleExtend(snapPoint);
-                break;
-            case 'offset':
-                this.handleOffset(snapPoint);
-                break;
-            case 'dimension':
-            case 'dimension-angular':
-            case 'dimension-radius':
-            case 'dimension-diameter':
-                this.handleDimension(snapPoint);
-                break;
-            // Advanced geometry tools
-            case 'polygon':
-                this.drawPolygon(snapPoint);
-                break;
-            case 'fillet':
-                this.handleFillet(snapPoint);
-                break;
-            case 'chamfer':
-                this.handleChamfer(snapPoint);
-                break;
-            case 'rectangular-array':
-            case 'polar-array':
-            case 'path-array':
-                this.handleArray(snapPoint);
-                break;
+        // استخدم ToolsManager للتعامل مع النقر
+        if (this.toolsManager) {
+            this.toolsManager.handleClick(snapPoint);
         }
     }
     
-    // Drawing functions - Wrapper functions to Tools
-    drawLine(point) {
-        if (window.Tools) {
-            return window.Tools.drawLine(point);
-        }
-    }
-    
-    drawPolyline(point) {
-        if (window.Tools) {
-            return window.Tools.drawPolyline(point);
-        }
-    }
-    
-    finishPolyline() {
-        if (window.Tools) {
-            return window.Tools.finishPolyline();
-        }
-    }
-    
-    drawRectangle(point) {
-        if (window.Tools) {
-            return window.Tools.drawRectangle(point);
-        }
-    }
-    
-    drawCircle(point) {
-        if (window.Tools) {
-            return window.Tools.drawCircle(point);
-        }
-    }
-    
-    drawArc(point) {
-        if (window.Tools) {
-            return window.Tools.drawArc(point);
-        }
-    }
-    
-    drawEllipse(point) {
-        if (window.Tools) {
-            return window.Tools.drawEllipse(point);
-        }
-    }
-    
-    drawText(point) {
-        if (window.Tools) {
-            return window.Tools.drawText(point);
-        }
-    }
-    
-    // Advanced Geometry Tools
-    async drawPolygon(point) {
-    try {
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        if (!this.isDrawing) {
-            this.isDrawing = true;
-            this.drawingPoints = [point];
-            const sides = prompt('Number of sides:', '6');
-            
-            // تحسين التحقق من المدخلات
-            const sidesNum = parseInt(sides);
-            if (!sides || isNaN(sidesNum) || sidesNum < 3) {
-                this.cancelCurrentOperation();
-                this.updateStatus('Invalid number of sides. Must be 3 or more.');
-                return;
-            }
-            
-            this.polygonSides = sidesNum;
-            this.updateStatus('Specify radius or second point');
-        } else {
-            const center = this.drawingPoints[0];
-            const radius = this.distance(center.x, center.y, point.x, point.y);
-            
-            // التحقق من الصلاحية
-            if (radius <= 0) {
-                this.updateStatus('Invalid radius');
-                return;
-            }
-            
-            const polygon = geo.createPolygon(center, radius, this.polygonSides);
-            polygon.color = this.currentColor;
-            polygon.lineWidth = this.currentLineWidth;
-            polygon.lineType = this.currentLineType;
-            polygon.layerId = this.currentLayerId;
-            polygon.id = this.generateId();
-            
-            this.addShape(polygon);
-            this.finishDrawing();
-        }
-    } catch (error) {
-        console.error('Error in drawPolygon:', error);
-        this.updateStatus('Failed to create polygon: ' + error.message);
-        this.cancelCurrentOperation();
-    }
-}
-    
-    async handleFillet(point) {
-    try {
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        const world = this.screenToWorld(this.mouseX, this.mouseY);
-        const shape = this.getShapeAt(world.x, world.y);
-        
-        if (!this.filletShape1) {
-            if (shape) {
-                // التحقق من نوع الشكل
-                if (!['line', 'polyline'].includes(shape.type)) {
-                    this.updateStatus('Fillet works only with lines and polylines');
-                    return;
-                }
-                this.filletShape1 = shape;
-                this.updateStatus('Select second shape');
-            } else {
-                this.updateStatus('Select first shape for fillet');
-            }
-        } else {
-            if (shape && shape !== this.filletShape1) {
-                // التحقق من نوع الشكل الثاني
-                if (!['line', 'polyline'].includes(shape.type)) {
-                    this.updateStatus('Fillet works only with lines and polylines');
-                    this.filletShape1 = null;
-                    return;
-                }
-                
-                const radiusStr = prompt('Fillet radius:', '10');
-                if (radiusStr) {
-                    const radius = this.parseUserInput(radiusStr);
-                    if (radius && radius > 0) {
-                        try {
-                            const result = await geo.fillet(this.filletShape1, shape, radius);
-                            if (result.success) {
-                                this.recordState();
-                                // Add new shapes
-                                result.shapes.forEach(s => {
-                                    s.color = this.currentColor;
-                                    s.lineWidth = this.currentLineWidth;
-                                    s.lineType = this.currentLineType;
-                                    s.layerId = this.currentLayerId;
-                                    s.id = this.generateId();
-                                    this.shapes.push(s);
-                                });
-                                // Remove original shapes
-                                this.deleteShape(this.filletShape1);
-                                this.deleteShape(shape);
-                                this.render();
-                                this.updateStatus('Fillet created');
-                            } else {
-                                this.updateStatus('Fillet failed: ' + (result.message || 'Unknown error'));
-                            }
-                        } catch (error) {
-                            this.updateStatus('Fillet failed: ' + error.message);
-                        }
-                    } else {
-                        this.updateStatus('Invalid radius value');
-                    }
-                }
-                this.filletShape1 = null;
-            } else {
-                this.updateStatus('Select a different shape');
+    // استبدال Wrapper Functions بدالة واحدة موحدة
+    delegateToTool(methodName, ...args) {
+        if (this.toolsManager && this.toolsManager.activeTool) {
+            const tool = this.toolsManager.activeTool;
+            if (typeof tool[methodName] === 'function') {
+                return tool[methodName](...args);
             }
         }
-    } catch (error) {
-        console.error('Error in handleFillet:', error);
-        this.updateStatus('Fillet operation failed');
-        this.filletShape1 = null;
-    }
-}
-    
-    async handleChamfer(point) {
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        const world = this.screenToWorld(this.mouseX, this.mouseY);
-        const shape = this.getShapeAt(world.x, world.y);
-        
-        if (!this.chamferShape1) {
-            if (shape) {
-                this.chamferShape1 = shape;
-                this.updateStatus('Select second shape');
-            }
-        } else {
-            if (shape && shape !== this.chamferShape1) {
-                const distance1Str = prompt('First distance:', '10');
-                const distance2Str = prompt('Second distance (or Enter for equal):', distance1Str);
-                
-                if (distance1Str) {
-                    const distance1 = this.parseUserInput(distance1Str);
-                    const distance2 = distance2Str ? this.parseUserInput(distance2Str) : distance1;
-                    
-                    if (distance1 && distance2) {
-                        try {
-                            const result = geo.chamfer(this.chamferShape1, shape, distance1, distance2);
-                            if (result.success) {
-                                this.recordState();
-                                // Add new shapes
-                                result.shapes.forEach(s => {
-                                    s.color = this.currentColor;
-                                    s.lineWidth = this.currentLineWidth;
-                                    s.lineType = this.currentLineType;
-                                    s.layerId = this.currentLayerId;
-                                    s.id = this.generateId();
-                                    this.shapes.push(s);
-                                });
-                                // Remove original shapes
-                                this.deleteShape(this.chamferShape1);
-                                this.deleteShape(shape);
-                                this.render();
-                                this.updateStatus('Chamfer created');
-                            }
-                        } catch (error) {
-                            this.updateStatus('Chamfer failed: ' + error.message);
-                        }
-                    }
-                }
-                this.chamferShape1 = null;
-            }
-        }
-    }
-    
-    async handleArray(point) {
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        if (this.selectedShapes.size === 0) {
-            this.updateStatus('Select objects first');
-            return;
-        }
-        
-        const selected = Array.from(this.selectedShapes);
-        
-        switch (this.currentTool) {
-            case 'rectangular-array':
-                const rows = prompt('Number of rows:', '3');
-                const cols = prompt('Number of columns:', '3');
-                const rowSpacing = prompt('Row spacing:', '50');
-                const colSpacing = prompt('Column spacing:', '50');
-                
-                if (rows && cols && rowSpacing && colSpacing) {
-                    const options = {
-                        rows: parseInt(rows),
-                        columns: parseInt(cols),
-                        rowSpacing: this.parseUserInput(rowSpacing),
-                        columnSpacing: this.parseUserInput(colSpacing)
-                    };
-                    
-                    try {
-                        const result = geo.rectangularArray(selected, options);
-                        this.recordState();
-                        result.forEach(shape => {
-                            shape.id = this.generateId();
-                            this.shapes.push(shape);
-                        });
-                        this.render();
-                        this.updateStatus(`Created ${result.length} copies`);
-                    } catch (error) {
-                        this.updateStatus('Array failed: ' + error.message);
-                    }
-                }
-                break;
-                
-            case 'polar-array':
-                if (!this.isDrawing) {
-                    this.isDrawing = true;
-                    this.drawingPoints = [point];
-                    this.updateStatus('Specify center point for array');
-                } else {
-                    const center = this.drawingPoints[0];
-                    const count = prompt('Number of items:', '6');
-                    const angle = prompt('Fill angle (360 for full circle):', '360');
-                    const rotate = confirm('Rotate items?');
-                    
-                    if (count && angle) {
-                        const options = {
-                            center: center,
-                            count: parseInt(count),
-                            angle: parseFloat(angle),
-                            rotateItems: rotate
-                        };
-                        
-                        try {
-                            const result = geo.polarArray(selected, options);
-                            this.recordState();
-                            result.forEach(shape => {
-                                shape.id = this.generateId();
-                                this.shapes.push(shape);
-                            });
-                            this.render();
-                            this.updateStatus(`Created ${result.length} copies`);
-                        } catch (error) {
-                            this.updateStatus('Array failed: ' + error.message);
-                        }
-                    }
-                    this.finishDrawing();
-                }
-                break;
-                
-            case 'path-array':
-                const world = this.screenToWorld(this.mouseX, this.mouseY);
-                const pathShape = this.getShapeAt(world.x, world.y);
-                
-                if (pathShape && (pathShape.type === 'line' || pathShape.type === 'polyline' || 
-                    pathShape.type === 'arc' || pathShape.type === 'circle')) {
-                    const count = prompt('Number of items:', '10');
-                    const align = confirm('Align items to path?');
-                    
-                    if (count) {
-                        const options = {
-                            count: parseInt(count),
-                            alignToPath: align
-                        };
-                        
-                        try {
-                            const result = geo.pathArray(selected, pathShape, options);
-                            this.recordState();
-                            result.forEach(shape => {
-                                shape.id = this.generateId();
-                                this.shapes.push(shape);
-                            });
-                            this.render();
-                            this.updateStatus(`Created ${result.length} copies`);
-                        } catch (error) {
-                            this.updateStatus('Array failed: ' + error.message);
-                        }
-                    }
-                } else {
-                    this.updateStatus('Select a path (line, polyline, arc, or circle)');
-                }
-                break;
-        }
-    }
-    
-    // Boolean Operations
-    async performUnion() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length < 2) {
-            this.updateStatus('Select at least 2 shapes for union');
-            return;
-        }
-        
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            const result = await geo.union(selected);
-            this.recordState();
-            
-            // Add result shapes
-            result.forEach(shape => {
-                shape.color = this.currentColor;
-                shape.lineWidth = this.currentLineWidth;
-                shape.lineType = this.currentLineType;
-                shape.layerId = this.currentLayerId;
-                shape.id = this.generateId();
-                this.shapes.push(shape);
-            });
-            
-            // Remove original shapes
-            selected.forEach(shape => this.deleteShape(shape));
-            
-            this.selectedShapes.clear();
-            this.render();
-            this.updateStatus('Union completed');
-        } catch (error) {
-            this.updateStatus('Union failed: ' + error.message);
-        }
-    }
-    
-    // في TyrexCAD.js - السطر 957
-// الدالة الحالية تمرر selected[1] كمصفوفة، لكن difference تتوقع مصفوفة
-
-async performDifference() {
-    const selected = Array.from(this.selectedShapes);
-    if (selected.length !== 2) {
-        this.updateStatus('Select exactly 2 shapes for difference');
-        return;
-    }
-    
-    const geo = await this.loadAdvancedGeometry();
-    if (!geo) {
-        this.updateStatus('Advanced geometry not available');
-        return;
-    }
-    
-    try {
-        // الطريقة الصحيحة: تمرير الشكل الثاني كمصفوفة
-        const result = await geo.difference(selected[0], [selected[1]]);
-        this.recordState();
-        
-        // Add result shapes
-        result.forEach(shape => {
-            shape.color = this.currentColor;
-            shape.lineWidth = this.currentLineWidth;
-            shape.lineType = this.currentLineType;
-            shape.layerId = this.currentLayerId;
-            shape.id = this.generateId();
-            this.shapes.push(shape);
-        });
-        
-        // Remove original shapes
-        selected.forEach(shape => this.deleteShape(shape));
-        
-        this.selectedShapes.clear();
-        this.render();
-        this.updateStatus('Difference completed');
-    } catch (error) {
-        this.updateStatus('Difference failed: ' + error.message);
-    }
-}
-    
-    async performIntersection() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length < 2) {
-            this.updateStatus('Select at least 2 shapes for intersection');
-            return;
-        }
-        
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            const result = await geo.intersection(selected);
-            this.recordState();
-            
-            // Add result shapes
-            result.forEach(shape => {
-                shape.color = this.currentColor;
-                shape.lineWidth = this.currentLineWidth;
-                shape.lineType = this.currentLineType;
-                shape.layerId = this.currentLayerId;
-                shape.id = this.generateId();
-                this.shapes.push(shape);
-            });
-            
-            // Remove original shapes
-            selected.forEach(shape => this.deleteShape(shape));
-            
-            this.selectedShapes.clear();
-            this.render();
-            this.updateStatus('Intersection completed');
-        } catch (error) {
-            this.updateStatus('Intersection failed: ' + error.message);
-        }
-    }
-    
-    // Analysis Operations
-    async analyzeDistance() {
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 2) {
-            this.updateStatus('Select exactly 2 shapes to measure distance');
-            return;
-        }
-        
-        try {
-            const result = geo.calculateDistance(selected[0], selected[1]);
-            const formatted = this.formatValue(result.distance);
-            
-            alert(`Distance Analysis:\n\nMinimum Distance: ${formatted}\n` +
-                  `Point 1: (${result.point1.x.toFixed(2)}, ${result.point1.y.toFixed(2)})\n` +
-                  `Point 2: (${result.point2.x.toFixed(2)}, ${result.point2.y.toFixed(2)})`);
-                  
-            // Draw temporary dimension line
-            const dim = {
-                type: 'dimension-linear',
-                start: result.point1,
-                end: result.point2,
-                offset: 20,
-                text: formatted,
-                color: '#ff0099',
-                layerId: this.currentLayerId,
-                id: this.generateId()
-            };
-            
-            this.addShape(dim);
-        } catch (error) {
-            this.updateStatus('Distance analysis failed: ' + error.message);
-        }
-    }
-    
-    async analyzeArea() {
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length === 0) {
-            this.updateStatus('Select shapes to calculate area');
-            return;
-        }
-        
-        try {
-            let totalArea = 0;
-            let details = [];
-            
-            for (const shape of selected) {
-                const area = geo.calculateArea(shape);
-                totalArea += area;
-                details.push(`${shape.type}: ${this.formatValue(area)} sq${this.currentUnit}`);
-            }
-            
-            alert(`Area Analysis:\n\n` +
-                  details.join('\n') + '\n\n' +
-                  `Total Area: ${this.formatValue(totalArea)} sq${this.currentUnit}`);
-                  
-        } catch (error) {
-            this.updateStatus('Area analysis failed: ' + error.message);
-        }
-    }
-    
-    async analyzeProperties() {
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 1) {
-            this.updateStatus('Select exactly 1 shape to analyze properties');
-            return;
-        }
-        
-        try {
-            const props = geo.getShapeProperties(selected[0]);
-            
-            let message = `Shape Properties:\n\n`;
-            message += `Type: ${selected[0].type}\n`;
-            message += `Perimeter: ${this.formatValue(props.perimeter)}\n`;
-            message += `Area: ${this.formatValue(props.area)} sq${this.currentUnit}\n`;
-            message += `Centroid: (${props.centroid.x.toFixed(2)}, ${props.centroid.y.toFixed(2)})\n`;
-            
-            if (props.boundingBox) {
-                message += `\nBounding Box:\n`;
-                message += `Width: ${this.formatValue(props.boundingBox.width)}\n`;
-                message += `Height: ${this.formatValue(props.boundingBox.height)}\n`;
-            }
-            
-            alert(message);
-            
-        } catch (error) {
-            this.updateStatus('Property analysis failed: ' + error.message);
-        }
-    }
-    
-    // Curve Operations
-    async convertToPolyline() {
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length === 0) {
-            this.updateStatus('Select shapes to convert to polyline');
-            return;
-        }
-        
-        const segments = prompt('Number of segments:', '32');
-        if (!segments) return;
-        
-        try {
-            this.recordState();
-            
-            for (const shape of selected) {
-                if (shape.type === 'circle' || shape.type === 'arc' || shape.type === 'ellipse') {
-                    const polyline = geo.curveToPolyline(shape, { segments: parseInt(segments) });
-                    polyline.color = shape.color;
-                    polyline.lineWidth = shape.lineWidth;
-                    polyline.lineType = shape.lineType;
-                    polyline.layerId = shape.layerId;
-                    polyline.id = this.generateId();
-                    
-                    this.shapes.push(polyline);
-                    this.deleteShape(shape);
-                }
-            }
-            
-            this.selectedShapes.clear();
-            this.render();
-            this.updateStatus('Conversion completed');
-            
-        } catch (error) {
-            this.updateStatus('Conversion failed: ' + error.message);
-        }
-    }
-    
-    async simplifyPolyline() {
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        const selected = Array.from(this.selectedShapes);
-        const polylines = selected.filter(s => s.type === 'polyline');
-        
-        if (polylines.length === 0) {
-            this.updateStatus('Select polylines to simplify');
-            return;
-        }
-        
-        const tolerance = prompt('Simplification tolerance:', '1');
-        if (!tolerance) return;
-        
-        try {
-            this.recordState();
-            
-            for (const polyline of polylines) {
-                const simplified = geo.simplifyPolyline(polyline, {
-                    tolerance: this.parseUserInput(tolerance)
-                });
-                
-                polyline.points = simplified.points;
-            }
-            
-            this.render();
-            this.updateStatus('Simplification completed');
-            
-        } catch (error) {
-            this.updateStatus('Simplification failed: ' + error.message);
-        }
-    }
-    
-    async smoothPolyline() {
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        const selected = Array.from(this.selectedShapes);
-        const polylines = selected.filter(s => s.type === 'polyline');
-        
-        if (polylines.length === 0) {
-            this.updateStatus('Select polylines to smooth');
-            return;
-        }
-        
-        try {
-            this.recordState();
-            
-            for (const polyline of polylines) {
-                const smoothed = geo.smoothPolyline(polyline, {
-                    iterations: 2,
-                    factor: 0.5
-                });
-                
-                polyline.points = smoothed.points;
-            }
-            
-            this.render();
-            this.updateStatus('Smoothing completed');
-            
-        } catch (error) {
-            this.updateStatus('Smoothing failed: ' + error.message);
-        }
-    }
-    
-    // Utility function to delete a shape
-    deleteShape(shape) {
-        const index = this.shapes.indexOf(shape);
-        if (index !== -1) {
-            this.shapes.splice(index, 1);
-        }
-        this.selectedShapes.delete(shape);
-    }
-    
-    // Modify tools - Wrapper functions to Tools
-    handleModifyTool(point) {
-        if (this.selectedShapes.size === 0) {
-            this.updateStatus('Select objects first');
-            return;
-        }
-        
-        switch (this.currentTool) {
-            case 'move':
-                this.moveStart(point);
-                break;
-            case 'copy':
-                this.copyStart(point);
-                break;
-            case 'rotate':
-                this.rotateStart(point);
-                break;
-            case 'scale':
-                this.scaleStart(point);
-                break;
-            case 'mirror':
-                this.mirrorStart(point);
-                break;
-        }
-    }
-    
-    // Wrapper functions for modify tools
-    moveStart(point) {
-        if (window.Tools) {
-            return window.Tools.moveStart(point);
-        }
-    }
-    
-    copyStart(point) {
-        if (window.Tools) {
-            return window.Tools.copyStart(point);
-        }
-    }
-    
-    rotateStart(point) {
-        if (window.Tools) {
-            return window.Tools.rotateStart(point);
-        }
-    }
-    
-    scaleStart(point) {
-        if (window.Tools) {
-            return window.Tools.scaleStart(point);
-        }
-    }
-    
-    mirrorStart(point) {
-        if (window.Tools) {
-            return window.Tools.mirrorStart(point);
-        }
-    }
-    
-    handleTrim(point) {
-        if (window.Tools) {
-            return window.Tools.handleTrim(point);
-        }
-    }
-    
-    handleExtend(point) {
-        if (window.Tools) {
-            return window.Tools.handleExtend(point);
-        }
-    }
-    
-    handleOffset(point) {
-        if (window.Tools) {
-            return window.Tools.handleOffset(point);
-        }
-    }
-    
-    // Dimension handling
-    handleDimension(point) {
-        const dimType = this.currentTool;
-        
-        switch (dimType) {
-            case 'dimension': // Linear dimension
-                this.drawLinearDimension(point);
-                break;
-            case 'dimension-angular':
-                this.drawAngularDimension(point);
-                break;
-            case 'dimension-radius':
-                this.drawRadiusDimension(point);
-                break;
-            case 'dimension-diameter':
-                this.drawDiameterDimension(point);
-                break;
-        }
-    }
-    
-    drawLinearDimension(point) {
-        if (!this.isDrawing) {
-            this.isDrawing = true;
-            this.drawingPoints = [point];
-            this.updateStatus('Specify second point');
-        } else if (this.drawingPoints.length === 1) {
-            this.drawingPoints.push(point);
-            this.updateStatus('Specify dimension line position');
-        } else {
-            const p1 = this.drawingPoints[0];
-            const p2 = this.drawingPoints[1];
-            const distance = this.distance(p1.x, p1.y, p2.x, p2.y);
-            
-            // Calculate dimension line position
-            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-            const perpAngle = angle + Math.PI / 2;
-            
-            // Determine offset from points to dimension line
-            const offsetDist = this.distance(
-                (p1.x + p2.x) / 2,
-                (p1.y + p2.y) / 2,
-                point.x,
-                point.y
-            );
-            
-            const offsetX = Math.cos(perpAngle) * offsetDist;
-            const offsetY = Math.sin(perpAngle) * offsetDist;
-            
-            // Check which side of the line the point is on
-            const cross = (point.x - p1.x) * (p2.y - p1.y) - (point.y - p1.y) * (p2.x - p1.x);
-            const side = cross > 0 ? 1 : -1;
-            
-            const dimension = {
-                type: 'dimension-linear',
-                start: p1,
-                end: p2,
-                offset: offsetDist * side,
-                text: this.formatValue(distance),
-                color: this.currentColor,
-                layerId: this.currentLayerId,
-                id: this.generateId()
-            };
-            
-            this.addShape(dimension);
-            this.finishDrawing();
-        }
-    }
-    
-    drawAngularDimension(point) {
-        if (!this.isDrawing) {
-            this.isDrawing = true;
-            this.drawingPoints = [point];
-            this.updateStatus('Specify second line start point');
-        } else if (this.drawingPoints.length === 1) {
-            this.drawingPoints.push(point);
-            this.updateStatus('Specify second line end point');
-        } else if (this.drawingPoints.length === 2) {
-            this.drawingPoints.push(point);
-            this.updateStatus('Specify dimension arc position');
-        } else {
-            // Calculate angle between two lines
-            const center = this.drawingPoints[0];
-            const p1 = this.drawingPoints[1];
-            const p2 = this.drawingPoints[2];
-            
-            const angle1 = Math.atan2(p1.y - center.y, p1.x - center.x);
-            const angle2 = Math.atan2(p2.y - center.y, p2.x - center.x);
-            
-            let angleDiff = angle2 - angle1;
-            if (angleDiff < 0) angleDiff += 2 * Math.PI;
-            
-            const angleDegrees = angleDiff * 180 / Math.PI;
-            
-            const dimension = {
-                type: 'dimension-angular',
-                center: center,
-                startAngle: angle1,
-                endAngle: angle2,
-                radius: this.distance(center.x, center.y, point.x, point.y),
-                text: angleDegrees.toFixed(1) + '°',
-                color: this.currentColor,
-                layerId: this.currentLayerId,
-                id: this.generateId()
-            };
-            
-            this.addShape(dimension);
-            this.finishDrawing();
-        }
-    }
-    
-    drawRadiusDimension(point) {
-        const world = this.screenToWorld(this.mouseX, this.mouseY);
-        const shape = this.getShapeAt(world.x, world.y);
-        
-        if (shape && (shape.type === 'circle' || shape.type === 'arc')) {
-            const dimension = {
-                type: 'dimension-radius',
-                center: shape.center,
-                endPoint: point,
-                radius: shape.radius,
-                text: 'R' + this.formatValue(shape.radius),
-                color: this.currentColor,
-                layerId: this.currentLayerId,
-                id: this.generateId()
-            };
-            
-            this.addShape(dimension);
-            this.updateStatus('Radius dimension added');
-        } else {
-            this.updateStatus('Select a circle or arc');
-        }
-    }
-    
-    drawDiameterDimension(point) {
-        const world = this.screenToWorld(this.mouseX, this.mouseY);
-        const shape = this.getShapeAt(world.x, world.y);
-        
-        if (shape && shape.type === 'circle') {
-            const angle = Math.atan2(point.y - shape.center.y, point.x - shape.center.x);
-            
-            const dimension = {
-                type: 'dimension-diameter',
-                center: shape.center,
-                angle: angle,
-                radius: shape.radius,
-                text: 'Ø' + this.formatValue(shape.radius * 2),
-                color: this.currentColor,
-                layerId: this.currentLayerId,
-                id: this.generateId()
-            };
-            
-            this.addShape(dimension);
-            this.updateStatus('Diameter dimension added');
-        } else {
-            this.updateStatus('Select a circle');
-        }
+        console.warn(`Method ${methodName} not found in active tool`);
     }
     
     // Shape transformations
@@ -2464,199 +1528,6 @@ async performDifference() {
         this.panStartY = this.mouseY;
     }
     
-    // Drawing preview
-    updateDrawingPreview() {
-        if (!this.isDrawing || this.drawingPoints.length === 0) return;
-        
-        const world = this.screenToWorld(this.mouseX, this.mouseY);
-        const snapPoint = this.getSnapPoint(world.x, world.y);
-        
-        switch (this.currentTool) {
-            case 'line':
-                this.tempShape = {
-                    type: 'line',
-                    start: this.drawingPoints[0],
-                    end: snapPoint,
-                    color: this.currentColor,
-                    lineWidth: this.currentLineWidth,
-                    lineType: this.currentLineType
-                };
-                break;
-                
-            case 'rectangle':
-                this.tempShape = {
-                    type: 'rectangle',
-                    start: this.drawingPoints[0],
-                    end: snapPoint,
-                    color: this.currentColor,
-                    lineWidth: this.currentLineWidth,
-                    lineType: this.currentLineType
-                };
-                break;
-                
-            case 'circle':
-                const radius = this.distance(
-                    this.drawingPoints[0].x,
-                    this.drawingPoints[0].y,
-                    snapPoint.x,
-                    snapPoint.y
-                );
-                this.tempShape = {
-                    type: 'circle',
-                    center: this.drawingPoints[0],
-                    radius: radius,
-                    color: this.currentColor,
-                    lineWidth: this.currentLineWidth,
-                    lineType: this.currentLineType
-                };
-                break;
-                
-            case 'polyline':
-                this.tempShape = {
-                    type: 'polyline',
-                    points: [...this.drawingPoints, snapPoint],
-                    color: this.currentColor,
-                    lineWidth: this.currentLineWidth,
-                    lineType: this.currentLineType
-                };
-                break;
-                
-            case 'arc':
-                if (this.drawingPoints.length === 2) {
-                    const arc = this.geo.calculateArcFrom3Points(
-                        this.drawingPoints[0],
-                        this.drawingPoints[1],
-                        snapPoint
-                    );
-                    if (arc) {
-                        this.tempShape = {
-                            type: 'arc',
-                            center: arc.center,
-                            radius: arc.radius,
-                            startAngle: arc.startAngle,
-                            endAngle: arc.endAngle,
-                            color: this.currentColor,
-                            lineWidth: this.currentLineWidth,
-                            lineType: this.currentLineType
-                        };
-                    }
-                }
-                break;
-                
-            case 'ellipse':
-                if (this.drawingPoints.length === 1) {
-                    this.tempShape = {
-                        type: 'ellipse',
-                        center: this.drawingPoints[0],
-                        radiusX: Math.abs(snapPoint.x - this.drawingPoints[0].x),
-                        radiusY: Math.abs(snapPoint.y - this.drawingPoints[0].y),
-                        color: this.currentColor,
-                        lineWidth: this.currentLineWidth,
-                        lineType: this.currentLineType
-                    };
-                }
-                break;
-                
-            case 'polygon':
-                if (this.drawingPoints.length === 1 && this.polygonSides) {
-                    const center = this.drawingPoints[0];
-                    const radius = this.distance(center.x, center.y, snapPoint.x, snapPoint.y);
-                    const points = [];
-                    const angleStep = (2 * Math.PI) / this.polygonSides;
-                    
-                    for (let i = 0; i < this.polygonSides; i++) {
-                        const angle = i * angleStep;
-                        points.push({
-                            x: center.x + radius * Math.cos(angle),
-                            y: center.y + radius * Math.sin(angle)
-                        });
-                    }
-                    points.push(points[0]); // Close the polygon
-                    
-                    this.tempShape = {
-                        type: 'polyline',
-                        points: points,
-                        color: this.currentColor,
-                        lineWidth: this.currentLineWidth,
-                        lineType: this.currentLineType
-                    };
-                }
-                break;
-                
-            case 'move':
-            case 'copy':
-                if (window.Tools && window.Tools.modifyState.originalShapes.length > 0) {
-                    const dx = snapPoint.x - this.drawingPoints[0].x;
-                    const dy = snapPoint.y - this.drawingPoints[0].y;
-                    this.tempShapes = window.Tools.modifyState.originalShapes.map(shape => {
-                        const temp = this.cloneShape(shape);
-                        this.translateShape(temp, dx, dy);
-                        return temp;
-                    });
-                }
-                break;
-                
-            case 'rotate':
-                if (window.Tools && window.Tools.modifyState.originalShapes.length > 0) {
-                    const center = this.drawingPoints[0];
-                    const angle = Math.atan2(
-                        snapPoint.y - center.y,
-                        snapPoint.x - center.x
-                    );
-                    this.tempShapes = window.Tools.modifyState.originalShapes.map(shape => {
-                        const temp = this.cloneShape(shape);
-                        this.rotateShape(temp, center, angle);
-                        return temp;
-                    });
-                }
-                break;
-                
-            case 'scale':
-                if (window.Tools && window.Tools.modifyState.originalShapes.length > 0) {
-                    const center = this.drawingPoints[0];
-                    const distance = this.distance(center.x, center.y, snapPoint.x, snapPoint.y);
-                    const scale = distance / window.Tools.modifyState.baseDistance;
-                    this.tempShapes = window.Tools.modifyState.originalShapes.map(shape => {
-                        const temp = this.cloneShape(shape);
-                        this.scaleShape(temp, center, scale);
-                        return temp;
-                    });
-                }
-                break;
-                
-            case 'mirror':
-                if (this.drawingPoints.length === 1) {
-                    this.tempShape = {
-                        type: 'line',
-                        start: this.drawingPoints[0],
-                        end: snapPoint,
-                        color: '#00d4aa',
-                        lineWidth: 1,
-                        lineType: 'dashed'
-                    };
-                }
-                break;
-                
-            case 'dimension':
-                if (this.drawingPoints.length === 2) {
-                    // Show dimension preview
-                    const p1 = this.drawingPoints[0];
-                    const p2 = this.drawingPoints[1];
-                    const distance = this.distance(p1.x, p1.y, p2.x, p2.y);
-                    
-                    this.tempShape = {
-                        type: 'dimension-linear',
-                        start: p1,
-                        end: p2,
-                        offset: 20,
-                        text: this.formatValue(distance),
-                        color: this.currentColor
-                    };
-                }
-                break;
-        }
-    }
-    
     // Dynamic input
     applyDynamicInput() {
         const field = document.getElementById('dynamicField');
@@ -2673,26 +1544,26 @@ async performDifference() {
                             x: this.drawingPoints[0].x + 100 * Math.cos(angle),
                             y: this.drawingPoints[0].y + 100 * Math.sin(angle)
                         };
-                        this.rotateStart(endPoint);
+                        this.delegateToTool('onClick', endPoint);
                     }
                     break;
                     
                 case 'scale':
                     if (this.drawingPoints.length === 1) {
                         const endPoint = {
-                            x: this.drawingPoints[0].x + (window.Tools && window.Tools.modifyState.baseDistance ? window.Tools.modifyState.baseDistance : 100) * value,
+                            x: this.drawingPoints[0].x + (this.toolsManager?.modifyState?.baseDistance || 100) * value,
                             y: this.drawingPoints[0].y
                         };
-                        this.scaleStart(endPoint);
+                        this.delegateToTool('onClick', endPoint);
                     }
                     break;
                     
                 case 'offset':
-                    if (window.Tools) {
-                        window.Tools.updateOffsetDistance(parsedValue); // استخدم القيمة بالوحدات الداخلية
+                    if (this.toolsManager) {
+                        this.toolsManager.updateOffsetDistance(parsedValue); // استخدم القيمة بالوحدات الداخلية
                     }
                     if (this.drawingPoints.length === 1) {
-                        this.handleOffset(this.drawingPoints[0]);
+                        this.delegateToTool('onClick', this.drawingPoints[0]);
                     }
                     break;
             }
@@ -3629,7 +2500,9 @@ async performDifference() {
             return;
         }
         
+        // قائمة الأوامر المحدثة
         const commands = {
+            // أوامر الرسم - استخدم setTool
             'line': () => this.setTool('line'),
             'l': () => this.setTool('line'),
             'circle': () => this.setTool('circle'),
@@ -3645,6 +2518,8 @@ async performDifference() {
             'el': () => this.setTool('ellipse'),
             'polygon': () => this.setTool('polygon'),
             'pol': () => this.setTool('polygon'),
+            
+            // أوامر التعديل
             'move': () => this.setTool('move'),
             'm': () => this.setTool('move'),
             'copy': () => this.setTool('copy'),
@@ -3667,17 +2542,21 @@ async performDifference() {
             'cha': () => this.setTool('chamfer'),
             'array': () => this.showArrayMenu(),
             'ar': () => this.showArrayMenu(),
-            'union': () => this.performUnion(),
-            'uni': () => this.performUnion(),
-            'difference': () => this.performDifference(),
-            'dif': () => this.performDifference(),
-            'intersection': () => this.performIntersection(),
-            'int': () => this.performIntersection(),
-            'distance': () => this.analyzeDistance(),
-            'dist': () => this.analyzeDistance(),
-            'area': () => this.analyzeArea(),
-            'properties': () => this.analyzeProperties(),
-            'prop': () => this.analyzeProperties(),
+            
+            // Boolean operations - استخدم setTool أو activateTool
+            'union': () => this.toolsManager?.activateTool('union'),
+            'uni': () => this.toolsManager?.activateTool('union'),
+            'difference': () => this.toolsManager?.activateTool('difference'),
+            'dif': () => this.toolsManager?.activateTool('difference'),
+            'intersection': () => this.toolsManager?.activateTool('intersection'),
+            'int': () => this.toolsManager?.activateTool('intersection'),
+            'distance': () => this.toolsManager?.activateTool('distance-analysis'),
+            'dist': () => this.toolsManager?.activateTool('distance-analysis'),
+            'area': () => this.toolsManager?.activateTool('area-analysis'),
+            'properties': () => this.toolsManager?.activateTool('properties-analysis'),
+            'prop': () => this.toolsManager?.activateTool('properties-analysis'),
+            
+            // الأوامر الأخرى تبقى كما هي
             'delete': () => this.deleteSelected(),
             'del': () => this.deleteSelected(),
             'undo': () => this.undo(),
@@ -3902,24 +2781,20 @@ Other:
     
     // Helper functions
     finishDrawing() {
+        // أخبر ToolsManager أن الرسم انتهى
+        if (this.toolsManager && this.toolsManager.activeTool) {
+            if (typeof this.toolsManager.activeTool.finishDrawing === 'function') {
+                this.toolsManager.activeTool.finishDrawing();
+            }
+        }
+        
+        // تنظيف الحالة العامة
         this.isDrawing = false;
         this.drawingPoints = [];
         this.tempShape = null;
         this.tempShapes = null;
-        this.originalShapes = null;
         this.ui.hideDynamicInput();
-        this.lastTool = this.currentTool;
         this.updateStatus('READY');
-        
-        // Reset state for advanced tools
-        this.filletShape1 = null;
-        this.chamferShape1 = null;
-        this.polygonSides = null;
-        
-        // Reset Tools state
-        if (window.Tools && window.Tools.resetModifyState) {
-            window.Tools.resetModifyState();
-        }
     }
     
     cancelCurrentOperation() {
@@ -3933,16 +2808,23 @@ Other:
         this.polarArrayOptions = null;
         this.pathArrayOptions = null;
         
-        // إخفاء أي panels مفتوحة
-        this.ui.hideToolPanel();
+        // أخبر ToolsManager
+        if (this.toolsManager) {
+            this.toolsManager.deactivateCurrentTool();
+        }
         
-        // باقي الكود الموجود...
+        // تنظيف
         this.finishDrawing();
         this.isPanning = false;
         this.isSelecting = false;
         this.isZoomWindow = false;
+        
+        // إخفاء UI elements
         this.ui.hideSelectionBox();
         this.ui.hideZoomWindow();
+        this.ui.hideToolPanel();
+        this.ui.hideDynamicInput();
+        
         this.updateStatus('READY');
         this.render();
     }
@@ -4081,6 +2963,214 @@ Other:
         animate();
     }
 
+    // ==================== دوال مساعدة جديدة ====================
+    
+    /**
+     * دالة للحصول على معلومات الأداة الحالية
+     */
+    getCurrentToolInfo() {
+        if (this.toolsManager) {
+            return this.toolsManager.getCurrentToolInfo();
+        }
+        return null;
+    }
+    
+    /**
+     * دالة لتحديث حالة الرسم من الأداة
+     */
+    updateDrawingState(state) {
+        if (state.isDrawing !== undefined) {
+            this.isDrawing = state.isDrawing;
+        }
+        if (state.drawingPoints) {
+            this.drawingPoints = state.drawingPoints;
+        }
+        if (state.tempShape !== undefined) {
+            this.tempShape = state.tempShape;
+        }
+        if (state.tempShapes !== undefined) {
+            this.tempShapes = state.tempShapes;
+        }
+    }
+    
+    /**
+     * التحقق من جاهزية النظام
+     */
+    isToolSystemReady() {
+        return this.toolsManager && 
+               this.toolsManager.isReady && 
+               this.ready;
+    }
+    
+    // ==================== الأدوات المدمجة التي لم تُنقل بعد ====================
+    
+    // Dimension handling
+    handleDimension(point) {
+        const dimType = this.currentTool;
+        
+        switch (dimType) {
+            case 'dimension': // Linear dimension
+                this.drawLinearDimension(point);
+                break;
+            case 'dimension-angular':
+                this.drawAngularDimension(point);
+                break;
+            case 'dimension-radius':
+                this.drawRadiusDimension(point);
+                break;
+            case 'dimension-diameter':
+                this.drawDiameterDimension(point);
+                break;
+        }
+    }
+    
+    drawLinearDimension(point) {
+        if (!this.isDrawing) {
+            this.isDrawing = true;
+            this.drawingPoints = [point];
+            this.updateStatus('Specify second point');
+        } else if (this.drawingPoints.length === 1) {
+            this.drawingPoints.push(point);
+            this.updateStatus('Specify dimension line position');
+        } else {
+            const p1 = this.drawingPoints[0];
+            const p2 = this.drawingPoints[1];
+            const distance = this.distance(p1.x, p1.y, p2.x, p2.y);
+            
+            // Calculate dimension line position
+            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+            const perpAngle = angle + Math.PI / 2;
+            
+            // Determine offset from points to dimension line
+            const offsetDist = this.distance(
+                (p1.x + p2.x) / 2,
+                (p1.y + p2.y) / 2,
+                point.x,
+                point.y
+            );
+            
+            const offsetX = Math.cos(perpAngle) * offsetDist;
+            const offsetY = Math.sin(perpAngle) * offsetDist;
+            
+            // Check which side of the line the point is on
+            const cross = (point.x - p1.x) * (p2.y - p1.y) - (point.y - p1.y) * (p2.x - p1.x);
+            const side = cross > 0 ? 1 : -1;
+            
+            const dimension = {
+                type: 'dimension-linear',
+                start: p1,
+                end: p2,
+                offset: offsetDist * side,
+                text: this.formatValue(distance),
+                color: this.currentColor,
+                layerId: this.currentLayerId,
+                id: this.generateId()
+            };
+            
+            this.addShape(dimension);
+            this.finishDrawing();
+        }
+    }
+    
+    drawAngularDimension(point) {
+        if (!this.isDrawing) {
+            this.isDrawing = true;
+            this.drawingPoints = [point];
+            this.updateStatus('Specify second line start point');
+        } else if (this.drawingPoints.length === 1) {
+            this.drawingPoints.push(point);
+            this.updateStatus('Specify second line end point');
+        } else if (this.drawingPoints.length === 2) {
+            this.drawingPoints.push(point);
+            this.updateStatus('Specify dimension arc position');
+        } else {
+            // Calculate angle between two lines
+            const center = this.drawingPoints[0];
+            const p1 = this.drawingPoints[1];
+            const p2 = this.drawingPoints[2];
+            
+            const angle1 = Math.atan2(p1.y - center.y, p1.x - center.x);
+            const angle2 = Math.atan2(p2.y - center.y, p2.x - center.x);
+            
+            let angleDiff = angle2 - angle1;
+            if (angleDiff < 0) angleDiff += 2 * Math.PI;
+            
+            const angleDegrees = angleDiff * 180 / Math.PI;
+            
+            const dimension = {
+                type: 'dimension-angular',
+                center: center,
+                startAngle: angle1,
+                endAngle: angle2,
+                radius: this.distance(center.x, center.y, point.x, point.y),
+                text: angleDegrees.toFixed(1) + '°',
+                color: this.currentColor,
+                layerId: this.currentLayerId,
+                id: this.generateId()
+            };
+            
+            this.addShape(dimension);
+            this.finishDrawing();
+        }
+    }
+    
+    drawRadiusDimension(point) {
+        const world = this.screenToWorld(this.mouseX, this.mouseY);
+        const shape = this.getShapeAt(world.x, world.y);
+        
+        if (shape && (shape.type === 'circle' || shape.type === 'arc')) {
+            const dimension = {
+                type: 'dimension-radius',
+                center: shape.center,
+                endPoint: point,
+                radius: shape.radius,
+                text: 'R' + this.formatValue(shape.radius),
+                color: this.currentColor,
+                layerId: this.currentLayerId,
+                id: this.generateId()
+            };
+            
+            this.addShape(dimension);
+            this.updateStatus('Radius dimension added');
+        } else {
+            this.updateStatus('Select a circle or arc');
+        }
+    }
+    
+    drawDiameterDimension(point) {
+        const world = this.screenToWorld(this.mouseX, this.mouseY);
+        const shape = this.getShapeAt(world.x, world.y);
+        
+        if (shape && shape.type === 'circle') {
+            const angle = Math.atan2(point.y - shape.center.y, point.x - shape.center.x);
+            
+            const dimension = {
+                type: 'dimension-diameter',
+                center: shape.center,
+                angle: angle,
+                radius: shape.radius,
+                text: 'Ø' + this.formatValue(shape.radius * 2),
+                color: this.currentColor,
+                layerId: this.currentLayerId,
+                id: this.generateId()
+            };
+            
+            this.addShape(dimension);
+            this.updateStatus('Diameter dimension added');
+        } else {
+            this.updateStatus('Select a circle');
+        }
+    }
+    
+    // Utility function to delete a shape
+    deleteShape(shape) {
+        const index = this.shapes.indexOf(shape);
+        if (index !== -1) {
+            this.shapes.splice(index, 1);
+        }
+        this.selectedShapes.delete(shape);
+    }
+    
     // ==================== دوال الأدوات المتقدمة الجديدة ====================
 
     /**

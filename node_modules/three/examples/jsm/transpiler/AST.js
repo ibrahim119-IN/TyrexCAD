@@ -204,16 +204,6 @@ export class Return {
 
 }
 
-export class Discard {
-
-	constructor() {
-
-		this.isDiscard = true;
-
-	}
-
-}
-
 export class Accessor {
 
 	constructor( property ) {
@@ -252,9 +242,9 @@ export class DynamicElement {
 
 export class AccessorElements {
 
-	constructor( object, elements = [] ) {
+	constructor( property, elements = [] ) {
 
-		this.object = object;
+		this.property = property;
 		this.elements = elements;
 
 		this.isAccessorElements = true;
