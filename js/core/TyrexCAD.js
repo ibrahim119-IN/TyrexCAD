@@ -109,6 +109,14 @@ class TyrexCAD {
         // Pending shape properties (from input dialog)
         this.pendingShapeProperties = null;
         
+        // أضف هذه الخصائص الجديدة
+        this.pickingPointMode = null;  // لتتبع وضع اختيار النقطة
+        this.pickingPointCallback = null;  // callback لاختيار النقطة
+        this.selectingPathMode = false;  // لتتبع وضع اختيار المسار
+        this.distanceAnalysisCallback = null;  // callback لتحليل المسافة
+        this.distanceAnalysisStep = 0;  // خطوة تحليل المسافة
+        this.pathArrayPath = null;  // المسار المختار للمصفوفة
+        
         this.init();
     }
 
@@ -619,6 +627,78 @@ class TyrexCAD {
     handleDrawing(x, y) {
         const world = this.screenToWorld(x, y);
         const snapPoint = this.getSnapPoint(world.x, world.y);
+        
+        // معالجة picking point mode
+        if (this.pickingPointMode) {
+            switch (this.pickingPointMode) {
+                case 'polar-center':
+                    this.polarArrayCenter = snapPoint;
+                    this.pickingPointMode = null;
+                    this.canvas.style.cursor = 'none';
+                    
+                    // إعادة فتح الـ panel وتطبيق المصفوفة
+                    this.ui.showToolPanel('polar-array');
+                    setTimeout(() => {
+                        this.applyPolarArrayWithOptions(this.polarArrayOptions);
+                    }, 100);
+                    break;
+            }
+            return;
+        }
+        
+        // معالجة selecting path mode
+        if (this.selectingPathMode) {
+            const shape = this.getShapeAt(world.x, world.y);
+            if (shape && (shape.type === 'polyline' || shape.type === 'line' || 
+                         shape.type === 'arc' || shape.type === 'circle')) {
+                this.pathArrayPath = shape;
+                this.selectingPathMode = false;
+                this.canvas.style.cursor = 'none';
+                
+                // إعادة فتح الـ panel وتطبيق المصفوفة
+                this.ui.showToolPanel('path-array');
+                setTimeout(() => {
+                    this.applyPathArrayWithOptions(this.pathArrayOptions);
+                }, 100);
+            } else {
+                this.ui.showError('Please select a valid path');
+            }
+            return;
+        }
+        
+        // معالجة distance analysis
+        if (this.distanceAnalysisCallback) {
+            const shape = this.getShapeAt(world.x, world.y);
+            if (shape) {
+                this.selectedShapes.add(shape);
+                this.distanceAnalysisStep++;
+                
+                if (this.distanceAnalysisStep === 2) {
+                    // لدينا شكلين، احسب المسافة
+                    const selected = Array.from(this.selectedShapes);
+                    if (this.geometryAdvanced) {
+                        const result = this.geometryAdvanced.calculateDistance(selected[0], selected[1]);
+                        this.distanceAnalysisCallback({
+                            distance: result.distance,
+                            dx: Math.abs(result.point2.x - result.point1.x),
+                            dy: Math.abs(result.point2.y - result.point1.y),
+                            angle: Math.atan2(result.point2.y - result.point1.y, 
+                                             result.point2.x - result.point1.x) * 180 / Math.PI
+                        });
+                    }
+                    
+                    // إعادة تعيين
+                    this.distanceAnalysisCallback = null;
+                    this.distanceAnalysisStep = 0;
+                    this.selectedShapes.clear();
+                } else {
+                    this.updateStatus('Select second shape for distance measurement');
+                }
+                
+                this.render();
+            }
+            return;
+        }
         
         switch (this.currentTool) {
             case 'line':
@@ -3809,6 +3889,20 @@ Other:
     }
     
     cancelCurrentOperation() {
+        // إلغاء الأوضاع الخاصة
+        this.pickingPointMode = null;
+        this.selectingPathMode = false;
+        this.distanceAnalysisCallback = null;
+        this.distanceAnalysisStep = 0;
+        this.polarArrayCenter = null;
+        this.pathArrayPath = null;
+        this.polarArrayOptions = null;
+        this.pathArrayOptions = null;
+        
+        // إخفاء أي panels مفتوحة
+        this.ui.hideToolPanel();
+        
+        // باقي الكود الموجود...
         this.finishDrawing();
         this.isPanning = false;
         this.isSelecting = false;
@@ -3951,6 +4045,433 @@ Other:
         };
         
         animate();
+    }
+
+    // ==================== دوال الأدوات المتقدمة الجديدة ====================
+
+    /**
+     * تطبيق Fillet مع الخيارات من الواجهة
+     * @param {Object} options - خيارات Fillet
+     */
+    async applyFilletWithOptions(options) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        
+        // إذا كان polyline mode مفعل
+        if (options.polyline && selected.length === 1 && selected[0].type === 'polyline') {
+            try {
+                this.recordState();
+                const result = await geo.filletPolygon(selected[0], options.radius);
+                
+                // استبدل الشكل الأصلي بالنتيجة
+                const index = this.shapes.indexOf(selected[0]);
+                if (index !== -1 && result) {
+                    this.shapes[index] = result;
+                }
+                
+                this.render();
+                this.ui.showSuccess('Fillet applied to polyline');
+            } catch (error) {
+                this.ui.showError('Fillet failed: ' + error.message);
+            }
+        } 
+        // وضع multiple mode
+        else if (options.multiple) {
+            this.currentTool = 'fillet';
+            this.filletOptions = options;
+            this.updateStatus('Select shapes for fillet (ESC to finish)');
+        }
+        // الوضع العادي
+        else if (selected.length >= 2) {
+            try {
+                this.recordState();
+                
+                for (let i = 0; i < selected.length - 1; i++) {
+                    const result = await geo.fillet(selected[i], selected[i + 1], options.radius);
+                    if (result.success) {
+                        // أضف الأشكال الجديدة
+                        result.shapes.forEach(s => {
+                            s.color = this.currentColor;
+                            s.lineWidth = this.currentLineWidth;
+                            s.lineType = this.currentLineType;
+                            s.layerId = this.currentLayerId;
+                            s.id = this.generateId();
+                            this.shapes.push(s);
+                        });
+                        
+                        // احذف الأشكال الأصلية إذا كان trim مفعل
+                        if (options.trim) {
+                            this.deleteShape(selected[i]);
+                            this.deleteShape(selected[i + 1]);
+                        }
+                    }
+                }
+                
+                this.selectedShapes.clear();
+                this.render();
+                this.ui.showSuccess('Fillet applied successfully');
+            } catch (error) {
+                this.ui.showError('Fillet failed: ' + error.message);
+            }
+        } else {
+            this.ui.showError('Select at least 2 shapes for fillet');
+        }
+    }
+
+    /**
+     * تطبيق Chamfer مع الخيارات من الواجهة
+     * @param {Object} options - خيارات Chamfer
+     */
+    async applyChamferWithOptions(options) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        
+        if (selected.length >= 2) {
+            try {
+                this.recordState();
+                
+                const distance1 = options.distance1;
+                const distance2 = options.method === 'distance' ? options.distance2 : options.distance1;
+                
+                for (let i = 0; i < selected.length - 1; i++) {
+                    const result = await geo.chamfer(selected[i], selected[i + 1], distance1, distance2);
+                    if (result.success) {
+                        // أضف الأشكال الجديدة
+                        result.shapes.forEach(s => {
+                            s.color = this.currentColor;
+                            s.lineWidth = this.currentLineWidth;
+                            s.lineType = this.currentLineType;
+                            s.layerId = this.currentLayerId;
+                            s.id = this.generateId();
+                            this.shapes.push(s);
+                        });
+                        
+                        // احذف الأشكال الأصلية
+                        this.deleteShape(selected[i]);
+                        this.deleteShape(selected[i + 1]);
+                    }
+                }
+                
+                this.selectedShapes.clear();
+                this.render();
+                this.ui.showSuccess('Chamfer applied successfully');
+            } catch (error) {
+                this.ui.showError('Chamfer failed: ' + error.message);
+            }
+        } else {
+            this.ui.showError('Select at least 2 shapes for chamfer');
+        }
+    }
+
+    /**
+     * تطبيق Rectangular Array مع الخيارات
+     * @param {Object} options - خيارات المصفوفة
+     */
+    async applyRectangularArrayWithOptions(options) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length === 0) {
+            this.ui.showError('Select objects to array');
+            return;
+        }
+        
+        try {
+            this.recordState();
+            
+            const arrayOptions = {
+                rows: options.rows,
+                columns: options.cols,
+                rowSpacing: this.toInternalUnits(options.rowSpacing),
+                columnSpacing: this.toInternalUnits(options.colSpacing)
+            };
+            
+            const result = geo.rectangularArray(selected, arrayOptions);
+            
+            result.forEach(shape => {
+                shape.id = this.generateId();
+                this.shapes.push(shape);
+            });
+            
+            this.render();
+            this.ui.showSuccess(`Created ${result.length} copies in rectangular array`);
+        } catch (error) {
+            this.ui.showError('Array failed: ' + error.message);
+        }
+    }
+
+    /**
+     * تطبيق Polar Array مع الخيارات
+     * @param {Object} options - خيارات المصفوفة القطبية
+     */
+    async applyPolarArrayWithOptions(options) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length === 0) {
+            this.ui.showError('Select objects to array');
+            return;
+        }
+        
+        // إذا لم يتم تحديد مركز، ابدأ وضع اختيار المركز
+        if (!this.polarArrayCenter) {
+            this.polarArrayOptions = options;
+            this.startPickingPoint('polar-center');
+            return;
+        }
+        
+        try {
+            this.recordState();
+            
+            const arrayOptions = {
+                center: this.polarArrayCenter,
+                count: options.count,
+                angle: options.angle * Math.PI / 180,  // تحويل لراديان
+                rotateItems: options.rotate
+            };
+            
+            const result = geo.polarArray(selected, arrayOptions);
+            
+            result.forEach(shape => {
+                shape.id = this.generateId();
+                this.shapes.push(shape);
+            });
+            
+            this.render();
+            this.ui.showSuccess(`Created ${result.length} copies in polar array`);
+            
+            // إعادة تعيين المركز
+            this.polarArrayCenter = null;
+        } catch (error) {
+            this.ui.showError('Array failed: ' + error.message);
+        }
+    }
+
+    /**
+     * تطبيق Path Array مع الخيارات
+     * @param {Object} options - خيارات مصفوفة المسار
+     */
+    async applyPathArrayWithOptions(options) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length === 0) {
+            this.ui.showError('Select objects to array');
+            return;
+        }
+        
+        if (!this.pathArrayPath) {
+            this.pathArrayOptions = options;
+            this.startSelectingPath();
+            return;
+        }
+        
+        try {
+            this.recordState();
+            
+            const arrayOptions = {
+                count: options.method === 'divide' ? options.count : undefined,
+                spacing: options.method === 'measure' ? this.toInternalUnits(options.spacing) : undefined,
+                alignToPath: options.align
+            };
+            
+            const result = geo.pathArray(selected, this.pathArrayPath, arrayOptions);
+            
+            result.forEach(shape => {
+                shape.id = this.generateId();
+                this.shapes.push(shape);
+            });
+            
+            this.render();
+            this.ui.showSuccess(`Created ${result.length} copies along path`);
+            
+            // إعادة تعيين المسار
+            this.pathArrayPath = null;
+        } catch (error) {
+            this.ui.showError('Array failed: ' + error.message);
+        }
+    }
+
+    /**
+     * بدء وضع اختيار نقطة
+     * @param {string} purpose - الغرض من اختيار النقطة
+     */
+    startPickingPoint(purpose) {
+        this.pickingPointMode = purpose;
+        this.ui.hideToolPanel();
+        
+        switch (purpose) {
+            case 'polar-center':
+                this.updateStatus('Click to specify center point for polar array');
+                break;
+            default:
+                this.updateStatus('Click to pick a point');
+        }
+        
+        // تغيير مؤشر الماوس
+        this.canvas.style.cursor = 'crosshair';
+    }
+
+    /**
+     * بدء وضع اختيار مسار
+     */
+    startSelectingPath() {
+        this.selectingPathMode = true;
+        this.ui.hideToolPanel();
+        this.updateStatus('Select a path (polyline, arc, or circle)');
+        this.canvas.style.cursor = 'pointer';
+    }
+
+    /**
+     * بدء تحليل المسافة
+     * @param {Function} callback - دالة callback للنتائج
+     */
+    startDistanceAnalysis(callback) {
+        this.distanceAnalysisCallback = callback;
+        this.distanceAnalysisStep = 0;
+        this.selectedShapes.clear();
+        this.updateStatus('Select first shape for distance measurement');
+    }
+
+    /**
+     * تحويل الأشكال المحددة إلى polyline
+     * @param {number} segments - عدد القطع
+     */
+    async convertToPolyline(segments = 32) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        if (selected.length === 0) {
+            this.ui.showError('Select shapes to convert');
+            return;
+        }
+        
+        try {
+            this.recordState();
+            let converted = 0;
+            
+            for (const shape of selected) {
+                if (shape.type === 'circle' || shape.type === 'arc' || shape.type === 'ellipse') {
+                    const polyline = geo.curveToPolyline(shape, { segments });
+                    polyline.color = shape.color;
+                    polyline.lineWidth = shape.lineWidth;
+                    polyline.lineType = shape.lineType;
+                    polyline.layerId = shape.layerId;
+                    polyline.id = this.generateId();
+                    
+                    this.shapes.push(polyline);
+                    this.deleteShape(shape);
+                    converted++;
+                }
+            }
+            
+            this.selectedShapes.clear();
+            this.render();
+            this.ui.showSuccess(`Converted ${converted} shapes to polylines`);
+        } catch (error) {
+            this.ui.showError('Conversion failed: ' + error.message);
+        }
+    }
+
+    /**
+     * تبسيط polylines المحددة
+     * @param {number} tolerance - درجة التبسيط
+     */
+    async simplifyPolyline(tolerance) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        const polylines = selected.filter(s => s.type === 'polyline');
+        
+        if (polylines.length === 0) {
+            this.ui.showError('Select polylines to simplify');
+            return;
+        }
+        
+        try {
+            this.recordState();
+            
+            for (const polyline of polylines) {
+                const simplified = geo.simplifyPolyline(polyline, {
+                    tolerance: this.toInternalUnits(tolerance)
+                });
+                
+                polyline.points = simplified.points;
+            }
+            
+            this.render();
+            this.ui.showSuccess(`Simplified ${polylines.length} polylines`);
+        } catch (error) {
+            this.ui.showError('Simplification failed: ' + error.message);
+        }
+    }
+
+    /**
+     * تنعيم polylines المحددة
+     * @param {number} iterations - عدد التكرارات
+     */
+    async smoothPolyline(iterations) {
+        const geo = await this.loadAdvancedGeometry();
+        if (!geo) {
+            this.updateStatus('Advanced geometry not available');
+            return;
+        }
+        
+        const selected = Array.from(this.selectedShapes);
+        const polylines = selected.filter(s => s.type === 'polyline');
+        
+        if (polylines.length === 0) {
+            this.ui.showError('Select polylines to smooth');
+            return;
+        }
+        
+        try {
+            this.recordState();
+            
+            for (const polyline of polylines) {
+                const smoothed = geo.smoothPolyline(polyline, {
+                    iterations: iterations,
+                    factor: 0.5
+                });
+                
+                polyline.points = smoothed.points;
+            }
+            
+            this.render();
+            this.ui.showSuccess(`Smoothed ${polylines.length} polylines`);
+        } catch (error) {
+            this.ui.showError('Smoothing failed: ' + error.message);
+        }
     }
 }
 
