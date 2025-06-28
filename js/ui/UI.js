@@ -726,6 +726,27 @@ class UI {
         this.elements.get('statusTool').textContent = tool.toUpperCase();
     }
     
+
+
+        // في class UI، أضف:
+        toggleArrayMenu() {
+            const menu = document.getElementById('arrayMenu');
+            menu.classList.toggle('show');
+            
+            // Close on click outside
+            window.onclick = (event) => {
+                if (!event.target.matches('.tool-btn')) {
+                    const dropdowns = document.getElementsByClassName('dropdown-content');
+                    for (let dropdown of dropdowns) {
+                        if (dropdown.classList.contains('show')) {
+                            dropdown.classList.remove('show');
+                        }
+                    }
+                }
+            };
+        }
+
+
     /**
      * إخفاء شاشة التحميل
      */

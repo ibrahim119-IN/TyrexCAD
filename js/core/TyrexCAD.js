@@ -111,52 +111,78 @@ class TyrexCAD {
         
         this.init();
     }
-    
-    init() {
-        // ربط نظام الأدوات
-        if (window.Tools) {
-            window.Tools.init(this);
-        }
-        
-        // Initialize UI
-        this.ui.init();
-        
-        this.resizeCanvas();
-        this.setupEventListeners();
-        this.initializeLayers();
-        this.init3D();
-        // Initialize units
-        this.changeUnits('mm'); // تعيين الوحدة الافتراضية
-        this.updateUI();
-        this.startRenderLoop();
-        
-        // Hide loading screen
-        setTimeout(() => {
-            this.ui.hideLoadingScreen();
-        }, 1000);
-        
-        this.recordState();
+
+
+
+    async init() {
+    // ربط نظام الأدوات
+    if (window.Tools) {
+        window.Tools.init(this);
     }
+    
+    // Initialize UI
+    this.ui.init();
+    
+    // تهيئة Canvas والأحداث
+    this.resizeCanvas();
+    this.setupEventListeners();
+    this.initializeLayers();
+    this.init3D();
+    
+    // Initialize units
+    this.changeUnits('mm');
+    
+    // تهيئة GeometryAdvanced
+    try {
+        this.geometryAdvanced = new GeometryAdvanced();
+        await this.geometryAdvanced.init(this);
+    } catch (error) {
+        console.warn('GeometryAdvanced initialization failed:', error);
+    }
+    
+    this.updateUI();
+    this.startRenderLoop();
+    
+    // Hide loading screen
+    setTimeout(() => {
+        this.ui.hideLoadingScreen();
+    }, 1000);
+    
+    this.recordState();
+    this.ready = true;
+}
     
     // Advanced Geometry Loader
     async loadAdvancedGeometry() {
-        if (this.geometryAdvanced) return this.geometryAdvanced;
-        
-        try {
-            // تحميل الـ module
-            if (!window.GeometryAdvanced) {
-                throw new Error('GeometryAdvanced not loaded');
-            }
-            
-            this.geometryAdvanced = new GeometryAdvanced();
-            console.log('Advanced geometry loaded successfully');
-            return this.geometryAdvanced;
-            
-        } catch (error) {
-            console.error('Failed to load advanced geometry:', error);
-            return null;
+    // إذا كان محملاً بالفعل، أرجعه
+    if (this.geometryAdvanced) return this.geometryAdvanced;
+    
+    try {
+        // تحقق من وجود GeometryAdvanced
+        if (!window.GeometryAdvanced) {
+            throw new Error('GeometryAdvanced module not loaded');
         }
+        
+        // إنشاء instance جديد
+        this.geometryAdvanced = new GeometryAdvanced();
+        
+        // تهيئة مع مرجع CAD
+        if (typeof this.geometryAdvanced.init === 'function') {
+            await this.geometryAdvanced.init(this);
+        } else {
+            // إضافة مرجع CAD يدوياً
+            this.geometryAdvanced.cad = this;
+        }
+        
+        console.log('Advanced geometry loaded and initialized successfully');
+        return this.geometryAdvanced;
+        
+    } catch (error) {
+        console.error('Failed to load advanced geometry:', error);
+        this.updateStatus('Advanced geometry module not available: ' + error.message);
+        return null;
     }
+}
     
     resizeCanvas() {
         const container = document.getElementById('canvasContainer');
@@ -195,8 +221,8 @@ class TyrexCAD {
             if (this.mode === '2D') this.onMouseUp(e);
         });
         this.canvas.addEventListener('wheel', (e) => {
-            if (this.mode === '2D') this.onWheel(e);
-        });
+        if (this.mode === '2D') this.onWheel(e);
+        }, { passive: false }); // نحتاج false لاستخدام preventDefault
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
         
         // 3D Canvas events
@@ -210,8 +236,8 @@ class TyrexCAD {
             if (this.mode === '3D') this.on3DMouseUp(e);
         });
         this.canvas3D.addEventListener('wheel', (e) => {
-            if (this.mode === '3D') this.on3DWheel(e);
-        });
+        if (this.mode === '3D') this.on3DWheel(e);
+        }, { passive: false });
         this.canvas3D.addEventListener('contextmenu', (e) => e.preventDefault());
         
         // Keyboard events
@@ -691,6 +717,7 @@ class TyrexCAD {
     
     // Advanced Geometry Tools
     async drawPolygon(point) {
+    try {
         const geo = await this.loadAdvancedGeometry();
         if (!geo) {
             this.updateStatus('Advanced geometry not available');
@@ -701,15 +728,26 @@ class TyrexCAD {
             this.isDrawing = true;
             this.drawingPoints = [point];
             const sides = prompt('Number of sides:', '6');
-            if (sides && parseInt(sides) >= 3) {
-                this.polygonSides = parseInt(sides);
-                this.updateStatus('Specify radius or second point');
-            } else {
+            
+            // تحسين التحقق من المدخلات
+            const sidesNum = parseInt(sides);
+            if (!sides || isNaN(sidesNum) || sidesNum < 3) {
                 this.cancelCurrentOperation();
+                this.updateStatus('Invalid number of sides. Must be 3 or more.');
+                return;
             }
+            
+            this.polygonSides = sidesNum;
+            this.updateStatus('Specify radius or second point');
         } else {
             const center = this.drawingPoints[0];
             const radius = this.distance(center.x, center.y, point.x, point.y);
+            
+            // التحقق من الصلاحية
+            if (radius <= 0) {
+                this.updateStatus('Invalid radius');
+                return;
+            }
             
             const polygon = geo.createPolygon(center, radius, this.polygonSides);
             polygon.color = this.currentColor;
@@ -721,9 +759,15 @@ class TyrexCAD {
             this.addShape(polygon);
             this.finishDrawing();
         }
+    } catch (error) {
+        console.error('Error in drawPolygon:', error);
+        this.updateStatus('Failed to create polygon: ' + error.message);
+        this.cancelCurrentOperation();
     }
+}
     
     async handleFillet(point) {
+    try {
         const geo = await this.loadAdvancedGeometry();
         if (!geo) {
             this.updateStatus('Advanced geometry not available');
@@ -735,17 +779,31 @@ class TyrexCAD {
         
         if (!this.filletShape1) {
             if (shape) {
+                // التحقق من نوع الشكل
+                if (!['line', 'polyline'].includes(shape.type)) {
+                    this.updateStatus('Fillet works only with lines and polylines');
+                    return;
+                }
                 this.filletShape1 = shape;
                 this.updateStatus('Select second shape');
+            } else {
+                this.updateStatus('Select first shape for fillet');
             }
         } else {
             if (shape && shape !== this.filletShape1) {
+                // التحقق من نوع الشكل الثاني
+                if (!['line', 'polyline'].includes(shape.type)) {
+                    this.updateStatus('Fillet works only with lines and polylines');
+                    this.filletShape1 = null;
+                    return;
+                }
+                
                 const radiusStr = prompt('Fillet radius:', '10');
                 if (radiusStr) {
                     const radius = this.parseUserInput(radiusStr);
-                    if (radius) {
+                    if (radius && radius > 0) {
                         try {
-                            const result = geo.fillet(this.filletShape1, shape, radius);
+                            const result = await geo.fillet(this.filletShape1, shape, radius);
                             if (result.success) {
                                 this.recordState();
                                 // Add new shapes
@@ -762,16 +820,27 @@ class TyrexCAD {
                                 this.deleteShape(shape);
                                 this.render();
                                 this.updateStatus('Fillet created');
+                            } else {
+                                this.updateStatus('Fillet failed: ' + (result.message || 'Unknown error'));
                             }
                         } catch (error) {
                             this.updateStatus('Fillet failed: ' + error.message);
                         }
+                    } else {
+                        this.updateStatus('Invalid radius value');
                     }
                 }
                 this.filletShape1 = null;
+            } else {
+                this.updateStatus('Select a different shape');
             }
         }
+    } catch (error) {
+        console.error('Error in handleFillet:', error);
+        this.updateStatus('Fillet operation failed');
+        this.filletShape1 = null;
     }
+}
     
     async handleChamfer(point) {
         const geo = await this.loadAdvancedGeometry();
@@ -981,43 +1050,47 @@ class TyrexCAD {
         }
     }
     
-    async performDifference() {
-        const selected = Array.from(this.selectedShapes);
-        if (selected.length !== 2) {
-            this.updateStatus('Select exactly 2 shapes for difference');
-            return;
-        }
-        
-        const geo = await this.loadAdvancedGeometry();
-        if (!geo) {
-            this.updateStatus('Advanced geometry not available');
-            return;
-        }
-        
-        try {
-            const result = await geo.difference(selected[0], selected[1]);
-            this.recordState();
-            
-            // Add result shapes
-            result.forEach(shape => {
-                shape.color = this.currentColor;
-                shape.lineWidth = this.currentLineWidth;
-                shape.lineType = this.currentLineType;
-                shape.layerId = this.currentLayerId;
-                shape.id = this.generateId();
-                this.shapes.push(shape);
-            });
-            
-            // Remove original shapes
-            selected.forEach(shape => this.deleteShape(shape));
-            
-            this.selectedShapes.clear();
-            this.render();
-            this.updateStatus('Difference completed');
-        } catch (error) {
-            this.updateStatus('Difference failed: ' + error.message);
-        }
+    // في TyrexCAD.js - السطر 957
+// الدالة الحالية تمرر selected[1] كمصفوفة، لكن difference تتوقع مصفوفة
+
+async performDifference() {
+    const selected = Array.from(this.selectedShapes);
+    if (selected.length !== 2) {
+        this.updateStatus('Select exactly 2 shapes for difference');
+        return;
     }
+    
+    const geo = await this.loadAdvancedGeometry();
+    if (!geo) {
+        this.updateStatus('Advanced geometry not available');
+        return;
+    }
+    
+    try {
+        // الطريقة الصحيحة: تمرير الشكل الثاني كمصفوفة
+        const result = await geo.difference(selected[0], [selected[1]]);
+        this.recordState();
+        
+        // Add result shapes
+        result.forEach(shape => {
+            shape.color = this.currentColor;
+            shape.lineWidth = this.currentLineWidth;
+            shape.lineType = this.currentLineType;
+            shape.layerId = this.currentLayerId;
+            shape.id = this.generateId();
+            this.shapes.push(shape);
+        });
+        
+        // Remove original shapes
+        selected.forEach(shape => this.deleteShape(shape));
+        
+        this.selectedShapes.clear();
+        this.render();
+        this.updateStatus('Difference completed');
+    } catch (error) {
+        this.updateStatus('Difference failed: ' + error.message);
+    }
+}
     
     async performIntersection() {
         const selected = Array.from(this.selectedShapes);

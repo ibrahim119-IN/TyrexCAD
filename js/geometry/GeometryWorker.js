@@ -37,14 +37,13 @@ function initialize() {
     if (state.initialized) return;
     
     try {
-        // تحميل Clipper
+        // التحقق من وجود المكتبات المحقونة
         if (typeof ClipperLib !== 'undefined') {
             state.libraries.clipper = ClipperLib;
         } else {
             throw new Error('ClipperLib not loaded');
         }
         
-        // تحميل Earcut
         if (typeof earcut !== 'undefined') {
             state.libraries.earcut = earcut;
         } else {
@@ -67,6 +66,9 @@ function initialize() {
         });
     }
 }
+
+// بدء التهيئة
+initialize();
 
 // ==================== معالج الرسائل الرئيسي ====================
 

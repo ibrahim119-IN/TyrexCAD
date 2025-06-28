@@ -12,24 +12,25 @@
 class GeometryAdvanced {
     constructor() {
         // حالة المكتبات الخارجية
+          // حالة المكتبات الخارجية
         this.libraries = {
             clipper: { 
                 loaded: false, 
                 loading: false, 
                 instance: null,
-                url: 'https://cdnjs.cloudflare.com/ajax/libs/clipper-lib/6.4.2/clipper.min.js'
+                url: 'js/lib/clipper.js' // مسار محلي
             },
             martinez: { 
                 loaded: false, 
                 loading: false, 
                 instance: null,
-                url: 'https://unpkg.com/martinez-polygon-clipping@0.5.0/dist/martinez.min.js'
+                url: 'js/lib/martinez.min.js' // مسار محلي
             },
             earcut: { 
                 loaded: false, 
                 loading: false, 
                 instance: null,
-                url: 'https://unpkg.com/earcut@2.2.4/dist/earcut.min.js'
+                url: 'js/lib/earcut.min.js' // مسار محلي
             }
         };
         
@@ -62,130 +63,411 @@ class GeometryAdvanced {
         // تهيئة Web Worker إذا كان متاحاً
         if (typeof Worker !== 'undefined') {
             try {
-                this.initWorker();
+                await this.initWorker();
             } catch (error) {
                 console.warn('Web Worker initialization failed:', error);
+                this.worker = null;
             }
+        }
+        
+        // إذا فشل Worker، حمّل المكتبات مباشرة
+        if (!this.worker) {
+            console.info('Loading libraries in main thread');
+            await this.loadLibrariesDirect();
         }
         
         return this;
     }
     
-    /**
-     * تهيئة Web Worker
+   /**
+     * تهيئة Web Worker مع المكتبات المحلية
      */
-    initWorker() {
-        // سيتم إنشاء Worker من ملف منفصل
-        this.worker = new Worker('js/geometry/GeometryWorker.js');
-        
-        this.worker.onmessage = (event) => {
-            const { id, type, result, error } = event.data;
-            
-            if (type === 'ready') {
-                this.workerReady = true;
-                return;
-            }
-            
-            const callback = this.workerCallbacks.get(id);
-            if (callback) {
-                if (error) {
-                    callback.reject(new Error(error));
-                } else {
-                    callback.resolve(result);
-                }
-                this.workerCallbacks.delete(id);
-            }
-        };
-        
-        this.worker.onerror = (error) => {
-            console.error('Worker error:', error);
-            this.workerReady = false;
-        };
-    }
-    
-    /**
-     * تحميل مكتبة خارجية عند الحاجة
-     */
-    async loadLibrary(libName) {
-        const lib = this.libraries[libName];
-        if (!lib) {
-            throw new Error(`Unknown library: ${libName}`);
-        }
-        
-        if (lib.loaded) {
-            return lib.instance;
-        }
-        
-        if (lib.loading) {
-            // انتظر التحميل الحالي
-            while (lib.loading) {
-                await new Promise(resolve => setTimeout(resolve, 50));
-            }
-            return lib.instance;
-        }
-        
-        lib.loading = true;
-        
+    async initWorker() {
         try {
-            await this.loadScript(lib.url);
+            // تحميل المكتبات المحلية والـ Worker code
+            const [clipperCode, earcutCode, workerCode] = await Promise.all([
+                fetch('js/lib/clipper.js').then(r => r.text()),
+                fetch('js/lib/earcut.min.js').then(r => r.text()),
+                fetch('js/geometry/GeometryWorker.js').then(r => r.text())
+            ]);
             
-            // تعيين المكتبة حسب النوع
-            switch (libName) {
-                case 'clipper':
-                    lib.instance = window.ClipperLib;
-                    break;
-                case 'martinez':
-                    lib.instance = window.martinez;
-                    break;
-                case 'earcut':
-                    lib.instance = window.earcut;
-                    break;
-            }
+            // إزالة importScripts من كود Worker
+            const cleanWorkerCode = workerCode
+                .replace(/importScripts\([^)]*\);?/g, '')
+                .replace(/\/\/ تحميل المكتبات المطلوبة[\s\S]*?(?=\/\/ حالة الـ Worker)/g, '');
             
-            lib.loaded = true;
-            lib.loading = false;
+            // بناء كود Worker الكامل
+            const fullWorkerCode = `
+                // Local Clipper Library
+                ${clipperCode}
+                
+                // Local Earcut Library
+                ${earcutCode}
+                
+                // Original Worker Code (cleaned)
+                ${cleanWorkerCode}
+            `;
             
-            return lib.instance;
+            // إنشاء Blob Worker
+            const blob = new Blob([fullWorkerCode], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            
+            this.worker = new Worker(workerUrl);
+            
+            // إعداد handlers
+            this.worker.onmessage = (event) => {
+                const { id, type, result, error } = event.data;
+                
+                if (type === 'ready') {
+                    this.workerReady = true;
+                    console.log('Worker initialized with local libraries');
+                    URL.revokeObjectURL(workerUrl); // تنظيف
+                    return;
+                }
+                
+                const callback = this.workerCallbacks.get(id);
+                if (callback) {
+                    if (error) {
+                        callback.reject(new Error(error));
+                    } else {
+                        callback.resolve(result);
+                    }
+                    this.workerCallbacks.delete(id);
+                }
+            };
+            
+            this.worker.onerror = (error) => {
+                console.error('Worker error:', error);
+                this.workerReady = false;
+                this.worker = null;
+                URL.revokeObjectURL(workerUrl);
+            };
+            
+            // انتظار جاهزية Worker
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Worker initialization timeout'));
+                }, 5000);
+                
+                const checkInterval = setInterval(() => {
+                    if (this.workerReady) {
+                        clearInterval(checkInterval);
+                        clearTimeout(timeout);
+                        resolve();
+                    }
+                }, 100);
+            });
             
         } catch (error) {
-            lib.loading = false;
-            throw new Error(`Failed to load ${libName}: ${error.message}`);
+            console.error('Failed to initialize worker:', error);
+            throw error;
         }
     }
+
+/**
+ * إعداد معالجات أحداث Worker
+ */
+setupWorkerHandlers() {
+    this.worker.onmessage = (event) => {
+        const { id, type, result, error } = event.data;
+        
+        if (type === 'ready') {
+            this.workerReady = true;
+            console.log('Worker initialized successfully');
+            return;
+        }
+        
+        const callback = this.workerCallbacks.get(id);
+        if (callback) {
+            if (error) {
+                callback.reject(new Error(error));
+            } else {
+                callback.resolve(result);
+            }
+            this.workerCallbacks.delete(id);
+        }
+    };
     
-    /**
-     * تحميل script ديناميكياً
-     */
-    loadScript(url) {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = url;
-            script.onload = resolve;
-            script.onerror = () => reject(new Error(`Failed to load script: ${url}`));
-            document.head.appendChild(script);
-        });
+    this.worker.onerror = (error) => {
+        console.error('Worker error:', error);
+        this.workerReady = false;
+        this.worker = null;
+    };
+}
+
+/**
+ * تحميل كود المكتبة من URL
+ */
+async loadLibraryCode(url) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to load library from ${url}: ${response.status}`);
+        }
+        return await response.text();
+    } catch (error) {
+        console.error(`Error loading library from ${url}:`, error);
+        return '// Failed to load library';
+    }
+}
+
+/**
+ * تحميل مكتبة خارجية عند الحاجة (للاستخدام في main thread)
+ */
+async loadLibrary(libName) {
+    const lib = this.libraries[libName];
+    if (!lib) {
+        throw new Error(`Unknown library: ${libName}`);
     }
     
-    /**
-     * إرسال مهمة للـ Worker
-     */
-    sendToWorker(operation, data) {
-        return new Promise((resolve, reject) => {
-            if (!this.workerReady) {
-                reject(new Error('Worker not ready'));
-                return;
+    if (lib.loaded) {
+        return lib.instance;
+    }
+    
+    if (lib.loading) {
+        // انتظر التحميل الحالي
+        while (lib.loading) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        return lib.instance;
+    }
+    
+    lib.loading = true;
+    
+    try {
+        // استخدم المسارات المحلية أولاً، ثم الروابط الخارجية كـ fallback
+        const localUrls = {
+            'clipper': 'js/lib/clipper.js',
+            'earcut': 'js/lib/earcut.min.js',
+            'martinez': 'js/lib/martinez.min.js'
+        };
+        
+        const remoteUrls = {
+            'clipper': 'https://unpkg.com/js-angusj-clipper@1.2.1/web/clipper.js',
+            'earcut': 'https://unpkg.com/earcut@2.2.4/dist/earcut.min.js',
+            'martinez': 'https://unpkg.com/martinez-polygon-clipping@0.5.0/dist/martinez.min.js'
+        };
+        
+        // حاول تحميل من المسار المحلي أولاً
+        let url = localUrls[libName] || lib.url;
+        
+        try {
+            // تحقق من وجود الملف المحلي
+            const checkResponse = await fetch(url, { method: 'HEAD' });
+            if (!checkResponse.ok) {
+                throw new Error('Local file not found');
             }
+        } catch (e) {
+            // إذا فشل، استخدم الرابط الخارجي
+            console.warn(`Local library not found, using remote: ${libName}`);
+            url = remoteUrls[libName] || lib.url;
+        }
+        
+        await this.loadScript(url);
+        
+        // تعيين المكتبة حسب النوع
+        switch (libName) {
+            case 'clipper':
+                lib.instance = window.ClipperLib;
+                if (!lib.instance) {
+                    throw new Error('ClipperLib not found in global scope');
+                }
+                break;
+            case 'martinez':
+                lib.instance = window.martinez;
+                if (!lib.instance) {
+                    throw new Error('Martinez not found in global scope');
+                }
+                break;
+            case 'earcut':
+                lib.instance = window.earcut;
+                if (!lib.instance) {
+                    throw new Error('Earcut not found in global scope');
+                }
+                break;
+        }
+        
+        lib.loaded = true;
+        lib.loading = false;
+        console.log(`Library ${libName} loaded successfully from ${url}`);
+        
+        return lib.instance;
+        
+    } catch (error) {
+        lib.loading = false;
+        throw new Error(`Failed to load ${libName}: ${error.message}`);
+    }
+}
+
+/**
+ * تحميل script ديناميكياً
+ */
+loadScript(url) {
+    return new Promise((resolve, reject) => {
+        // تحقق من وجود script موجود مسبقاً
+        const existingScript = document.querySelector(`script[src="${url}"]`);
+        if (existingScript) {
+            console.log(`Script already loaded: ${url}`);
             
-            const id = this.workerId++;
-            this.workerCallbacks.set(id, { resolve, reject });
-            
+            // تحقق من تحميل المكتبة فعلاً
+            setTimeout(() => {
+                resolve();
+            }, 100);
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = url;
+        script.type = 'text/javascript';
+        
+        script.onload = () => {
+            console.log(`Script loaded successfully: ${url}`);
+            resolve();
+        };
+        
+        script.onerror = (error) => {
+            console.error(`Failed to load script: ${url}`, error);
+            reject(new Error(`Failed to load script: ${url}`));
+        };
+        
+        document.head.appendChild(script);
+    });
+}
+
+/**
+ * إرسال مهمة للـ Worker
+ */
+async sendToWorker(operation, data) {
+    // إذا لم يكن Worker جاهزاً، استخدم العمليات المحلية
+    if (!this.worker || !this.workerReady) {
+        console.log(`Executing ${operation} locally (Worker not available)`);
+        return await this.executeLocally(operation, data);
+    }
+    
+    return new Promise((resolve, reject) => {
+        const id = this.workerId++;
+        
+        // إضافة timeout
+        const timeout = setTimeout(() => {
+            this.workerCallbacks.delete(id);
+            console.warn(`Worker operation timeout: ${operation}`);
+            // حاول تنفيذ العملية محلياً
+            this.executeLocally(operation, data)
+                .then(resolve)
+                .catch(reject);
+        }, 30000); // 30 ثانية
+        
+        this.workerCallbacks.set(id, { 
+            resolve: (result) => {
+                clearTimeout(timeout);
+                resolve(result);
+            },
+            reject: (error) => {
+                clearTimeout(timeout);
+                reject(error);
+            }
+        });
+        
+        try {
             this.worker.postMessage({
                 id,
                 operation,
                 data
             });
-        });
+        } catch (error) {
+            clearTimeout(timeout);
+            this.workerCallbacks.delete(id);
+            console.error(`Failed to post message to worker: ${error.message}`);
+            // حاول تنفيذ العملية محلياً
+            this.executeLocally(operation, data)
+                .then(resolve)
+                .catch(reject);
+        }
+    });
+}
+
+/**
+ * تنفيذ العمليات محلياً (fallback)
+ */
+async executeLocally(operation, data) {
+    console.log(`Executing ${operation} locally`);
+    
+    // تأكد من تحميل المكتبات المطلوبة
+    try {
+        switch (operation) {
+            case 'union':
+            case 'difference':
+            case 'intersection':
+            case 'xor':
+            case 'offsetPolygon':
+            case 'offsetPolyline':
+                if (!this.libraries.clipper.loaded) {
+                    await this.loadLibrary('clipper');
+                }
+                break;
+                
+            case 'triangulate':
+                if (!this.libraries.earcut.loaded) {
+                    await this.loadLibrary('earcut');
+                }
+                break;
+        }
+    } catch (error) {
+        console.error(`Failed to load required libraries for ${operation}:`, error);
+        throw error;
     }
+    
+    // تنفيذ العملية
+    try {
+        switch (operation) {
+            case 'union':
+                return await this.unionDirect(data.shapes);
+                
+            case 'difference':
+                return await this.difference(data.subject, data.clips);
+                
+            case 'intersection':
+                return await this.intersection(data.shapes);
+                
+            case 'xor':
+                return await this.xor(data.shape1, data.shape2);
+                
+            case 'offsetPolygon':
+                return await this.offsetPolygon(data.polygon, data.distance);
+                
+            case 'offsetPolyline':
+                return await this.offsetPolyline(data.polyline, data.distance);
+                
+            case 'triangulate':
+                return await this.triangulatePolygon(data.polygon);
+                
+            case 'simplify':
+                return this.douglasPeucker(data.points, data.tolerance);
+                
+            case 'convexHull':
+                return this.convexHull(data.points);
+                
+            case 'rectangularArray':
+                return this.rectangularArray(data.shape, data.rows, data.cols, data.spacing);
+                
+            case 'polarArray':
+                return this.polarArray(data.shape, data.center, data.count, data.angle);
+                
+            case 'pathArray':
+                return this.pathArray(data.shape, data.path, data.count, data.align);
+                
+            default:
+                // حاول استدعاء الدالة مباشرة إذا كانت موجودة
+                if (typeof this[operation] === 'function') {
+                    return await this[operation](data);
+                }
+                throw new Error(`Unknown operation: ${operation}`);
+        }
+    } catch (error) {
+        console.error(`Error executing ${operation} locally:`, error);
+        throw error;
+    }
+}
     
     /**
      * حساب تعقيد الشكل
@@ -2597,6 +2879,704 @@ class GeometryAdvanced {
         console.log(`Cache Hit Rate: ${(this.cacheHits / (this.cacheHits + this.cacheMisses) * 100).toFixed(2)}%`);
         console.log(`Cache Size: ${this.cache.size} items`);
     }
+
+    // أضف هذه الدوال في نهاية GeometryAdvanced class قبل closing brace
+
+/**
+ * إنشاء مضلع منتظم
+ * @param {Object} center - مركز المضلع {x, y}
+ * @param {number} radius - نصف قطر المضلع
+ * @param {number} sides - عدد الأضلاع
+ * @returns {Object} كائن المضلع
+ */
+createPolygon(center, radius, sides) {
+    if (sides < 3) {
+        throw new Error('Polygon must have at least 3 sides');
+    }
+    
+    const points = [];
+    const angleStep = (2 * Math.PI) / sides;
+    
+    // إنشاء نقاط المضلع
+    for (let i = 0; i < sides; i++) {
+        const angle = i * angleStep - Math.PI / 2; // بدء من الأعلى
+        points.push({
+            x: center.x + radius * Math.cos(angle),
+            y: center.y + radius * Math.sin(angle)
+        });
+    }
+    
+    // إغلاق المضلع
+    points.push({ ...points[0] });
+    
+    return {
+        type: 'polyline',
+        points: points,
+        closed: true,
+        id: this.cad ? this.cad.generateId() : Math.random().toString(36).substr(2, 9)
+    };
+}
+
+/**
+ * تدوير زاوية بين شكلين (Wrapper للتوافق)
+ * @param {Object} shape1 - الشكل الأول
+ * @param {Object} shape2 - الشكل الثاني
+ * @param {number} radius - نصف قطر التدوير
+ * @returns {Object} نتيجة التدوير
+ */
+async fillet(shape1, shape2, radius) {
+    // تحويل الأشكال لخطوط إذا أمكن
+    const line1 = this.shapeToLine(shape1);
+    const line2 = this.shapeToLine(shape2);
+    
+    if (!line1 || !line2) {
+        return { success: false, message: 'Shapes must be convertible to lines' };
+    }
+    
+    const result = await this.filletCorner(line1, line2, radius);
+    
+    if (result) {
+        return {
+            success: true,
+            shapes: [result.arc]
+        };
+    }
+    
+    return { success: false, message: 'Failed to create fillet' };
+}
+
+/**
+ * قطع زاوية بين شكلين (Wrapper للتوافق)
+ * @param {Object} shape1 - الشكل الأول
+ * @param {Object} shape2 - الشكل الثاني
+ * @param {number} distance1 - المسافة الأولى
+ * @param {number} distance2 - المسافة الثانية
+ * @returns {Object} نتيجة القطع
+ */
+async chamfer(shape1, shape2, distance1, distance2) {
+    // تحويل الأشكال لخطوط إذا أمكن
+    const line1 = this.shapeToLine(shape1);
+    const line2 = this.shapeToLine(shape2);
+    
+    if (!line1 || !line2) {
+        return { success: false, message: 'Shapes must be convertible to lines' };
+    }
+    
+    const result = await this.chamferCorner(line1, line2, distance1);
+    
+    if (result) {
+        return {
+            success: true,
+            shapes: [result.line]
+        };
+    }
+    
+    return { success: false, message: 'Failed to create chamfer' };
+}
+
+/**
+ * حساب المسافة بين شكلين
+ * @param {Object} shape1 - الشكل الأول
+ * @param {Object} shape2 - الشكل الثاني
+ * @returns {Object} المسافة ونقاط القياس
+ */
+calculateDistance(shape1, shape2) {
+    let minDistance = Infinity;
+    let point1 = null;
+    let point2 = null;
+    
+    // الحصول على نقاط من كل شكل
+    const points1 = this.getShapePoints(shape1);
+    const points2 = this.getShapePoints(shape2);
+    
+    // حساب أقل مسافة
+    for (const p1 of points1) {
+        for (const p2 of points2) {
+            const dist = this.distance(p1, p2);
+            if (dist < minDistance) {
+                minDistance = dist;
+                point1 = p1;
+                point2 = p2;
+            }
+        }
+    }
+    
+    // معالجة خاصة للدوائر
+    if (shape1.type === 'circle' && shape2.type === 'circle') {
+        const centerDist = this.distance(shape1.center, shape2.center);
+        minDistance = Math.max(0, centerDist - shape1.radius - shape2.radius);
+        
+        const angle = Math.atan2(
+            shape2.center.y - shape1.center.y,
+            shape2.center.x - shape1.center.x
+        );
+        
+        point1 = {
+            x: shape1.center.x + shape1.radius * Math.cos(angle),
+            y: shape1.center.y + shape1.radius * Math.sin(angle)
+        };
+        
+        point2 = {
+            x: shape2.center.x - shape2.radius * Math.cos(angle),
+            y: shape2.center.y - shape2.radius * Math.sin(angle)
+        };
+    }
+    
+    return {
+        distance: minDistance,
+        point1: point1,
+        point2: point2
+    };
+}
+
+/**
+ * حساب مساحة الشكل
+ * @param {Object} shape - الشكل
+ * @returns {number} المساحة
+ */
+calculateArea(shape) {
+    switch (shape.type) {
+        case 'circle':
+            return Math.PI * shape.radius * shape.radius;
+            
+        case 'ellipse':
+            return Math.PI * shape.radiusX * shape.radiusY;
+            
+        case 'rectangle':
+            const width = Math.abs(shape.end.x - shape.start.x);
+            const height = Math.abs(shape.end.y - shape.start.y);
+            return width * height;
+            
+        case 'polygon':
+        case 'polyline':
+            if (shape.closed || shape.type === 'polygon') {
+                return this.calculatePolygonArea(shape.points);
+            }
+            return 0;
+            
+        case 'arc':
+            // مساحة القطاع الدائري
+            const angleDiff = shape.endAngle - shape.startAngle;
+            return 0.5 * shape.radius * shape.radius * angleDiff;
+            
+        default:
+            return 0;
+    }
+}
+
+/**
+ * حساب مساحة مضلع
+ * @param {Array} points - نقاط المضلع
+ * @returns {number} المساحة
+ */
+calculatePolygonArea(points) {
+    let area = 0;
+    const n = points.length;
+    
+    for (let i = 0; i < n - 1; i++) {
+        area += points[i].x * points[i + 1].y;
+        area -= points[i + 1].x * points[i].y;
+    }
+    
+    // إغلاق المضلع إذا لم يكن مغلقاً
+    if (points[0].x !== points[n-1].x || points[0].y !== points[n-1].y) {
+        area += points[n - 1].x * points[0].y;
+        area -= points[0].x * points[n - 1].y;
+    }
+    
+    return Math.abs(area) / 2;
+}
+
+/**
+ * الحصول على خصائص الشكل
+ * @param {Object} shape - الشكل
+ * @returns {Object} خصائص الشكل
+ */
+getShapeProperties(shape) {
+    const props = {
+        type: shape.type,
+        perimeter: this.calculatePerimeter(shape),
+        area: this.calculateArea(shape),
+        centroid: this.calculateCentroid(shape),
+        boundingBox: this.getShapeBounds(shape)
+    };
+    
+    // حساب العرض والارتفاع من الحدود
+    if (props.boundingBox) {
+        props.boundingBox.width = props.boundingBox.maxX - props.boundingBox.minX;
+        props.boundingBox.height = props.boundingBox.maxY - props.boundingBox.minY;
+    }
+    
+    return props;
+}
+
+/**
+ * حساب محيط الشكل
+ * @param {Object} shape - الشكل
+ * @returns {number} المحيط
+ */
+calculatePerimeter(shape) {
+    switch (shape.type) {
+        case 'circle':
+            return 2 * Math.PI * shape.radius;
+            
+        case 'ellipse':
+            // تقريب Ramanujan
+            const a = shape.radiusX;
+            const b = shape.radiusY;
+            const h = Math.pow(a - b, 2) / Math.pow(a + b, 2);
+            return Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+            
+        case 'rectangle':
+            const width = Math.abs(shape.end.x - shape.start.x);
+            const height = Math.abs(shape.end.y - shape.start.y);
+            return 2 * (width + height);
+            
+        case 'line':
+            return this.distance(shape.start, shape.end);
+            
+        case 'polyline':
+        case 'polygon':
+            let perimeter = 0;
+            for (let i = 0; i < shape.points.length - 1; i++) {
+                perimeter += this.distance(shape.points[i], shape.points[i + 1]);
+            }
+            return perimeter;
+            
+        case 'arc':
+            return shape.radius * Math.abs(shape.endAngle - shape.startAngle);
+            
+        default:
+            return 0;
+    }
+}
+
+/**
+ * حساب مركز الكتلة للشكل
+ * @param {Object} shape - الشكل
+ * @returns {Object} مركز الكتلة {x, y}
+ */
+calculateCentroid(shape) {
+    switch (shape.type) {
+        case 'circle':
+        case 'arc':
+        case 'ellipse':
+            return { ...shape.center };
+            
+        case 'rectangle':
+            return {
+                x: (shape.start.x + shape.end.x) / 2,
+                y: (shape.start.y + shape.end.y) / 2
+            };
+            
+        case 'line':
+            return {
+                x: (shape.start.x + shape.end.x) / 2,
+                y: (shape.start.y + shape.end.y) / 2
+            };
+            
+        case 'polygon':
+        case 'polyline':
+            if (shape.points.length === 0) return { x: 0, y: 0 };
+            
+            if (shape.type === 'polyline' && !shape.closed) {
+                // مركز كتلة خط متعدد مفتوح
+                let sumX = 0, sumY = 0;
+                for (const point of shape.points) {
+                    sumX += point.x;
+                    sumY += point.y;
+                }
+                return {
+                    x: sumX / shape.points.length,
+                    y: sumY / shape.points.length
+                };
+            } else {
+                // مركز كتلة مضلع مغلق
+                return this.calculatePolygonCentroid(shape.points);
+            }
+            
+        default:
+            return { x: 0, y: 0 };
+    }
+}
+
+/**
+ * حساب مركز كتلة مضلع
+ * @param {Array} points - نقاط المضلع
+ * @returns {Object} مركز الكتلة {x, y}
+ */
+calculatePolygonCentroid(points) {
+    let area = 0;
+    let cx = 0;
+    let cy = 0;
+    const n = points.length;
+    
+    for (let i = 0; i < n - 1; i++) {
+        const cross = points[i].x * points[i + 1].y - points[i + 1].x * points[i].y;
+        area += cross;
+        cx += (points[i].x + points[i + 1].x) * cross;
+        cy += (points[i].y + points[i + 1].y) * cross;
+    }
+    
+    // إغلاق المضلع إذا لم يكن مغلقاً
+    if (points[0].x !== points[n-1].x || points[0].y !== points[n-1].y) {
+        const cross = points[n - 1].x * points[0].y - points[0].x * points[n - 1].y;
+        area += cross;
+        cx += (points[n - 1].x + points[0].x) * cross;
+        cy += (points[n - 1].y + points[0].y) * cross;
+    }
+    
+    area *= 0.5;
+    
+    if (Math.abs(area) < 0.0001) {
+        // إذا كانت المساحة صفر، استخدم المتوسط البسيط
+        let sumX = 0, sumY = 0;
+        for (const point of points) {
+            sumX += point.x;
+            sumY += point.y;
+        }
+        return {
+            x: sumX / points.length,
+            y: sumY / points.length
+        };
+    }
+    
+    return {
+        x: cx / (6 * area),
+        y: cy / (6 * area)
+    };
+}
+
+/**
+ * تبسيط خط متعدد (Wrapper للتوافق)
+ * @param {Object} polyline - الخط المتعدد
+ * @param {Object} options - خيارات التبسيط
+ * @returns {Object} الخط المبسط
+ */
+simplifyPolyline(polyline, options = {}) {
+    const tolerance = options.tolerance || 1;
+    
+    // استخدم دالة التبسيط الموجودة
+    const simplified = this.douglasPeucker(polyline.points, tolerance);
+    
+    return {
+        type: 'polyline',
+        points: simplified,
+        closed: polyline.closed || false,
+        id: this.cad ? this.cad.generateId() : polyline.id
+    };
+}
+
+/**
+ * تحويل منحنى لخط متعدد (تحديث للتوافق)
+ * @param {Object} curve - المنحنى
+ * @param {Object} options - خيارات التحويل
+ * @returns {Object} الخط المتعدد
+ */
+curveToPolyline(curve, options = {}) {
+    const segments = options.segments || 32;
+    
+    switch (curve.type) {
+        case 'arc':
+            return this.arcToPolyline(curve, segments);
+        case 'circle':
+            return this.circleToPolyline(curve, segments);
+        case 'ellipse':
+            return this.ellipseToPolyline(curve, segments);
+        default:
+            return curve;
+    }
+}
+
+/**
+ * تحويل دائرة لخط متعدد
+ * @param {Object} circle - الدائرة
+ * @param {number} segments - عدد القطع
+ * @returns {Object} الخط المتعدد
+ */
+circleToPolyline(circle, segments) {
+    const points = [];
+    const angleStep = (2 * Math.PI) / segments;
+    
+    for (let i = 0; i <= segments; i++) {
+        const angle = i * angleStep;
+        points.push({
+            x: circle.center.x + circle.radius * Math.cos(angle),
+            y: circle.center.y + circle.radius * Math.sin(angle)
+        });
+    }
+    
+    return {
+        type: 'polyline',
+        points: points,
+        closed: true,
+        id: this.cad ? this.cad.generateId() : Math.random().toString(36).substr(2, 9)
+    };
+}
+
+/**
+ * تحويل شكل بيضاوي لخط متعدد
+ * @param {Object} ellipse - الشكل البيضاوي
+ * @param {number} segments - عدد القطع
+ * @returns {Object} الخط المتعدد
+ */
+ellipseToPolyline(ellipse, segments) {
+    const points = [];
+    const angleStep = (2 * Math.PI) / segments;
+    
+    for (let i = 0; i <= segments; i++) {
+        const angle = i * angleStep;
+        points.push({
+            x: ellipse.center.x + ellipse.radiusX * Math.cos(angle),
+            y: ellipse.center.y + ellipse.radiusY * Math.sin(angle)
+        });
+    }
+    
+    return {
+        type: 'polyline',
+        points: points,
+        closed: true,
+        id: this.cad ? this.cad.generateId() : Math.random().toString(36).substr(2, 9)
+    };
+}
+
+/**
+ * مصفوفة مستطيلة (تحديث للتوافق)
+ * @param {Array} shapes - الأشكال المراد نسخها
+ * @param {Object} options - خيارات المصفوفة
+ * @returns {Array} الأشكال الجديدة
+ */
+rectangularArray(shapes, options) {
+    const rows = options.rows || 1;
+    const columns = options.columns || 1;
+    const rowSpacing = options.rowSpacing || 10;
+    const columnSpacing = options.columnSpacing || 10;
+    
+    const result = [];
+    
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < columns; col++) {
+            if (row === 0 && col === 0) continue; // تخطي الأصل
+            
+            shapes.forEach(shape => {
+                const copy = this.cloneShape(shape);
+                const dx = col * columnSpacing;
+                const dy = row * rowSpacing;
+                
+                this.translateShape(copy, dx, dy);
+                copy.id = this.cad ? this.cad.generateId() : Math.random().toString(36).substr(2, 9);
+                result.push(copy);
+            });
+        }
+    }
+    
+    return result;
+}
+
+/**
+ * مصفوفة قطبية (تحديث للتوافق)
+ * @param {Array} shapes - الأشكال المراد نسخها
+ * @param {Object} options - خيارات المصفوفة
+ * @returns {Array} الأشكال الجديدة
+ */
+polarArray(shapes, options) {
+    const center = options.center;
+    const count = options.count || 6;
+    const angle = (options.angle || 360) * Math.PI / 180;
+    const rotateItems = options.rotateItems !== false;
+    
+    const result = [];
+    const angleStep = angle / count;
+    
+    for (let i = 1; i < count; i++) { // البدء من 1 لتخطي الأصل
+        const currentAngle = i * angleStep;
+        
+        shapes.forEach(shape => {
+            const copy = this.cloneShape(shape);
+            
+            // تدوير حول المركز
+            this.rotateShape(copy, center, currentAngle);
+            
+            // تدوير الشكل نفسه إذا مطلوب
+            if (rotateItems) {
+                const shapeBounds = this.getShapeBounds(copy);
+                const shapeCenter = {
+                    x: (shapeBounds.minX + shapeBounds.maxX) / 2,
+                    y: (shapeBounds.minY + shapeBounds.maxY) / 2
+                };
+                this.rotateShape(copy, shapeCenter, currentAngle);
+            }
+            
+            copy.id = this.cad ? this.cad.generateId() : Math.random().toString(36).substr(2, 9);
+            result.push(copy);
+        });
+    }
+    
+    return result;
+}
+
+/**
+ * مصفوفة على مسار (تحديث للتوافق)
+ * @param {Array} shapes - الأشكال المراد نسخها
+ * @param {Object} path - المسار
+ * @param {Object} options - خيارات المصفوفة
+ * @returns {Array} الأشكال الجديدة
+ */
+pathArray(shapes, path, options) {
+    const count = options.count || 10;
+    const alignToPath = options.alignToPath !== false;
+    
+    const result = [];
+    const pathLength = this.calculatePathLength(path);
+    const step = pathLength / (count - 1);
+    
+    for (let i = 0; i < count; i++) {
+        const distance = i * step;
+        const position = this.getPointAtDistance(path, distance);
+        
+        if (!position) continue;
+        
+        shapes.forEach(shape => {
+            const copy = this.cloneShape(shape);
+            
+            // تحريك للموضع
+            const bounds = this.getShapeBounds(shape);
+            const centerX = (bounds.minX + bounds.maxX) / 2;
+            const centerY = (bounds.minY + bounds.maxY) / 2;
+            
+            this.translateShape(
+                copy, 
+                position.point.x - centerX, 
+                position.point.y - centerY
+            );
+            
+            // محاذاة مع المسار إذا مطلوب
+            if (alignToPath && position.angle !== undefined) {
+                this.rotateShape(copy, position.point, position.angle);
+            }
+            
+            copy.id = this.cad ? this.cad.generateId() : Math.random().toString(36).substr(2, 9);
+            result.push(copy);
+        });
+    }
+    
+    return result;
+}
+
+/**
+ * طرح شكل من آخر (Wrapper للتوافق مع الإصدارات القديمة)
+ * @param {Object} subject - الشكل الأساسي
+ * @param {Object|Array} clips - الشكل أو الأشكال المطروحة
+ * @returns {Array} الأشكال الناتجة
+ */
+async differenceWrapper(subject, clips) {
+    // تحويل لمصفوفة إذا لم تكن كذلك
+    const clipsArray = Array.isArray(clips) ? clips : [clips];
+    
+    // استدعاء الدالة الأصلية
+    return await this.difference(subject, clipsArray);
+}
+
+// ==================== دوال مساعدة ====================
+
+/**
+ * تحويل شكل لخط
+ * @param {Object} shape - الشكل
+ * @returns {Object|null} الخط أو null
+ */
+shapeToLine(shape) {
+    if (shape.type === 'line') {
+        return shape;
+    }
+    
+    if (shape.type === 'polyline' && shape.points.length >= 2) {
+        return {
+            type: 'line',
+            start: shape.points[0],
+            end: shape.points[shape.points.length - 1]
+        };
+    }
+    
+    if (shape.type === 'rectangle') {
+        // استخدم أول ضلع من المستطيل
+        return {
+            type: 'line',
+            start: { x: shape.start.x, y: shape.start.y },
+            end: { x: shape.end.x, y: shape.start.y }
+        };
+    }
+    
+    return null;
+}
+
+/**
+ * الحصول على نقاط من الشكل
+ * @param {Object} shape - الشكل
+ * @returns {Array} مصفوفة النقاط
+ */
+getShapePoints(shape) {
+    const points = [];
+    
+    switch (shape.type) {
+        case 'line':
+            points.push(shape.start, shape.end);
+            break;
+            
+        case 'rectangle':
+            points.push(
+                { x: shape.start.x, y: shape.start.y },
+                { x: shape.end.x, y: shape.start.y },
+                { x: shape.end.x, y: shape.end.y },
+                { x: shape.start.x, y: shape.end.y }
+            );
+            break;
+            
+        case 'circle':
+            // نقاط على محيط الدائرة
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                points.push({
+                    x: shape.center.x + shape.radius * Math.cos(angle),
+                    y: shape.center.y + shape.radius * Math.sin(angle)
+                });
+            }
+            break;
+            
+        case 'polyline':
+        case 'polygon':
+            points.push(...shape.points);
+            break;
+            
+        case 'arc':
+            // نقاط على القوس
+            const angleRange = shape.endAngle - shape.startAngle;
+            for (let i = 0; i <= 8; i++) {
+                const angle = shape.startAngle + (i / 8) * angleRange;
+                points.push({
+                    x: shape.center.x + shape.radius * Math.cos(angle),
+                    y: shape.center.y + shape.radius * Math.sin(angle)
+                });
+            }
+            break;
+            
+        case 'ellipse':
+            // نقاط على محيط الشكل البيضاوي
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                points.push({
+                    x: shape.center.x + shape.radiusX * Math.cos(angle),
+                    y: shape.center.y + shape.radiusY * Math.sin(angle)
+                });
+            }
+            break;
+    }
+    
+    return points;
+}
+
+
+
+
 }
 
 // تصدير للاستخدام العام
