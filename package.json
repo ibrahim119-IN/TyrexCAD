@@ -1,0 +1,49 @@
+{
+  "name": "tyrexcad-v3",
+  "version": "3.0.0",
+  "description": "TyrexCAD Professional - Advanced CAD System built with modern web technologies",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "clean": "rm -rf dist node_modules/.vite",
+    "serve": "vite preview --port 8080",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ibrahim119-IN/TyrexCAD.git"
+  },
+  "keywords": [
+    "cad",
+    "design",
+    "drawing",
+    "canvas",
+    "2d",
+    "3d",
+    "engineering",
+    "graphics"
+  ],
+  "author": "Ibrahim",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ibrahim119-IN/TyrexCAD/issues"
+  },
+  "homepage": "https://github.com/ibrahim119-IN/TyrexCAD#readme",
+  "devDependencies": {
+    "vite": "^5.0.10"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
+}
