@@ -764,35 +764,51 @@ class TyrexCAD {
     
     // Drawing functions - Wrapper functions to Tools
     drawLine(point) {
-        return Tools.drawLine(point);
+        if (window.Tools) {
+            return window.Tools.drawLine(point);
+        }
     }
     
     drawPolyline(point) {
-        return Tools.drawPolyline(point);
+        if (window.Tools) {
+            return window.Tools.drawPolyline(point);
+        }
     }
     
     finishPolyline() {
-        return Tools.finishPolyline();
+        if (window.Tools) {
+            return window.Tools.finishPolyline();
+        }
     }
     
     drawRectangle(point) {
-        return Tools.drawRectangle(point);
+        if (window.Tools) {
+            return window.Tools.drawRectangle(point);
+        }
     }
     
     drawCircle(point) {
-        return Tools.drawCircle(point);
+        if (window.Tools) {
+            return window.Tools.drawCircle(point);
+        }
     }
     
     drawArc(point) {
-        return Tools.drawArc(point);
+        if (window.Tools) {
+            return window.Tools.drawArc(point);
+        }
     }
     
     drawEllipse(point) {
-        return Tools.drawEllipse(point);
+        if (window.Tools) {
+            return window.Tools.drawEllipse(point);
+        }
     }
     
     drawText(point) {
-        return Tools.drawText(point);
+        if (window.Tools) {
+            return window.Tools.drawText(point);
+        }
     }
     
     // Advanced Geometry Tools
@@ -1469,35 +1485,51 @@ async performDifference() {
     
     // Wrapper functions for modify tools
     moveStart(point) {
-        return Tools.moveStart(point);
+        if (window.Tools) {
+            return window.Tools.moveStart(point);
+        }
     }
     
     copyStart(point) {
-        return Tools.copyStart(point);
+        if (window.Tools) {
+            return window.Tools.copyStart(point);
+        }
     }
     
     rotateStart(point) {
-        return Tools.rotateStart(point);
+        if (window.Tools) {
+            return window.Tools.rotateStart(point);
+        }
     }
     
     scaleStart(point) {
-        return Tools.scaleStart(point);
+        if (window.Tools) {
+            return window.Tools.scaleStart(point);
+        }
     }
     
     mirrorStart(point) {
-        return Tools.mirrorStart(point);
+        if (window.Tools) {
+            return window.Tools.mirrorStart(point);
+        }
     }
     
     handleTrim(point) {
-        return Tools.handleTrim(point);
+        if (window.Tools) {
+            return window.Tools.handleTrim(point);
+        }
     }
     
     handleExtend(point) {
-        return Tools.handleExtend(point);
+        if (window.Tools) {
+            return window.Tools.handleExtend(point);
+        }
     }
     
     handleOffset(point) {
-        return Tools.handleOffset(point);
+        if (window.Tools) {
+            return window.Tools.handleOffset(point);
+        }
     }
     
     // Dimension handling
@@ -2553,10 +2585,10 @@ async performDifference() {
                 
             case 'move':
             case 'copy':
-                if (Tools.modifyState.originalShapes.length > 0) {
+                if (window.Tools && window.Tools.modifyState.originalShapes.length > 0) {
                     const dx = snapPoint.x - this.drawingPoints[0].x;
                     const dy = snapPoint.y - this.drawingPoints[0].y;
-                    this.tempShapes = Tools.modifyState.originalShapes.map(shape => {
+                    this.tempShapes = window.Tools.modifyState.originalShapes.map(shape => {
                         const temp = this.cloneShape(shape);
                         this.translateShape(temp, dx, dy);
                         return temp;
@@ -2565,13 +2597,13 @@ async performDifference() {
                 break;
                 
             case 'rotate':
-                if (Tools.modifyState.originalShapes.length > 0) {
+                if (window.Tools && window.Tools.modifyState.originalShapes.length > 0) {
                     const center = this.drawingPoints[0];
                     const angle = Math.atan2(
                         snapPoint.y - center.y,
                         snapPoint.x - center.x
                     );
-                    this.tempShapes = Tools.modifyState.originalShapes.map(shape => {
+                    this.tempShapes = window.Tools.modifyState.originalShapes.map(shape => {
                         const temp = this.cloneShape(shape);
                         this.rotateShape(temp, center, angle);
                         return temp;
@@ -2580,11 +2612,11 @@ async performDifference() {
                 break;
                 
             case 'scale':
-                if (Tools.modifyState.originalShapes.length > 0) {
+                if (window.Tools && window.Tools.modifyState.originalShapes.length > 0) {
                     const center = this.drawingPoints[0];
                     const distance = this.distance(center.x, center.y, snapPoint.x, snapPoint.y);
-                    const scale = distance / Tools.modifyState.baseDistance;
-                    this.tempShapes = Tools.modifyState.originalShapes.map(shape => {
+                    const scale = distance / window.Tools.modifyState.baseDistance;
+                    this.tempShapes = window.Tools.modifyState.originalShapes.map(shape => {
                         const temp = this.cloneShape(shape);
                         this.scaleShape(temp, center, scale);
                         return temp;
@@ -2648,7 +2680,7 @@ async performDifference() {
                 case 'scale':
                     if (this.drawingPoints.length === 1) {
                         const endPoint = {
-                            x: this.drawingPoints[0].x + Tools.modifyState.baseDistance * value,
+                            x: this.drawingPoints[0].x + (window.Tools && window.Tools.modifyState.baseDistance ? window.Tools.modifyState.baseDistance : 100) * value,
                             y: this.drawingPoints[0].y
                         };
                         this.scaleStart(endPoint);
@@ -2656,7 +2688,9 @@ async performDifference() {
                     break;
                     
                 case 'offset':
-                    Tools.updateOffsetDistance(parsedValue); // استخدم القيمة بالوحدات الداخلية
+                    if (window.Tools) {
+                        window.Tools.updateOffsetDistance(parsedValue); // استخدم القيمة بالوحدات الداخلية
+                    }
                     if (this.drawingPoints.length === 1) {
                         this.handleOffset(this.drawingPoints[0]);
                     }
@@ -3883,8 +3917,8 @@ Other:
         this.polygonSides = null;
         
         // Reset Tools state
-        if (window.Tools) {
-            Tools.resetModifyState();
+        if (window.Tools && window.Tools.resetModifyState) {
+            window.Tools.resetModifyState();
         }
     }
     
