@@ -1,13 +1,7 @@
 // ============================================
-//  js/core/GripsController.js
+//  js/core/GripsController.js - النسخة المُصلحة
 // ============================================
 
-/**
- * نظام التحكم المتكامل في الرؤوس والحواف
- * Integrated Grips System for Vertices and Edges
- */
-
-// تعريف GripsController في النطاق العام
 (function(window) {
     'use strict';
 
@@ -40,173 +34,6 @@
                     active: '#00d4aa'
                 }
             };
-        }
-        
-        /**
-         * معالجة النقرة اليمنى على grip
-         */
-        handleRightClick(point, e) {
-            const grip = this.findGripAt(point, this.cad.selectedShapes);
-            
-            if (grip) {
-                this.contextMenuGrip = grip;
-                this.showGripContextMenu(e.clientX, e.clientY, grip);
-                return true;
-            }
-            
-            return false;
-        }
-        
-        /**
-         * عرض القائمة السياقية للـ grip
-         */
-        showGripContextMenu(x, y, grip) {
-            // إزالة أي قائمة سابقة
-            const existingMenu = document.querySelector('.grips-context-menu');
-            if (existingMenu) {
-                existingMenu.remove();
-            }
-            
-            // إنشاء القائمة
-            const menu = document.createElement('div');
-            menu.className = 'grips-context-menu';
-            menu.style.position = 'fixed';
-            menu.style.left = x + 'px';
-            menu.style.top = y + 'px';
-            menu.style.zIndex = '1000';
-            
-            // بناء عناصر القائمة حسب نوع grip
-            if (grip.type === 'vertex') {
-                menu.innerHTML = `
-                    <div class="context-menu-item" data-action="stretch">
-                        <i class="fas fa-arrows-alt"></i> Stretch Vertex
-                    </div>
-                    <div class="context-menu-item" data-action="remove">
-                        <i class="fas fa-trash"></i> Remove Vertex
-                    </div>
-                    <div class="context-menu-separator"></div>
-                    <div class="context-menu-item" data-action="smooth">
-                        <i class="fas fa-bezier-curve"></i> Convert to Smooth
-                    </div>
-                    <div class="context-menu-item" data-action="corner">
-                        <i class="fas fa-square"></i> Convert to Corner
-                    </div>
-                    <div class="context-menu-separator"></div>
-                    <div class="context-menu-item" data-action="properties">
-                        <i class="fas fa-cog"></i> Properties...
-                    </div>
-                `;
-            } else if (grip.type === 'edge') {
-                menu.innerHTML = `
-                    <div class="context-menu-item" data-action="add-vertex">
-                        <i class="fas fa-plus"></i> Add Vertex
-                    </div>
-                    <div class="context-menu-item" data-action="convert-arc">
-                        <i class="fas fa-circle-notch"></i> Convert to Arc
-                    </div>
-                    <div class="context-menu-separator"></div>
-                    <div class="context-menu-item" data-action="divide">
-                        <i class="fas fa-cut"></i> Divide Edge
-                    </div>
-                    <div class="context-menu-item" data-action="offset">
-                        <i class="fas fa-expand-arrows-alt"></i> Offset Edge
-                    </div>
-                `;
-            }
-            
-            // إضافة معالجات الأحداث
-            menu.addEventListener('click', (e) => {
-                const item = e.target.closest('.context-menu-item');
-                if (item) {
-                    const action = item.dataset.action;
-                    this.executeGripAction(action, grip);
-                    menu.remove();
-                }
-            });
-            
-            // إضافة القائمة للصفحة
-            document.body.appendChild(menu);
-            
-            // إغلاق القائمة عند النقر خارجها
-            const closeMenu = (e) => {
-                if (!menu.contains(e.target)) {
-                    menu.remove();
-                    document.removeEventListener('click', closeMenu);
-                    document.removeEventListener('contextmenu', closeMenu);
-                }
-            };
-            
-            setTimeout(() => {
-                document.addEventListener('click', closeMenu);
-                document.addEventListener('contextmenu', closeMenu);
-            }, 0);
-        }
-        
-        /**
-         * تنفيذ إجراء من القائمة السياقية
-         */
-        executeGripAction(action, grip) {
-            this.cad.recordState();
-            
-            switch (action) {
-                case 'stretch':
-                    this.startDrag(grip, grip.point);
-                    break;
-                    
-                case 'remove':
-                    this.removeVertex(grip);
-                    break;
-                    
-                case 'add-vertex':
-                    this.addVertexAtEdge(grip, grip.point);
-                    break;
-                    
-                case 'convert-arc':
-                    this.convertEdgeToArc(grip);
-                    break;
-                    
-                case 'smooth':
-                    this.convertVertexType(grip, 'smooth');
-                    break;
-                    
-                case 'corner':
-                    this.convertVertexType(grip, 'corner');
-                    break;
-                    
-                case 'divide':
-                    this.divideEdge(grip);
-                    break;
-                    
-                case 'offset':
-                    this.offsetEdge(grip);
-                    break;
-                    
-                case 'properties':
-                    this.showGripProperties(grip);
-                    break;
-            }
-            
-            this.cad.render();
-        }
-        
-        /**
-         * معالجة double-click على grip
-         */
-        handleDoubleClick(point) {
-            const grip = this.findGripAt(point, this.cad.selectedShapes);
-            
-            if (grip) {
-                if (grip.type === 'edge') {
-                    // Double-click على edge يحولها إلى قوس
-                    this.convertEdgeToArc(grip);
-                } else if (grip.type === 'vertex') {
-                    // Double-click على vertex يفتح خصائصها
-                    this.showGripProperties(grip);
-                }
-                return true;
-            }
-            
-            return false;
         }
         
         /**
@@ -251,10 +78,10 @@
                 case 'polyline':
                     return shape.points.map((p, i) => ({
                         type: 'vertex',
-                        subtype: i === 0 || i === shape.points.length - 1 ? 'endpoint' : 'vertex',
+                        subtype: i === 0 || i === shape.points.length - 1 ? 'endpoint' : 'middle',
                         point: p,
                         index: i,
-                        id: `v${i}`,
+                        id: `point${i}`,
                         shape: shape
                     }));
                     
@@ -265,31 +92,7 @@
                             subtype: 'radius',
                             point: { x: shape.center.x + shape.radius, y: shape.center.y }, 
                             index: 0,
-                            id: 'e',
-                            shape: shape
-                        },
-                        { 
-                            type: 'vertex',
-                            subtype: 'radius',
-                            point: { x: shape.center.x, y: shape.center.y + shape.radius }, 
-                            index: 1,
-                            id: 's',
-                            shape: shape
-                        },
-                        { 
-                            type: 'vertex',
-                            subtype: 'radius',
-                            point: { x: shape.center.x - shape.radius, y: shape.center.y }, 
-                            index: 2,
-                            id: 'w',
-                            shape: shape
-                        },
-                        { 
-                            type: 'vertex',
-                            subtype: 'radius',
-                            point: { x: shape.center.x, y: shape.center.y - shape.radius }, 
-                            index: 3,
-                            id: 'n',
+                            id: 'radius',
                             shape: shape
                         }
                     ];
@@ -410,12 +213,6 @@
                     for (let i = 0; i < len; i++) {
                         const p1 = shape.points[i];
                         const p2 = shape.points[(i + 1) % shape.points.length];
-                        
-                        // تخطي edge grip إذا كان القطعة قوس
-                        if (shape.segments && shape.segments[i] && shape.segments[i].type === 'arc') {
-                            continue;
-                        }
-                        
                         edges.push({
                             type: 'edge',
                             point: {
@@ -430,13 +227,6 @@
                             shape: shape
                         });
                     }
-                    break;
-                    
-                case 'arc':
-                    // لا نضع edge grips على الأقواس
-                    break;
-                    
-                default:
                     break;
             }
             
@@ -598,9 +388,6 @@
                 // معاينة إضافة vertex جديد
                 this.previewNewVertex(this.draggedGrip, constrainedPoint);
             }
-            
-            // إظهار معاينة حية
-            this.showLivePreview(this.draggedGrip, constrainedPoint);
         }
         
         /**
@@ -613,9 +400,6 @@
                 // إضافة vertex جديد في موقع السحب
                 this.addVertexAtEdge(this.draggedGrip, point);
             }
-            
-            // تسجيل التغيير
-            this.recordGripChange('Grip operation completed');
             
             this.draggedGrip = null;
             this.originalPosition = null;
@@ -763,18 +547,225 @@
         convertRectangleToPolyline(rect, edgeGrip, newVertex) {
             const vertices = this.getRectangleVertices(rect);
             
+            // تحويل إلى polyline
             rect.type = 'polyline';
-            rect.points = vertices.map(v => v.point);
+            rect.points = vertices.map(v => ({ ...v.point }));
             rect.closed = true;
             
             // إضافة vertex الجديد
             rect.points.splice(edgeGrip.endIndex, 0, newVertex);
             
-            // إضافة النقطة الأخيرة لإغلاق الشكل
-            rect.points.push(rect.points[0]);
-            
+            // حذف خصائص المستطيل
             delete rect.start;
             delete rect.end;
+        }
+        
+        /**
+         * تحويل edge إلى قوس
+         */
+        convertEdgeToArc(edgeGrip) {
+            const shape = edgeGrip.shape;
+            
+            if (shape.type === 'line') {
+                // تحويل خط مستقيم إلى قوس
+                const start = shape.start;
+                const end = shape.end;
+                const midPoint = {
+                    x: (start.x + end.x) / 2,
+                    y: (start.y + end.y) / 2
+                };
+                
+                // حساب نقطة القوس (ارتفاع = ربع المسافة)
+                const dx = end.x - start.x;
+                const dy = end.y - start.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const perpX = -dy / distance * distance / 4;
+                const perpY = dx / distance * distance / 4;
+                
+                const arcPoint = {
+                    x: midPoint.x + perpX,
+                    y: midPoint.y + perpY
+                };
+                
+                // حساب القوس من 3 نقاط
+                const arc = this.calculateArcFrom3Points(start, arcPoint, end);
+                if (arc) {
+                    // تحويل الشكل إلى قوس
+                    shape.type = 'arc';
+                    shape.center = arc.center;
+                    shape.radius = arc.radius;
+                    shape.startAngle = arc.startAngle;
+                    shape.endAngle = arc.endAngle;
+                    delete shape.start;
+                    delete shape.end;
+                }
+            } else if (shape.type === 'polyline') {
+                // تحويل segment في polyline إلى قوس
+                this.cad.updateStatus('Arc conversion for polylines coming soon');
+            }
+        }
+        
+        /**
+         * حساب قوس من 3 نقاط
+         */
+        calculateArcFrom3Points(p1, p2, p3) {
+            // حساب مركز الدائرة المارة بالنقاط الثلاث
+            const ax = p1.x, ay = p1.y;
+            const bx = p2.x, by = p2.y;
+            const cx = p3.x, cy = p3.y;
+            
+            const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+            if (Math.abs(d) < 0.0001) return null; // النقاط على خط مستقيم
+            
+            const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
+            const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+            
+            const center = { x: ux, y: uy };
+            const radius = Math.sqrt((ax - ux) * (ax - ux) + (ay - uy) * (ay - uy));
+            
+            // حساب الزوايا
+            const startAngle = Math.atan2(p1.y - center.y, p1.x - center.x);
+            const endAngle = Math.atan2(p3.y - center.y, p3.x - center.x);
+            
+            return { center, radius, startAngle, endAngle };
+        }
+        
+        /**
+         * معالجة النقرة اليمنى
+         */
+        handleRightClick(point, e) {
+            const grip = this.findGripAt(point, this.cad.selectedShapes);
+            
+            if (grip) {
+                this.contextMenuGrip = grip;
+                this.showGripContextMenu(e.clientX, e.clientY, grip);
+                return true;
+            }
+            
+            return false;
+        }
+        
+        /**
+         * عرض القائمة السياقية
+         */
+        showGripContextMenu(x, y, grip) {
+            // إزالة أي قائمة سابقة
+            const existingMenu = document.querySelector('.grips-context-menu');
+            if (existingMenu) {
+                existingMenu.remove();
+            }
+            
+            // إنشاء القائمة
+            const menu = document.createElement('div');
+            menu.className = 'grips-context-menu';
+            menu.style.position = 'fixed';
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+            menu.style.zIndex = '1000';
+            
+            // بناء عناصر القائمة حسب نوع grip
+            if (grip.type === 'vertex') {
+                menu.innerHTML = `
+                    <div class="context-menu-item" data-action="remove">
+                        <i class="fas fa-trash"></i> Remove Vertex
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" data-action="properties">
+                        <i class="fas fa-cog"></i> Properties...
+                    </div>
+                `;
+            } else if (grip.type === 'edge') {
+                menu.innerHTML = `
+                    <div class="context-menu-item" data-action="add-vertex">
+                        <i class="fas fa-plus"></i> Add Vertex Here
+                    </div>
+                    <div class="context-menu-item" data-action="convert-arc">
+                        <i class="fas fa-circle-notch"></i> Convert to Arc
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" data-action="divide">
+                        <i class="fas fa-cut"></i> Divide Edge
+                    </div>
+                `;
+            }
+            
+            // إضافة معالجات الأحداث
+            menu.addEventListener('click', (e) => {
+                const item = e.target.closest('.context-menu-item');
+                if (item) {
+                    const action = item.dataset.action;
+                    this.executeGripAction(action, grip);
+                    menu.remove();
+                }
+            });
+            
+            // إضافة القائمة للصفحة
+            document.body.appendChild(menu);
+            
+            // إغلاق القائمة عند النقر خارجها
+            const closeMenu = (e) => {
+                if (!menu.contains(e.target)) {
+                    menu.remove();
+                    document.removeEventListener('click', closeMenu);
+                    document.removeEventListener('contextmenu', closeMenu);
+                }
+            };
+            
+            setTimeout(() => {
+                document.addEventListener('click', closeMenu);
+                document.addEventListener('contextmenu', closeMenu);
+            }, 0);
+        }
+        
+        /**
+         * تنفيذ إجراء من القائمة
+         */
+        executeGripAction(action, grip) {
+            this.cad.recordState();
+            
+            switch (action) {
+                case 'remove':
+                    this.removeVertex(grip);
+                    break;
+                    
+                case 'add-vertex':
+                    this.addVertexAtEdge(grip, grip.point);
+                    break;
+                    
+                case 'convert-arc':
+                    this.convertEdgeToArc(grip);
+                    break;
+                    
+                case 'divide':
+                    this.divideEdge(grip);
+                    break;
+                    
+                case 'properties':
+                    this.showGripProperties(grip);
+                    break;
+            }
+            
+            this.cad.render();
+        }
+        
+        /**
+         * معالجة double-click
+         */
+        handleDoubleClick(point) {
+            const grip = this.findGripAt(point, this.cad.selectedShapes);
+            
+            if (grip) {
+                if (grip.type === 'edge') {
+                    // Double-click على edge يحولها إلى قوس
+                    this.convertEdgeToArc(grip);
+                } else if (grip.type === 'vertex') {
+                    // Double-click على vertex يفتح خصائصها
+                    this.showGripProperties(grip);
+                }
+                return true;
+            }
+            
+            return false;
         }
         
         /**
@@ -784,97 +775,18 @@
             const shape = grip.shape;
             
             if (shape.type === 'polyline') {
-                // لا يمكن حذف vertex إذا كان عدد النقاط أقل من 2
                 if (shape.points.length <= 2) {
                     this.cad.updateStatus('Cannot remove vertex: minimum 2 points required');
-                    return { success: false, message: 'Polyline must have at least 2 points' };
+                    return;
                 }
                 
                 shape.points.splice(grip.index, 1);
                 this.cad.updateStatus('Vertex removed');
-                return { success: true };
-            } else if (shape.type === 'rectangle') {
-                // تحويل المستطيل إلى polyline ثم حذف النقطة
-                const vertices = this.getRectangleVertices(shape);
-                const points = vertices.map(v => ({ ...v.point }));
-                points.splice(grip.index, 1);
-                
-                // استبدال المستطيل بـ polyline
-                const index = this.cad.shapes.indexOf(shape);
-                this.cad.shapes[index] = {
-                    type: 'polyline',
-                    points: points,
-                    closed: true,
-                    color: shape.color,
-                    lineWidth: shape.lineWidth,
-                    lineType: shape.lineType,
-                    layerId: shape.layerId,
-                    id: shape.id
-                };
-                
-                // تحديث التحديد
-                this.cad.selectedShapes.delete(shape);
-                this.cad.selectedShapes.add(this.cad.shapes[index]);
-                return { success: true };
             }
-            
-            return { success: false, message: 'Cannot remove vertex from this shape type' };
         }
         
         /**
-         * تحويل edge إلى قوس
-         */
-        convertEdgeToArc(edgeGrip, bulge = 0.5) {
-            const shape = edgeGrip.shape;
-            
-            if (shape.type !== 'polyline') {
-                return { success: false, message: 'Can only convert polyline edges to arcs' };
-            }
-            
-            if (!shape.segments) {
-                shape.segments = new Array(shape.points.length - 1).fill(null);
-            }
-            
-            const p1 = shape.points[edgeGrip.startIndex];
-            const p2 = shape.points[edgeGrip.endIndex];
-            
-            const midPoint = {
-                x: (p1.x + p2.x) / 2,
-                y: (p1.y + p2.y) / 2
-            };
-            
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const length = Math.sqrt(dx * dx + dy * dy);
-            
-            const perpX = -dy / length;
-            const perpY = dx / length;
-            
-            const arcPoint = {
-                x: midPoint.x + perpX * length * bulge,
-                y: midPoint.y + perpY * length * bulge
-            };
-            
-            const arc = this.cad.geo.calculateArcFrom3Points(p1, arcPoint, p2);
-            
-            if (arc) {
-                shape.segments[edgeGrip.startIndex] = {
-                    type: 'arc',
-                    center: arc.center,
-                    radius: arc.radius,
-                    startAngle: arc.startAngle,
-                    endAngle: arc.endAngle,
-                    bulge: bulge
-                };
-                
-                return { success: true, arc: shape.segments[edgeGrip.startIndex] };
-            }
-            
-            return { success: false, message: 'Could not calculate arc' };
-        }
-        
-        /**
-         * تقسيم edge إلى عدة أجزاء
+         * تقسيم edge
          */
         divideEdge(edgeGrip) {
             const count = parseInt(prompt('Number of segments:', '2'));
@@ -894,10 +806,8 @@
             }
             
             if (shape.type === 'polyline') {
-                // إدراج النقاط الجديدة
                 shape.points.splice(edgeGrip.endIndex, 0, ...newPoints);
             } else if (shape.type === 'line') {
-                // تحويل إلى polyline
                 shape.type = 'polyline';
                 shape.points = [p1, ...newPoints, p2];
                 delete shape.start;
@@ -905,49 +815,6 @@
             }
             
             this.cad.updateStatus(`Edge divided into ${count} segments`);
-        }
-        
-        /**
-         * offset للـ edge
-         */
-        offsetEdge(edgeGrip) {
-            const distance = parseFloat(prompt('Offset distance:', '10'));
-            if (!distance) return;
-            
-            const shape = edgeGrip.shape;
-            const p1 = edgeGrip.start;
-            const p2 = edgeGrip.end;
-            
-            // حساب الاتجاه العمودي
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const len = Math.sqrt(dx * dx + dy * dy);
-            const perpX = -dy / len * distance;
-            const perpY = dx / len * distance;
-            
-            // إنشاء edge جديد
-            const newShape = {
-                type: 'line',
-                start: { x: p1.x + perpX, y: p1.y + perpY },
-                end: { x: p2.x + perpX, y: p2.y + perpY },
-                color: shape.color,
-                lineWidth: shape.lineWidth,
-                lineType: shape.lineType,
-                layerId: shape.layerId,
-                id: this.cad.generateId()
-            };
-            
-            this.cad.shapes.push(newShape);
-            this.cad.updateStatus('Edge offset created');
-        }
-        
-        /**
-         * تحويل نوع vertex
-         */
-        convertVertexType(grip, type) {
-            // حفظ نوع vertex (للاستخدام المستقبلي في الأشكال المنحنية)
-            grip.vertexType = type;
-            this.cad.updateStatus(`Vertex converted to ${type}`);
         }
         
         /**
@@ -967,13 +834,6 @@
                         <label>Y:</label>
                         <input type="number" id="grip-y" value="${grip.point.y.toFixed(2)}" />
                     </div>
-                    <div class="property-row">
-                        <label>Type:</label>
-                        <select id="grip-type">
-                            <option value="corner" ${grip.vertexType === 'corner' ? 'selected' : ''}>Corner</option>
-                            <option value="smooth" ${grip.vertexType === 'smooth' ? 'selected' : ''}>Smooth</option>
-                        </select>
-                    </div>
                 `;
             } else if (grip.type === 'edge') {
                 const length = this.cad.distance(grip.start.x, grip.start.y, grip.end.x, grip.end.y);
@@ -992,11 +852,9 @@
                 `;
             }
             
-            // استخدام نظام UI الموجود لعرض الخصائص
             if (this.cad.ui) {
                 this.cad.ui.showGripPropertiesDialog(content, (result) => {
                     if (result && grip.type === 'vertex') {
-                        // تطبيق التغييرات
                         const newX = parseFloat(document.getElementById('grip-x').value);
                         const newY = parseFloat(document.getElementById('grip-y').value);
                         
@@ -1010,7 +868,7 @@
         }
         
         /**
-         * إضافة ميزة snap للـ grips
+         * إضافة ميزة snap
          */
         getSnappedPosition(point) {
             if (this.cad.snapEnabled) {
@@ -1020,33 +878,7 @@
         }
         
         /**
-         * معاينة التغييرات بشكل حي
-         */
-        showLivePreview(grip, newPosition) {
-            // إنشاء نسخة مؤقتة من الشكل
-            const tempShape = this.cad.cloneShape(grip.shape);
-            
-            // تطبيق التغيير على النسخة المؤقتة
-            if (grip.type === 'vertex') {
-                this.applyVertexChange(tempShape, grip, newPosition);
-            }
-            
-            // عرض المعاينة
-            this.cad.tempShape = tempShape;
-            this.cad.tempShape.color = this.colors.edge.active;
-            this.cad.tempShape.lineType = 'dashed';
-        }
-        
-        /**
-         * دعم Undo/Redo للتغييرات
-         */
-        recordGripChange(description) {
-            this.cad.recordState();
-            this.cad.updateStatus(description);
-        }
-        
-        /**
-         * رسم جميع grips للشكل
+         * رسم جميع grips
          */
         drawGrips(shape) {
             const grips = this.getShapeGrips(shape);
@@ -1112,14 +944,6 @@
                 ctx.fill();
             }
             
-            // رسم دائرة صغيرة للتحكم في نصف القطر
-            if (grip.subtype === 'radius') {
-                ctx.beginPath();
-                ctx.arc(grip.point.x, grip.point.y, size/3, 0, Math.PI * 2);
-                ctx.fillStyle = '#ffffff';
-                ctx.fill();
-            }
-            
             ctx.restore();
         }
         
@@ -1156,7 +980,7 @@
             const width = size * 1.5;
             const height = size;
             
-            // حساب زاوية الدوران بناءً على اتجاه الخط
+            // حساب زاوية الدوران
             const angle = Math.atan2(
                 grip.end.y - grip.start.y,
                 grip.end.x - grip.start.x

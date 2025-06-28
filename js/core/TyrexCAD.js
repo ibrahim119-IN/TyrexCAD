@@ -437,7 +437,39 @@ class TyrexCAD {
     }
     
     showContextMenu(x, y) {
-        this.ui.showContextMenu(x, y);
+        // تعريف عناصر القائمة السياقية
+        const items = [];
+        
+        // إذا كان هناك أشكال محددة
+        if (this.selectedShapes.size > 0) {
+            items.push(
+                { icon: 'fas fa-copy', label: 'Copy', action: () => this.copySelected() },
+                { icon: 'fas fa-paste', label: 'Paste', action: () => this.pasteClipboard() },
+                { icon: 'fas fa-trash', label: 'Delete', action: () => this.deleteSelected() },
+                { separator: true },
+                { icon: 'fas fa-clone', label: 'Duplicate', action: () => { this.copySelected(); this.pasteClipboard(); } },
+                { icon: 'fas fa-arrows-alt', label: 'Move', action: () => this.setTool('move') },
+                { icon: 'fas fa-sync-alt', label: 'Rotate', action: () => this.setTool('rotate') },
+                { icon: 'fas fa-expand-arrows-alt', label: 'Scale', action: () => this.setTool('scale') },
+                { separator: true },
+                { icon: 'fas fa-info-circle', label: 'Properties', action: () => this.showProperties() }
+            );
+        } else {
+            // قائمة عامة
+            items.push(
+                { icon: 'fas fa-mouse-pointer', label: 'Select All', action: () => this.selectAll() },
+                { separator: true },
+                { icon: 'fas fa-undo', label: 'Undo', action: () => this.undo() },
+                { icon: 'fas fa-redo', label: 'Redo', action: () => this.redo() },
+                { separator: true },
+                { icon: 'fas fa-search-plus', label: 'Zoom In', action: () => this.zoomIn() },
+                { icon: 'fas fa-search-minus', label: 'Zoom Out', action: () => this.zoomOut() },
+                { icon: 'fas fa-expand', label: 'Zoom Extents', action: () => this.zoomExtents() }
+            );
+        }
+        
+        // استدعاء UI.showContextMenu مع array من items
+        this.ui.showContextMenu(x, y, items);
     }
     
     showProperties() {
@@ -1038,6 +1070,12 @@ class TyrexCAD {
         });
     }
     
+    /**
+     * تحريك شكل
+     * @param {Object} shape - الشكل المراد تحريكه
+     * @param {number} dx - الإزاحة الأفقية
+     * @param {number} dy - الإزاحة الرأسية
+     */
     translateShape(shape, dx, dy) {
         switch (shape.type) {
             case 'line':
@@ -1068,31 +1106,22 @@ class TyrexCAD {
                 shape.position.x += dx;
                 shape.position.y += dy;
                 break;
-            case 'dimension-linear':
-                shape.start.x += dx;
-                shape.start.y += dy;
-                shape.end.x += dx;
-                shape.end.y += dy;
-                break;
-            case 'dimension-angular':
-            case 'dimension-radius':
-            case 'dimension-diameter':
-                shape.center.x += dx;
-                shape.center.y += dy;
-                if (shape.endPoint) {
-                    shape.endPoint.x += dx;
-                    shape.endPoint.y += dy;
-                }
-                break;
         }
     }
     
+    /**
+     * تدوير شكل حول نقطة
+     * @param {Object} shape - الشكل المراد تدويره
+     * @param {Object} center - مركز الدوران
+     * @param {number} angle - زاوية الدوران بالراديان
+     */
     rotateShape(shape, center, angle) {
         const rotatePoint = (p) => {
             const cos = Math.cos(angle);
             const sin = Math.sin(angle);
             const dx = p.x - center.x;
             const dy = p.y - center.y;
+            
             return {
                 x: center.x + dx * cos - dy * sin,
                 y: center.y + dx * sin + dy * cos
@@ -1105,20 +1134,15 @@ class TyrexCAD {
                 shape.end = rotatePoint(shape.end);
                 break;
             case 'rectangle':
-                const corners = [
-                    { x: shape.start.x, y: shape.start.y },
-                    { x: shape.end.x, y: shape.start.y },
-                    { x: shape.end.x, y: shape.end.y },
-                    { x: shape.start.x, y: shape.end.y }
-                ];
-                const rotatedCorners = corners.map(rotatePoint);
+                const tempStart = rotatePoint(shape.start);
+                const tempEnd = rotatePoint(shape.end);
                 shape.start = {
-                    x: Math.min(...rotatedCorners.map(c => c.x)),
-                    y: Math.min(...rotatedCorners.map(c => c.y))
+                    x: Math.min(tempStart.x, tempEnd.x),
+                    y: Math.min(tempStart.y, tempEnd.y)
                 };
                 shape.end = {
-                    x: Math.max(...rotatedCorners.map(c => c.x)),
-                    y: Math.max(...rotatedCorners.map(c => c.y))
+                    x: Math.max(tempStart.x, tempEnd.x),
+                    y: Math.max(tempStart.y, tempEnd.y)
                 };
                 break;
             case 'circle':
@@ -1135,6 +1159,7 @@ class TyrexCAD {
                 break;
             case 'text':
                 shape.position = rotatePoint(shape.position);
+                shape.rotation = (shape.rotation || 0) + angle;
                 break;
         }
     }
@@ -1531,81 +1556,185 @@ class TyrexCAD {
         this.render();
     }
     
+    /**
+     * الحصول على الشكل عند نقطة معينة
+     * @param {number} x - إحداثي X
+     * @param {number} y - إحداثي Y
+     * @returns {Object|null} الشكل إذا وُجد أو null
+     */
     getShapeAt(x, y) {
         const tolerance = 5 / this.zoom;
         
+        // البحث بترتيب عكسي (الأشكال الأحدث أولاً)
         for (let i = this.shapes.length - 1; i >= 0; i--) {
             const shape = this.shapes[i];
-            const layer = this.layers.get(shape.layerId);
             
+            // تحقق من الطبقة
+            const layer = this.layers.get(shape.layerId);
             if (!layer || !layer.visible || layer.locked) continue;
             
             if (this.isPointOnShape(x, y, shape, tolerance)) {
                 return shape;
             }
         }
+        
         return null;
     }
     
+    /**
+     * التحقق من وقوع نقطة على شكل
+     * @param {number} x - إحداثي X
+     * @param {number} y - إحداثي Y
+     * @param {Object} shape - الشكل
+     * @param {number} tolerance - مدى التسامح
+     * @returns {boolean} true إذا كانت النقطة على الشكل
+     */
     isPointOnShape(x, y, shape, tolerance) {
         switch (shape.type) {
             case 'line':
-                return this.geo.isPointOnLine(x, y, shape.start, shape.end, tolerance);
+                return this.isPointOnLine(x, y, shape.start, shape.end, tolerance);
+                
             case 'rectangle':
                 return this.isPointOnRectangle(x, y, shape, tolerance);
+                
             case 'circle':
-                return Math.abs(this.distance(x, y, shape.center.x, shape.center.y) - shape.radius) < tolerance;
-            case 'polyline':
-                for (let i = 0; i < shape.points.length - 1; i++) {
-                    if (this.geo.isPointOnLine(x, y, shape.points[i], shape.points[i + 1], tolerance)) {
-                        return true;
-                    }
-                }
-                return false;
+                return this.isPointOnCircle(x, y, shape, tolerance);
+                
             case 'arc':
-                const dist = this.distance(x, y, shape.center.x, shape.center.y);
-                if (Math.abs(dist - shape.radius) > tolerance) return false;
-                const angle = Math.atan2(y - shape.center.y, x - shape.center.x);
-                return this.isAngleInArc(angle, shape.startAngle, shape.endAngle);
+                return this.isPointOnArc(x, y, shape, tolerance);
+                
             case 'ellipse':
                 return this.isPointOnEllipse(x, y, shape, tolerance);
+                
+            case 'polyline':
+                return this.isPointOnPolyline(x, y, shape, tolerance);
+                
             case 'text':
-                const textWidth = shape.text.length * 8;
-                const textHeight = shape.fontSize || 16;
-                return x >= shape.position.x && x <= shape.position.x + textWidth &&
-                       y >= shape.position.y - textHeight && y <= shape.position.y;
-            case 'dimension-linear':
-            case 'dimension-angular':
-            case 'dimension-radius':
-            case 'dimension-diameter':
-                // Simplified check for dimensions
+                return this.isPointInRectangle(x, y, 
+                    shape.position.x, shape.position.y - 16,
+                    shape.position.x + shape.text.length * 8, shape.position.y);
+                    
+            default:
                 return false;
         }
-        return false;
     }
     
-    isPointOnRectangle(x, y, rect, tolerance) {
-        const corners = [
-            { x: rect.start.x, y: rect.start.y },
-            { x: rect.end.x, y: rect.start.y },
-            { x: rect.end.x, y: rect.end.y },
-            { x: rect.start.x, y: rect.end.y }
-        ];
+    /**
+     * التحقق من وقوع نقطة على خط
+     */
+    isPointOnLine(px, py, p1, p2, tolerance) {
+        const d = this.distance(p1.x, p1.y, p2.x, p2.y);
+        if (d === 0) return this.distance(px, py, p1.x, p1.y) < tolerance;
         
-        for (let i = 0; i < 4; i++) {
-            if (this.geo.isPointOnLine(x, y, corners[i], corners[(i + 1) % 4], tolerance)) {
+        const t = ((px - p1.x) * (p2.x - p1.x) + (py - p1.y) * (p2.y - p1.y)) / (d * d);
+        
+        if (t < 0 || t > 1) {
+            return Math.min(
+                this.distance(px, py, p1.x, p1.y),
+                this.distance(px, py, p2.x, p2.y)
+            ) < tolerance;
+        }
+        
+        const projX = p1.x + t * (p2.x - p1.x);
+        const projY = p1.y + t * (p2.y - p1.y);
+        
+        return this.distance(px, py, projX, projY) < tolerance;
+    }
+    
+    /**
+     * التحقق من وقوع نقطة على مستطيل
+     */
+    isPointOnRectangle(px, py, rect, tolerance) {
+        const x1 = Math.min(rect.start.x, rect.end.x);
+        const y1 = Math.min(rect.start.y, rect.end.y);
+        const x2 = Math.max(rect.start.x, rect.end.x);
+        const y2 = Math.max(rect.start.y, rect.end.y);
+        
+        // التحقق من الحواف الأربعة
+        return this.isPointOnLine(px, py, {x: x1, y: y1}, {x: x2, y: y1}, tolerance) ||
+               this.isPointOnLine(px, py, {x: x2, y: y1}, {x: x2, y: y2}, tolerance) ||
+               this.isPointOnLine(px, py, {x: x2, y: y2}, {x: x1, y: y2}, tolerance) ||
+               this.isPointOnLine(px, py, {x: x1, y: y2}, {x: x1, y: y1}, tolerance);
+    }
+    
+    /**
+     * التحقق من وقوع نقطة على دائرة
+     */
+    isPointOnCircle(px, py, circle, tolerance) {
+        const d = this.distance(px, py, circle.center.x, circle.center.y);
+        return Math.abs(d - circle.radius) < tolerance;
+    }
+    
+    /**
+     * التحقق من وقوع نقطة على قوس
+     */
+    isPointOnArc(px, py, arc, tolerance) {
+        const d = this.distance(px, py, arc.center.x, arc.center.y);
+        if (Math.abs(d - arc.radius) > tolerance) return false;
+        
+        // التحقق من الزاوية
+        let angle = Math.atan2(py - arc.center.y, px - arc.center.x);
+        let startAngle = arc.startAngle;
+        let endAngle = arc.endAngle;
+        
+        // تطبيع الزوايا
+        while (angle < 0) angle += Math.PI * 2;
+        while (startAngle < 0) startAngle += Math.PI * 2;
+        while (endAngle < 0) endAngle += Math.PI * 2;
+        
+        if (startAngle > endAngle) {
+            return angle >= startAngle || angle <= endAngle;
+        } else {
+            return angle >= startAngle && angle <= endAngle;
+        }
+    }
+    
+    /**
+     * التحقق من وقوع نقطة على ellipse
+     */
+    isPointOnEllipse(px, py, ellipse, tolerance) {
+        const dx = px - ellipse.center.x;
+        const dy = py - ellipse.center.y;
+        const value = (dx * dx) / (ellipse.radiusX * ellipse.radiusX) + 
+                      (dy * dy) / (ellipse.radiusY * ellipse.radiusY);
+        return Math.abs(value - 1) < tolerance / Math.min(ellipse.radiusX, ellipse.radiusY);
+    }
+    
+    /**
+     * التحقق من وقوع نقطة على polyline
+     */
+    isPointOnPolyline(px, py, polyline, tolerance) {
+        const len = polyline.closed ? polyline.points.length : polyline.points.length - 1;
+        
+        for (let i = 0; i < len; i++) {
+            const p1 = polyline.points[i];
+            const p2 = polyline.points[(i + 1) % polyline.points.length];
+            
+            if (this.isPointOnLine(px, py, p1, p2, tolerance)) {
                 return true;
             }
         }
+        
         return false;
     }
     
-    isPointOnEllipse(x, y, ellipse, tolerance) {
-        const dx = x - ellipse.center.x;
-        const dy = y - ellipse.center.y;
-        const normalized = (dx * dx) / (ellipse.radiusX * ellipse.radiusX) + 
-                          (dy * dy) / (ellipse.radiusY * ellipse.radiusY);
-        return Math.abs(normalized - 1) < tolerance / Math.min(ellipse.radiusX, ellipse.radiusY);
+    /**
+     * التحقق من وقوع نقطة داخل مستطيل
+     * @param {number} px - إحداثي X للنقطة
+     * @param {number} py - إحداثي Y للنقطة
+     * @param {number} x1 - إحداثي X للزاوية الأولى
+     * @param {number} y1 - إحداثي Y للزاوية الأولى
+     * @param {number} x2 - إحداثي X للزاوية المقابلة
+     * @param {number} y2 - إحداثي Y للزاوية المقابلة
+     * @returns {boolean} true إذا كانت النقطة داخل المستطيل
+     */
+    isPointInRectangle(px, py, x1, y1, x2, y2) {
+        const minX = Math.min(x1, x2);
+        const maxX = Math.max(x1, x2);
+        const minY = Math.min(y1, y2);
+        const maxY = Math.max(y1, y2);
+        
+        return px >= minX && px <= maxX && py >= minY && py <= maxY;
     }
     
     isAngleInArc(angle, startAngle, endAngle) {
@@ -1626,6 +1755,11 @@ class TyrexCAD {
                 bounds.maxY < min.y || bounds.minY > max.y);
     }
     
+    /**
+     * الحصول على حدود الشكل
+     * @param {Object} shape - الشكل
+     * @returns {Object} حدود الشكل {minX, minY, maxX, maxY}
+     */
     getShapeBounds(shape) {
         let minX = Infinity, minY = Infinity;
         let maxX = -Infinity, maxY = -Infinity;
@@ -1642,28 +1776,46 @@ class TyrexCAD {
                 updateBounds(shape.start.x, shape.start.y);
                 updateBounds(shape.end.x, shape.end.y);
                 break;
+                
             case 'rectangle':
                 updateBounds(shape.start.x, shape.start.y);
                 updateBounds(shape.end.x, shape.end.y);
+                updateBounds(shape.start.x, shape.end.y);
+                updateBounds(shape.end.x, shape.start.y);
                 break;
+                
             case 'circle':
                 updateBounds(shape.center.x - shape.radius, shape.center.y - shape.radius);
                 updateBounds(shape.center.x + shape.radius, shape.center.y + shape.radius);
                 break;
+                
             case 'arc':
+                // حدود القوس تحتاج معالجة خاصة
                 updateBounds(shape.center.x - shape.radius, shape.center.y - shape.radius);
                 updateBounds(shape.center.x + shape.radius, shape.center.y + shape.radius);
                 break;
+                
             case 'ellipse':
                 updateBounds(shape.center.x - shape.radiusX, shape.center.y - shape.radiusY);
                 updateBounds(shape.center.x + shape.radiusX, shape.center.y + shape.radiusY);
                 break;
+                
             case 'polyline':
                 shape.points.forEach(p => updateBounds(p.x, p.y));
                 break;
+                
             case 'text':
                 updateBounds(shape.position.x, shape.position.y);
-                updateBounds(shape.position.x + shape.text.length * 8, shape.position.y - 16);
+                // تقدير حجم النص
+                const textWidth = (shape.text || '').length * (shape.fontSize || 12) * 0.6;
+                const textHeight = shape.fontSize || 12;
+                updateBounds(shape.position.x + textWidth, shape.position.y - textHeight);
+                break;
+                
+            case 'polygon':
+                if (shape.points) {
+                    shape.points.forEach(p => updateBounds(p.x, p.y));
+                }
                 break;
         }
         
@@ -2791,6 +2943,36 @@ class TyrexCAD {
         this.render();
     }
     
+    zoomIn() {
+        const factor = 1.2;
+        const worldBefore = this.screenToWorld(this.canvas.width / 2, this.canvas.height / 2);
+        
+        this.zoom *= factor;
+        this.zoom = Math.min(this.zoom, this.maxZoom);
+        
+        const worldAfter = this.screenToWorld(this.canvas.width / 2, this.canvas.height / 2);
+        
+        this.panX += (worldAfter.x - worldBefore.x) * this.zoom;
+        this.panY += (worldAfter.y - worldBefore.y) * this.zoom;
+        
+        this.render();
+    }
+    
+    zoomOut() {
+        const factor = 0.8;
+        const worldBefore = this.screenToWorld(this.canvas.width / 2, this.canvas.height / 2);
+        
+        this.zoom *= factor;
+        this.zoom = Math.max(this.zoom, this.minZoom);
+        
+        const worldAfter = this.screenToWorld(this.canvas.width / 2, this.canvas.height / 2);
+        
+        this.panX += (worldAfter.x - worldBefore.x) * this.zoom;
+        this.panY += (worldAfter.y - worldBefore.y) * this.zoom;
+        
+        this.render();
+    }
+    
     setViewMode(mode) {
         this.mode = mode;
         this.ui.updateViewMode(mode);
@@ -3306,17 +3488,87 @@ Other:
         this.render();
     }
     
+    /**
+     * إضافة شكل جديد
+     * @param {Object} shape - الشكل المراد إضافته
+     */
     addShape(shape) {
+        // التأكد من وجود ID
+        if (!shape.id) {
+            shape.id = this.generateId();
+        }
+        
+        // التأكد من وجود خصائص أساسية
+        if (!shape.color) {
+            shape.color = this.currentColor;
+        }
+        if (!shape.lineWidth) {
+            shape.lineWidth = this.currentLineWidth;
+        }
+        if (!shape.lineType) {
+            shape.lineType = this.currentLineType;
+        }
+        if (shape.layerId === undefined) {
+            shape.layerId = this.currentLayerId;
+        }
+        
+        // إضافة الشكل
         this.shapes.push(shape);
-        this.recordState();
+        
+        // تحديث UI
         this.updateUI();
+        
+        // إعادة الرسم
         this.render();
+        
+        return shape;
     }
     
+    /**
+     * استنساخ شكل مع جميع خصائصه
+     * @param {Object} shape - الشكل المراد استنساخه
+     * @returns {Object} نسخة جديدة من الشكل
+     */
     cloneShape(shape) {
-        return JSON.parse(JSON.stringify(shape));
+        const clone = JSON.parse(JSON.stringify(shape));
+        
+        // إنشاء ID جديد للنسخة
+        clone.id = this.generateId();
+        
+        // معالجة خاصة لبعض الأنواع
+        switch (shape.type) {
+            case 'polyline':
+                // التأكد من نسخ array النقاط بشكل صحيح
+                clone.points = shape.points.map(p => ({ x: p.x, y: p.y }));
+                break;
+                
+            case 'text':
+                // التأكد من نسخ خصائص النص
+                clone.text = shape.text;
+                break;
+                
+            case 'dimension-linear':
+            case 'dimension-angular':
+            case 'dimension-radius':
+            case 'dimension-diameter':
+                // نسخ خصائص الأبعاد
+                if (shape.points) {
+                    clone.points = shape.points.map(p => ({ x: p.x, y: p.y }));
+                }
+                break;
+        }
+        
+        return clone;
     }
     
+    /**
+     * حساب المسافة بين نقطتين
+     * @param {number} x1 - إحداثي X للنقطة الأولى
+     * @param {number} y1 - إحداثي Y للنقطة الأولى
+     * @param {number} x2 - إحداثي X للنقطة الثانية
+     * @param {number} y2 - إحداثي Y للنقطة الثانية
+     * @returns {number} المسافة بين النقطتين
+     */
     distance(x1, y1, x2, y2) {
         return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
     }
