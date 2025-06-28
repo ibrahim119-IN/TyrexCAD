@@ -1561,3 +1561,20 @@ body {
 }
 
 
+/* في styles.css */
+.selection-box {
+    position: absolute;
+    pointer-events: none;
+    display: none;
+    z-index: 80;
+}
+
+.selection-box.window {
+    border: 1px solid #0099ff;
+    background: rgba(0, 153, 255, 0.05);
+}
+
+.selection-box.crossing {
+    border: 1px dashed #00ff00;
+    background: rgba(0, 255, 0, 0.05);
+}
