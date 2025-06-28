@@ -163,6 +163,28 @@ class TyrexCAD {
         this.gripsVisible = true;
         this.lastClickTime = 0; // لدعم double-click
         
+        // Mouse and keyboard state
+        this.mouseDown = false;
+        this.clickCount = 0;
+        this.clickTimer = null;
+        this.keys = {
+            shift: false,
+            ctrl: false,
+            alt: false
+        };
+        
+        // Transform states
+        this.moveBasePoint = null;
+        this.moveTargetPoint = null;
+        this.rotateBasePoint = null;
+        this.scaleBasePoint = null;
+        this.mirrorFirstPoint = null;
+        this.mirrorSecondPoint = null;
+        this.distanceFirstPoint = null;
+        this.distanceSecondPoint = null;
+        this.isRotating = false;
+        this.isScaling = false;
+        
         this.init();
     }
 
@@ -509,18 +531,29 @@ class TyrexCAD {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
+        this.mouseDown = true;
+        this.clickCount++;
+        
+        if (this.clickTimer) {
+            clearTimeout(this.clickTimer);
+        }
+        
+        this.clickTimer = setTimeout(() => {
+            this.clickCount = 0;
+        }, 300);
+        
         if (e.button === 0) { // Left click
             if (this.currentTool === 'pan') {
                 this.startPanning(x, y);
             } else if (this.currentTool === 'select') {
-                // في أداة select، Shift للpanning
+                // في أداة select
                 if (e.shiftKey && !this.isSelecting) {
                     this.startPanning(x, y);
                 } else {
                     this.handleSelection(x, y, e.ctrlKey);
                 }
             } else {
-                // في الأدوات الأخرى، Shift للpanning
+                // في الأدوات الأخرى
                 if (e.shiftKey) {
                     this.startPanning(x, y);
                 } else {
@@ -532,6 +565,9 @@ class TyrexCAD {
         } else if (e.button === 2) { // Right click
             if (this.isDrawing && this.currentTool === 'polyline') {
                 this.delegateToTool('finishPolyline');
+            } else if (this.isSelecting) {
+                // إنهاء selection box بالنقر الأيمن
+                this.finishSelection();
             }
         }
     }
@@ -581,9 +617,9 @@ class TyrexCAD {
         if (this.isPanning) {
             this.updatePanning();
         } else if (this.isSelecting) {
-            // تحديث selection box حتى بدون الضغط (مثل AutoCAD)
+            // تحديث selection box
             this.updateSelection();
-        } else if (this.toolsManager) {
+        } else if (this.toolsManager && this.toolsManager.activeTool) {
             // دع ToolsManager يتعامل مع حركة الماوس
             const snapPoint = this.getSnapPoint(world.x, world.y);
             this.toolsManager.handleMouseMove(snapPoint);
@@ -613,20 +649,24 @@ class TyrexCAD {
     }
     
     onMouseUp(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const world = this.screenToWorld(x, y);
+        
         // إنهاء سحب Grip إذا كان موجوداً
         if (this.gripsController && this.gripsController.draggedGrip) {
-            const rect = this.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            const world = this.screenToWorld(x, y);
-            
             this.gripsController.endDrag(world);
         }
         
-        this.isPanning = false;
-        this.canvas.style.cursor = this.currentTool === 'pan' ? 'grab' : 'default';
+        // إنهاء selection box
+        if (this.isSelecting && this.selectionStart) {
+            this.finishSelection();
+        }
         
-        // لا نوقف selection box هنا - ينتهي بنقرة أخرى
+        this.isPanning = false;
+        this.mouseDown = false;
+        this.canvas.style.cursor = this.currentTool === 'pan' ? 'grab' : 'default';
         
         // إعادة الرسم بجودة كاملة
         this.fastRenderMode = false;
@@ -762,10 +802,31 @@ class TyrexCAD {
     onKeyDown(e) {
         if (e.target.tagName === 'INPUT') return;
         
-        // معالجة اختصارات Grips أولاً
-        if (this.handleGripKeyboard(e)) {
+        // تحديث حالة المفاتيح
+        this.keys.shift = e.shiftKey;
+        this.keys.ctrl = e.ctrlKey;
+        this.keys.alt = e.altKey;
+        
+        // معالجة اختصارات grips
+        if (this.currentTool === 'select' && this.handleGripKeyboard(e)) {
             e.preventDefault();
             return;
+        }
+        
+        // معالجة الاختصارات العامة
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            if (this.isSelecting) {
+                this.isSelecting = false;
+                const box = document.getElementById('selectionBox');
+                if (box) box.style.display = 'none';
+                this.previewShapes.clear();
+                this.render();
+            } else if (this.isDrawing) {
+                this.cancelCurrentOperation();
+            } else if (this.currentTool !== 'select') {
+                this.setTool('select');
+            }
         }
         
         switch (e.key) {
@@ -776,11 +837,6 @@ class TyrexCAD {
                 } else if (this.lastCommand) {
                     this.executeCommand(this.lastCommand);
                 }
-                break;
-                
-            case 'Escape':
-                e.preventDefault();
-                this.cancelCurrentOperation();
                 break;
                 
             case 'Delete':
@@ -797,9 +853,9 @@ class TyrexCAD {
                 break;
         }
         
-        // Ctrl+A للتحديد الكل
+        // اختصارات Ctrl
         if (e.ctrlKey) {
-            switch (e.key.toLowerCase()) {
+            switch(e.key.toLowerCase()) {
                 case 'a':
                     e.preventDefault();
                     this.selectAll();
@@ -830,7 +886,10 @@ class TyrexCAD {
     }
     
     onKeyUp(e) {
-        // Handle key up if needed
+        // تحديث حالة المفاتيح
+        this.keys.shift = e.shiftKey;
+        this.keys.ctrl = e.ctrlKey;
+        this.keys.alt = e.altKey;
     }
     
     // إضافة اختصارات لوحة المفاتيح للـ Grips
@@ -880,6 +939,8 @@ class TyrexCAD {
         // إلغاء العمليات الحالية بدون recursion
         this.cleanupCurrentOperation();
         
+        // تغيير الأداة
+        const previousTool = this.currentTool;
         this.currentTool = tool;
         
         // Update UI
@@ -903,7 +964,14 @@ class TyrexCAD {
         
         // تفعيل الأداة في ToolsManager إن وجد
         if (this.toolsManager) {
-            this.toolsManager.activateTool(tool);
+            try {
+                this.toolsManager.activateTool(tool);
+            } catch (error) {
+                console.warn('Tool activation error:', error);
+                // في حالة الفشل، ارجع للأداة السابقة
+                this.currentTool = previousTool;
+                this.updateStatus('Tool not available');
+            }
         }
         
         // Update UI if method exists
@@ -974,7 +1042,7 @@ class TyrexCAD {
         const world = this.screenToWorld(x, y);
         const snapPoint = this.getSnapPoint(world.x, world.y);
         
-        // معالجة الحالات الخاصة (picking points, etc.) - تبقى كما هي
+        // معالجة الحالات الخاصة (picking points, etc.)
         if (this.pickingPointMode) {
             switch (this.pickingPointMode) {
                 case 'polar-center':
@@ -987,6 +1055,58 @@ class TyrexCAD {
                     setTimeout(() => {
                         this.applyPolarArrayWithOptions(this.polarArrayOptions);
                     }, 100);
+                    break;
+                    
+                case 'move-base':
+                    this.moveBasePoint = snapPoint;
+                    this.pickingPointMode = 'move-target';
+                    this.updateStatus('MOVE: Specify second point');
+                    break;
+                    
+                case 'move-target':
+                    this.moveTargetPoint = snapPoint;
+                    this.pickingPointMode = null;
+                    this.applyMove();
+                    break;
+                    
+                case 'rotate-base':
+                    this.rotateBasePoint = snapPoint;
+                    this.pickingPointMode = null;
+                    this.startRotation();
+                    break;
+                    
+                case 'scale-base':
+                    this.scaleBasePoint = snapPoint;
+                    this.pickingPointMode = null;
+                    this.startScaling();
+                    break;
+                    
+                case 'mirror-first':
+                    this.mirrorFirstPoint = snapPoint;
+                    this.pickingPointMode = 'mirror-second';
+                    this.updateStatus('MIRROR: Specify second point of mirror line');
+                    break;
+                    
+                case 'mirror-second':
+                    this.mirrorSecondPoint = snapPoint;
+                    this.pickingPointMode = null;
+                    this.applyMirror();
+                    break;
+                    
+                case 'distance-first':
+                    this.distanceFirstPoint = snapPoint;
+                    this.pickingPointMode = 'distance-second';
+                    this.updateStatus('DISTANCE: Specify second point');
+                    break;
+                    
+                case 'distance-second':
+                    this.distanceSecondPoint = snapPoint;
+                    this.pickingPointMode = null;
+                    this.showDistance();
+                    break;
+                    
+                case 'area-pick':
+                    this.handleAreaPick(snapPoint);
                     break;
             }
             return;
@@ -1044,8 +1164,8 @@ class TyrexCAD {
             return;
         }
         
-        // استخدم ToolsManager للتعامل مع النقر
-        if (this.toolsManager) {
+        // معالجة رسم الأشكال العادية - استخدم handleClick
+        if (this.toolsManager && this.toolsManager.activeTool) {
             this.toolsManager.handleClick(snapPoint);
         }
     }
@@ -1276,22 +1396,20 @@ class TyrexCAD {
     }
     
     // Selection - محدثة لدعم Grips
-    handleSelection(x, y, ctrlKey = false) {
+    handleSelection(x, y, ctrlKey) {
         const world = this.screenToWorld(x, y);
         
-        // أولوية 1: التحقق من Grips أولاً إذا كان هناك أشكال محددة
-        if (this.selectedShapes.size > 0 && this.gripsController) {
+        // معالجة سحب Grip أولاً
+        if (this.gripsController && this.selectedShapes.size > 0) {
             const grip = this.gripsController.findGripAt(world, this.selectedShapes);
             
             if (grip) {
-                // بدء سحب grip
                 this.gripsController.startDrag(grip, world);
-                // منع معالجة التحديد العادي
                 return;
             }
         }
         
-        // أولوية 2: التحقق من الأشكال
+        // التحقق من الأشكال
         const shape = this.getShapeAt(world.x, world.y);
         
         if (shape) {
@@ -1310,6 +1428,7 @@ class TyrexCAD {
                 }
             }
             this.ui.updatePropertiesPanel();
+            this.render();
         } else {
             // النقر في الفراغ
             if (!ctrlKey) {
@@ -1334,9 +1453,8 @@ class TyrexCAD {
             }
             
             this.updateStatus('Specify opposite corner');
+            this.render();
         }
-        
-        this.render();
     }
     
     updateSelection() {
@@ -1541,9 +1659,18 @@ class TyrexCAD {
     
     finishSelection() {
         this.isSelecting = false;
-        document.getElementById('selectionBox').style.display = 'none';
         
-        // نقل الأشكال من preview للـ selection الفعلي (إضافة وليس استبدال)
+        const box = document.getElementById('selectionBox');
+        if (box) {
+            box.style.display = 'none';
+        }
+        
+        // نقل الأشكال من preview للـ selection الفعلي
+        if (!this.keys || !this.keys.ctrl) {
+            // بدون Ctrl: استبدال التحديد
+            this.selectedShapes.clear();
+        }
+        
         for (const shape of this.previewShapes) {
             this.selectedShapes.add(shape);
         }
@@ -1552,7 +1679,9 @@ class TyrexCAD {
         this.selectionDirection = null;
         this.selectionStart = null;
         this.selectionEnd = null;
+        
         this.ui.updatePropertiesPanel();
+        this.updateStatus('READY');
         this.render();
     }
     
@@ -3461,21 +3590,41 @@ Other:
         
         // أخبر ToolsManager عن الإلغاء
         if (this.toolsManager) {
-            this.toolsManager.deactivateCurrentTool();
+            this.toolsManager.cancelCurrentOperation();
         }
         
         // إذا كنا في أداة غير select، ارجع لها
         if (this.currentTool !== 'select') {
             // لا نستدعي setTool لتجنب recursion
+            const previousTool = this.currentTool;
             this.currentTool = 'select';
             
             // تحديث UI مباشرة
             document.getElementById('statusTool').textContent = 'SELECT';
             this.canvas.style.cursor = 'default';
             
+            // تحديث أزرار الأدوات
+            document.querySelectorAll('.ribbon-tool').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.querySelectorAll('.ribbon-tool').forEach(el => {
+                if (el.onclick && el.onclick.toString().includes("'select'")) {
+                    el.classList.add('active');
+                }
+            });
+            
             // تفعيل أداة select
             if (this.toolsManager) {
-                this.toolsManager.activateTool('select');
+                try {
+                    this.toolsManager.activateTool('select');
+                } catch (error) {
+                    console.warn('Failed to activate select tool:', error);
+                }
+            }
+            
+            // حفظ الأداة السابقة
+            if (previousTool !== 'select') {
+                this.lastTool = previousTool;
             }
         } else {
             // إذا كنا في select، امسح التحديد فقط
@@ -3483,8 +3632,10 @@ Other:
             if (this.previewShapes) {
                 this.previewShapes.clear();
             }
+            this.ui.updatePropertiesPanel();
         }
         
+        this.updateStatus('READY');
         this.render();
     }
     
@@ -4325,6 +4476,286 @@ Other:
         } catch (error) {
             this.ui.showError('Smoothing failed: ' + error.message);
         }
+    }
+    
+    // ==================== دوال مساعدة إضافية ====================
+    
+    /**
+     * عرض المسافة بين نقطتين
+     */
+    showDistance() {
+        if (this.distanceFirstPoint && this.distanceSecondPoint) {
+            const distance = this.distance(
+                this.distanceFirstPoint.x,
+                this.distanceFirstPoint.y,
+                this.distanceSecondPoint.x,
+                this.distanceSecondPoint.y
+            );
+            
+            const dx = this.distanceSecondPoint.x - this.distanceFirstPoint.x;
+            const dy = this.distanceSecondPoint.y - this.distanceFirstPoint.y;
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            
+            const message = `
+Distance: ${distance.toFixed(2)} units
+ΔX: ${Math.abs(dx).toFixed(2)}
+ΔY: ${Math.abs(dy).toFixed(2)}
+Angle: ${angle.toFixed(2)}°
+            `.trim();
+            
+            if (this.ui) {
+                this.ui.showInfo(message);
+            } else {
+                alert(message);
+            }
+            
+            this.distanceFirstPoint = null;
+            this.distanceSecondPoint = null;
+        }
+    }
+    
+    /**
+     * معالجة اختيار شكل لحساب المساحة
+     */
+    handleAreaPick(point) {
+        // ابحث عن الشكل عند النقطة
+        const shape = this.getShapeAt(point.x, point.y);
+        
+        if (shape) {
+            // احسب المساحة حسب نوع الشكل
+            let area = 0;
+            let perimeter = 0;
+            
+            switch (shape.type) {
+                case 'rectangle':
+                    const width = Math.abs(shape.end.x - shape.start.x);
+                    const height = Math.abs(shape.end.y - shape.start.y);
+                    area = width * height;
+                    perimeter = 2 * (width + height);
+                    break;
+                    
+                case 'circle':
+                    area = Math.PI * shape.radius * shape.radius;
+                    perimeter = 2 * Math.PI * shape.radius;
+                    break;
+                    
+                case 'polygon':
+                case 'polyline':
+                    if (shape.closed) {
+                        area = this.calculatePolygonArea(shape.points);
+                        perimeter = this.calculatePolygonPerimeter(shape.points, true);
+                    } else {
+                        area = 0;
+                        perimeter = this.calculatePolygonPerimeter(shape.points, false);
+                    }
+                    break;
+            }
+            
+            const message = `
+Shape: ${shape.type}
+Area: ${area.toFixed(2)} sq units
+Perimeter: ${perimeter.toFixed(2)} units
+            `.trim();
+            
+            if (this.ui) {
+                this.ui.showInfo(message);
+            } else {
+                alert(message);
+            }
+        } else {
+            this.updateStatus('No shape found at this point');
+        }
+        
+        this.pickingPointMode = null;
+    }
+    
+    /**
+     * حساب مساحة مضلع
+     */
+    calculatePolygonArea(points) {
+        let area = 0;
+        const n = points.length;
+        
+        for (let i = 0; i < n; i++) {
+            const j = (i + 1) % n;
+            area += points[i].x * points[j].y;
+            area -= points[j].x * points[i].y;
+        }
+        
+        return Math.abs(area / 2);
+    }
+    
+    /**
+     * حساب محيط مضلع
+     */
+    calculatePolygonPerimeter(points, closed) {
+        let perimeter = 0;
+        const n = points.length;
+        
+        for (let i = 0; i < n - 1; i++) {
+            perimeter += this.distance(
+                points[i].x, points[i].y,
+                points[i + 1].x, points[i + 1].y
+            );
+        }
+        
+        // إذا كان مغلقاً، أضف المسافة من آخر نقطة للأولى
+        if (closed && n > 2) {
+            perimeter += this.distance(
+                points[n - 1].x, points[n - 1].y,
+                points[0].x, points[0].y
+            );
+        }
+        
+        return perimeter;
+    }
+    
+    /**
+     * تطبيق التحريك
+     */
+    applyMove() {
+        if (this.moveBasePoint && this.moveTargetPoint) {
+            const dx = this.moveTargetPoint.x - this.moveBasePoint.x;
+            const dy = this.moveTargetPoint.y - this.moveBasePoint.y;
+            
+            this.recordState();
+            
+            this.selectedShapes.forEach(shape => {
+                this.translateShape(shape, dx, dy);
+            });
+            
+            this.moveBasePoint = null;
+            this.moveTargetPoint = null;
+            this.updateStatus('Objects moved');
+            this.render();
+        }
+    }
+    
+    /**
+     * بدء عملية الدوران
+     */
+    startRotation() {
+        if (this.rotateBasePoint && this.selectedShapes.size > 0) {
+            this.updateStatus('ROTATE: Specify rotation angle or second point');
+            this.isRotating = true;
+            // يمكنك إضافة المزيد من المنطق هنا
+        }
+    }
+    
+    /**
+     * بدء عملية التحجيم
+     */
+    startScaling() {
+        if (this.scaleBasePoint && this.selectedShapes.size > 0) {
+            this.updateStatus('SCALE: Specify scale factor or second point');
+            this.isScaling = true;
+            // يمكنك إضافة المزيد من المنطق هنا
+        }
+    }
+    
+    /**
+     * تطبيق الانعكاس
+     */
+    applyMirror() {
+        if (this.mirrorFirstPoint && this.mirrorSecondPoint) {
+            this.recordState();
+            
+            const mirrorLine = {
+                start: this.mirrorFirstPoint,
+                end: this.mirrorSecondPoint
+            };
+            
+            this.selectedShapes.forEach(shape => {
+                const mirrored = this.mirrorShapeComplete(shape, mirrorLine);
+                if (mirrored) {
+                    this.shapes.push(mirrored);
+                }
+            });
+            
+            this.mirrorFirstPoint = null;
+            this.mirrorSecondPoint = null;
+            this.updateStatus('Objects mirrored');
+            this.render();
+        }
+    }
+    
+    /**
+     * انعكاس شكل كامل
+     */
+    mirrorShapeComplete(shape, mirrorLine) {
+        const mirrored = this.cloneShape(shape);
+        mirrored.id = this.generateId();
+        
+        // حساب الانعكاس حسب نوع الشكل
+        switch (shape.type) {
+            case 'line':
+                mirrored.start = this.mirrorPoint(shape.start, mirrorLine);
+                mirrored.end = this.mirrorPoint(shape.end, mirrorLine);
+                break;
+                
+            case 'rectangle':
+                mirrored.start = this.mirrorPoint(shape.start, mirrorLine);
+                mirrored.end = this.mirrorPoint(shape.end, mirrorLine);
+                break;
+                
+            case 'circle':
+            case 'arc':
+                mirrored.center = this.mirrorPoint(shape.center, mirrorLine);
+                if (shape.type === 'arc') {
+                    // عكس زوايا القوس
+                    const startPoint = {
+                        x: shape.center.x + shape.radius * Math.cos(shape.startAngle),
+                        y: shape.center.y + shape.radius * Math.sin(shape.startAngle)
+                    };
+                    const endPoint = {
+                        x: shape.center.x + shape.radius * Math.cos(shape.endAngle),
+                        y: shape.center.y + shape.radius * Math.sin(shape.endAngle)
+                    };
+                    
+                    const mirroredStart = this.mirrorPoint(startPoint, mirrorLine);
+                    const mirroredEnd = this.mirrorPoint(endPoint, mirrorLine);
+                    
+                    mirrored.startAngle = Math.atan2(
+                        mirroredStart.y - mirrored.center.y,
+                        mirroredStart.x - mirrored.center.x
+                    );
+                    mirrored.endAngle = Math.atan2(
+                        mirroredEnd.y - mirrored.center.y,
+                        mirroredEnd.x - mirrored.center.x
+                    );
+                }
+                break;
+                
+            case 'polyline':
+            case 'polygon':
+                mirrored.points = shape.points.map(p => this.mirrorPoint(p, mirrorLine));
+                break;
+        }
+        
+        return mirrored;
+    }
+    
+    /**
+     * انعكاس نقطة عبر خط
+     */
+    mirrorPoint(point, mirrorLine) {
+        // حساب نقطة الانعكاس عبر خط
+        const dx = mirrorLine.end.x - mirrorLine.start.x;
+        const dy = mirrorLine.end.y - mirrorLine.start.y;
+        const a = dy;
+        const b = -dx;
+        const c = dx * mirrorLine.start.y - dy * mirrorLine.start.x;
+        
+        const denom = a * a + b * b;
+        if (Math.abs(denom) < 1e-10) return point;
+        
+        const x = point.x;
+        const y = point.y;
+        
+        const mirroredX = x - 2 * a * (a * x + b * y + c) / denom;
+        const mirroredY = y - 2 * b * (a * x + b * y + c) / denom;
+        
+        return { x: mirroredX, y: mirroredY };
     }
 }
 

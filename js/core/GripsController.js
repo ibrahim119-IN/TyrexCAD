@@ -1,5 +1,5 @@
 // ============================================
-//  js/core/GripsController.js - النسخة المُصلحة
+//  js/core/GripsController.js - النسخة المُصلحة بالكامل
 // ============================================
 
 (function(window) {
@@ -14,6 +14,7 @@
             this.draggedGrip = null;
             this.originalPosition = null;
             this.contextMenuGrip = null;
+            this.gripMode = 'vertex'; // 'vertex' أو 'stretch'
             
             // إعدادات مرئية
             this.vertexGripSize = 8;
@@ -31,7 +32,8 @@
                 edge: {
                     normal: 'rgba(128, 128, 128, 0.6)',
                     hover: 'rgba(200, 200, 200, 0.8)',
-                    active: '#00d4aa'
+                    active: '#00d4aa',
+                    stretch: '#ffaa00' // لون خاص لـ stretch mode
                 }
             };
         }
@@ -81,17 +83,19 @@
                         subtype: i === 0 || i === shape.points.length - 1 ? 'endpoint' : 'middle',
                         point: p,
                         index: i,
-                        id: `point${i}`,
+                        id: `vertex${i}`,
                         shape: shape
                     }));
                     
                 case 'circle':
                     return [
-                        { 
+                        {
                             type: 'vertex',
                             subtype: 'radius',
-                            point: { x: shape.center.x + shape.radius, y: shape.center.y }, 
-                            index: 0,
+                            point: {
+                                x: shape.center.x + shape.radius,
+                                y: shape.center.y
+                            },
                             id: 'radius',
                             shape: shape
                         }
@@ -106,54 +110,52 @@
                         x: shape.center.x + shape.radius * Math.cos(shape.endAngle),
                         y: shape.center.y + shape.radius * Math.sin(shape.endAngle)
                     };
-                    const midAngle = (shape.startAngle + shape.endAngle) / 2;
-                    const midPoint = {
-                        x: shape.center.x + shape.radius * Math.cos(midAngle),
-                        y: shape.center.y + shape.radius * Math.sin(midAngle)
-                    };
-                    
                     return [
-                        { 
+                        {
                             type: 'vertex',
                             subtype: 'endpoint',
-                            point: startPoint, 
-                            index: 0,
+                            point: startPoint,
                             id: 'start',
                             shape: shape
                         },
-                        { 
-                            type: 'vertex',
-                            subtype: 'radius',
-                            point: midPoint, 
-                            index: 1,
-                            id: 'mid',
-                            shape: shape
-                        },
-                        { 
+                        {
                             type: 'vertex',
                             subtype: 'endpoint',
-                            point: endPoint, 
-                            index: 2,
+                            point: endPoint,
                             id: 'end',
+                            shape: shape
+                        },
+                        {
+                            type: 'vertex',
+                            subtype: 'radius',
+                            point: {
+                                x: shape.center.x + shape.radius,
+                                y: shape.center.y
+                            },
+                            id: 'radius',
                             shape: shape
                         }
                     ];
                     
                 case 'ellipse':
                     return [
-                        { 
+                        {
                             type: 'vertex',
                             subtype: 'radius',
-                            point: { x: shape.center.x + shape.radiusX, y: shape.center.y }, 
-                            index: 0,
+                            point: {
+                                x: shape.center.x + shape.radiusX,
+                                y: shape.center.y
+                            },
                             id: 'rx',
                             shape: shape
                         },
-                        { 
+                        {
                             type: 'vertex',
                             subtype: 'radius',
-                            point: { x: shape.center.x, y: shape.center.y + shape.radiusY }, 
-                            index: 1,
+                            point: {
+                                x: shape.center.x,
+                                y: shape.center.y + shape.radiusY
+                            },
                             id: 'ry',
                             shape: shape
                         }
@@ -302,18 +304,16 @@
                     }
                 }
                 
-                // إذا لم نجد vertex، ابحث في edges
-                if (!nearestGrip) {
-                    for (const edge of grips.edges) {
-                        const dist = this.cad.distance(
-                            point.x, point.y,
-                            edge.point.x, edge.point.y
-                        );
-                        
-                        if (dist < minDist) {
-                            minDist = dist;
-                            nearestGrip = edge;
-                        }
+                // البحث في edges 
+                for (const edge of grips.edges) {
+                    const dist = this.cad.distance(
+                        point.x, point.y,
+                        edge.point.x, edge.point.y
+                    );
+                    
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestGrip = edge;
                     }
                 }
             }
@@ -349,7 +349,14 @@
             if (grip.type === 'vertex') {
                 this.cad.updateStatus('Move vertex to new position');
             } else {
-                this.cad.updateStatus('Drag to add vertex at desired position');
+                // تحديد الوضع بناءً على المفاتيح
+                if (this.cad.keys && this.cad.keys.ctrl) {
+                    this.gripMode = 'stretch';
+                    this.cad.updateStatus('Drag to stretch edge');
+                } else {
+                    this.gripMode = 'vertex';
+                    this.cad.updateStatus('Drag to add vertex at desired position');
+                }
             }
         }
         
@@ -384,9 +391,14 @@
             if (this.draggedGrip.type === 'vertex') {
                 // تحديث موقع vertex
                 this.updateVertexPosition(this.draggedGrip, constrainedPoint);
-            } else {
-                // معاينة إضافة vertex جديد
-                this.previewNewVertex(this.draggedGrip, constrainedPoint);
+            } else if (this.draggedGrip.type === 'edge') {
+                if (this.gripMode === 'stretch') {
+                    // معاينة stretch
+                    this.previewEdgeStretch(this.draggedGrip, constrainedPoint);
+                } else {
+                    // معاينة إضافة vertex جديد
+                    this.previewNewVertex(this.draggedGrip, constrainedPoint);
+                }
             }
         }
         
@@ -397,13 +409,19 @@
             if (!this.draggedGrip) return;
             
             if (this.draggedGrip.type === 'edge') {
-                // إضافة vertex جديد في موقع السحب
-                this.addVertexAtEdge(this.draggedGrip, point);
+                if (this.gripMode === 'stretch') {
+                    // تطبيق stretch
+                    this.applyEdgeStretch(this.draggedGrip, point);
+                } else {
+                    // إضافة vertex جديد في موقع السحب
+                    this.addVertexAtEdge(this.draggedGrip, point);
+                }
             }
             
             this.draggedGrip = null;
             this.originalPosition = null;
             this.cad.tempShape = null;
+            this.gripMode = 'vertex';
             this.cad.updateStatus('READY');
         }
         
@@ -510,6 +528,124 @@
         }
         
         /**
+         * معاينة stretch للحافة
+         */
+        previewEdgeStretch(edgeGrip, position) {
+            const shape = edgeGrip.shape;
+            const preview = this.cad.cloneShape(shape);
+            
+            // حساب الإزاحة
+            const dx = position.x - edgeGrip.point.x;
+            const dy = position.y - edgeGrip.point.y;
+            
+            switch (shape.type) {
+                case 'line':
+                    preview.start = { 
+                        x: shape.start.x + dx, 
+                        y: shape.start.y + dy 
+                    };
+                    preview.end = { 
+                        x: shape.end.x + dx, 
+                        y: shape.end.y + dy 
+                    };
+                    break;
+                    
+                case 'polyline':
+                    // تحريك النقطتين المتصلتين بالحافة
+                    preview.points[edgeGrip.startIndex] = {
+                        x: shape.points[edgeGrip.startIndex].x + dx,
+                        y: shape.points[edgeGrip.startIndex].y + dy
+                    };
+                    preview.points[edgeGrip.endIndex] = {
+                        x: shape.points[edgeGrip.endIndex].x + dx,
+                        y: shape.points[edgeGrip.endIndex].y + dy
+                    };
+                    break;
+                    
+                case 'rectangle':
+                    // stretch جانب من المستطيل
+                    const vertices = this.getRectangleVertices(shape);
+                    const v1 = vertices[edgeGrip.startIndex];
+                    const v2 = vertices[edgeGrip.endIndex];
+                    
+                    // تحديد الاتجاه (أفقي أو رأسي)
+                    if (Math.abs(v1.point.x - v2.point.x) < 0.01) {
+                        // حافة رأسية
+                        if (v1.point.x < shape.center.x) {
+                            preview.start.x += dx;
+                        } else {
+                            preview.end.x += dx;
+                        }
+                    } else {
+                        // حافة أفقية
+                        if (v1.point.y < shape.center.y) {
+                            preview.start.y += dy;
+                        } else {
+                            preview.end.y += dy;
+                        }
+                    }
+                    break;
+            }
+            
+            preview.color = this.colors.edge.stretch;
+            preview.lineType = 'dashed';
+            
+            this.cad.tempShape = preview;
+            this.cad.render();
+        }
+        
+        /**
+         * تطبيق stretch على الحافة
+         */
+        applyEdgeStretch(edgeGrip, position) {
+            const shape = edgeGrip.shape;
+            
+            // حساب الإزاحة
+            const dx = position.x - edgeGrip.point.x;
+            const dy = position.y - edgeGrip.point.y;
+            
+            switch (shape.type) {
+                case 'line':
+                    shape.start.x += dx;
+                    shape.start.y += dy;
+                    shape.end.x += dx;
+                    shape.end.y += dy;
+                    break;
+                    
+                case 'polyline':
+                    shape.points[edgeGrip.startIndex].x += dx;
+                    shape.points[edgeGrip.startIndex].y += dy;
+                    shape.points[edgeGrip.endIndex].x += dx;
+                    shape.points[edgeGrip.endIndex].y += dy;
+                    break;
+                    
+                case 'rectangle':
+                    const vertices = this.getRectangleVertices(shape);
+                    const v1 = vertices[edgeGrip.startIndex];
+                    const v2 = vertices[edgeGrip.endIndex];
+                    
+                    if (Math.abs(v1.point.x - v2.point.x) < 0.01) {
+                        // حافة رأسية
+                        if (v1.point.x < shape.center.x) {
+                            shape.start.x += dx;
+                        } else {
+                            shape.end.x += dx;
+                        }
+                    } else {
+                        // حافة أفقية
+                        if (v1.point.y < shape.center.y) {
+                            shape.start.y += dy;
+                        } else {
+                            shape.end.y += dy;
+                        }
+                    }
+                    break;
+            }
+            
+            this.cad.render();
+        }
+        
+        /**
          * إضافة vertex على edge
          */
         addVertexAtEdge(edgeGrip, position) {
@@ -561,7 +697,7 @@
         }
         
         /**
-         * تحويل edge إلى قوس
+         * تحويل edge إلى قوس - النسخة المكتملة
          */
         convertEdgeToArc(edgeGrip) {
             const shape = edgeGrip.shape;
@@ -570,60 +706,132 @@
                 // تحويل خط مستقيم إلى قوس
                 const start = shape.start;
                 const end = shape.end;
+                
+                // حساب نقطة المنتصف
                 const midPoint = {
                     x: (start.x + end.x) / 2,
                     y: (start.y + end.y) / 2
                 };
                 
-                // حساب نقطة القوس (ارتفاع = ربع المسافة)
+                // حساب النقطة الثالثة (perpendicular offset)
                 const dx = end.x - start.x;
                 const dy = end.y - start.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const perpX = -dy / distance * distance / 4;
-                const perpY = dx / distance * distance / 4;
+                const len = Math.sqrt(dx * dx + dy * dy);
                 
-                const arcPoint = {
+                // offset يساوي ربع الطول
+                const offset = len / 4;
+                const perpX = -dy / len * offset;
+                const perpY = dx / len * offset;
+                
+                const p3 = {
                     x: midPoint.x + perpX,
                     y: midPoint.y + perpY
                 };
                 
-                // حساب القوس من 3 نقاط
-                const arc = this.calculateArcFrom3Points(start, arcPoint, end);
-                if (arc) {
+                // حساب مركز ونصف قطر القوس من 3 نقاط
+                const arcData = this.calculateArcFrom3Points(start, p3, end);
+                
+                if (arcData) {
                     // تحويل الشكل إلى قوس
                     shape.type = 'arc';
-                    shape.center = arc.center;
-                    shape.radius = arc.radius;
-                    shape.startAngle = arc.startAngle;
-                    shape.endAngle = arc.endAngle;
+                    shape.center = arcData.center;
+                    shape.radius = arcData.radius;
+                    shape.startAngle = arcData.startAngle;
+                    shape.endAngle = arcData.endAngle;
+                    
+                    // حذف خصائص الخط
                     delete shape.start;
                     delete shape.end;
+                    
+                    this.cad.updateStatus('Converted to arc');
                 }
             } else if (shape.type === 'polyline') {
-                // تحويل segment في polyline إلى قوس
-                this.cad.updateStatus('Arc conversion for polylines coming soon');
+                // تحويل جزء من polyline إلى قوس
+                const p1 = edgeGrip.start;
+                const p2 = edgeGrip.end;
+                
+                // نفس العملية للحصول على القوس
+                const midPoint = {
+                    x: (p1.x + p2.x) / 2,
+                    y: (p1.y + p2.y) / 2
+                };
+                
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                
+                const offset = len / 4;
+                const perpX = -dy / len * offset;
+                const perpY = dx / len * offset;
+                
+                const p3 = {
+                    x: midPoint.x + perpX,
+                    y: midPoint.y + perpY
+                };
+                
+                const arcData = this.calculateArcFrom3Points(p1, p3, p2);
+                
+                if (arcData) {
+                    // إنشاء قوس جديد
+                    const newArc = {
+                        type: 'arc',
+                        id: this.cad.generateId(),
+                        center: arcData.center,
+                        radius: arcData.radius,
+                        startAngle: arcData.startAngle,
+                        endAngle: arcData.endAngle,
+                        color: shape.color,
+                        lineWidth: shape.lineWidth,
+                        lineType: shape.lineType,
+                        layerId: shape.layerId
+                    };
+                    
+                    // إضافة القوس للأشكال
+                    this.cad.shapes.push(newArc);
+                    
+                    // إزالة النقاط من polyline
+                    if (shape.points.length === 2) {
+                        // إذا كان polyline يحتوي على نقطتين فقط، احذفه
+                        const index = this.cad.shapes.indexOf(shape);
+                        if (index !== -1) {
+                            this.cad.shapes.splice(index, 1);
+                        }
+                    } else {
+                        // إزالة إحدى النقاط للحفاظ على الاتصال
+                        shape.points.splice(edgeGrip.endIndex, 1);
+                    }
+                    
+                    this.cad.updateStatus('Converted edge to arc');
+                }
             }
+            
+            this.cad.render();
         }
         
         /**
          * حساب قوس من 3 نقاط
          */
         calculateArcFrom3Points(p1, p2, p3) {
-            // حساب مركز الدائرة المارة بالنقاط الثلاث
-            const ax = p1.x, ay = p1.y;
-            const bx = p2.x, by = p2.y;
-            const cx = p3.x, cy = p3.y;
+            // حساب مركز الدائرة المارة بثلاث نقاط
+            const a = p1.x - p2.x;
+            const b = p1.y - p2.y;
+            const c = p3.x - p2.x;
+            const d = p3.y - p2.y;
+            const e = a * (p1.x + p2.x) + b * (p1.y + p2.y);
+            const f = c * (p3.x + p2.x) + d * (p3.y + p2.y);
+            const g = 2 * (a * (p3.y - p1.y) - b * (p3.x - p1.x));
             
-            const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
-            if (Math.abs(d) < 0.0001) return null; // النقاط على خط مستقيم
+            if (Math.abs(g) < 1e-10) return null;
             
-            const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
-            const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+            const center = {
+                x: (d * e - b * f) / g,
+                y: (a * f - c * e) / g
+            };
             
-            const center = { x: ux, y: uy };
-            const radius = Math.sqrt((ax - ux) * (ax - ux) + (ay - uy) * (ay - uy));
+            const radius = Math.sqrt(
+                (center.x - p1.x) ** 2 + (center.y - p1.y) ** 2
+            );
             
-            // حساب الزوايا
             const startAngle = Math.atan2(p1.y - center.y, p1.x - center.x);
             const endAngle = Math.atan2(p3.y - center.y, p3.x - center.x);
             
@@ -682,6 +890,9 @@
                     <div class="context-menu-item" data-action="convert-arc">
                         <i class="fas fa-circle-notch"></i> Convert to Arc
                     </div>
+                    <div class="context-menu-item" data-action="stretch">
+                        <i class="fas fa-arrows-alt-h"></i> Stretch Edge
+                    </div>
                     <div class="context-menu-separator"></div>
                     <div class="context-menu-item" data-action="divide">
                         <i class="fas fa-cut"></i> Divide Edge
@@ -736,6 +947,12 @@
                     this.convertEdgeToArc(grip);
                     break;
                     
+                case 'stretch':
+                    // تفعيل وضع stretch
+                    this.gripMode = 'stretch';
+                    this.startDrag(grip, grip.point);
+                    break;
+                    
                 case 'divide':
                     this.divideEdge(grip);
                     break;
@@ -758,11 +975,12 @@
                 if (grip.type === 'edge') {
                     // Double-click على edge يحولها إلى قوس
                     this.convertEdgeToArc(grip);
+                    return true;
                 } else if (grip.type === 'vertex') {
                     // Double-click على vertex يفتح خصائصها
                     this.showGripProperties(grip);
+                    return true;
                 }
-                return true;
             }
             
             return false;
@@ -959,9 +1177,12 @@
             
             ctx.save();
             
-            // اختيار اللون
+            // اختيار اللون حسب الوضع
             let fillColor, strokeColor;
-            if (isDragged) {
+            if (isDragged && this.gripMode === 'stretch') {
+                fillColor = this.colors.edge.stretch;
+                strokeColor = this.colors.vertex.active;
+            } else if (isDragged) {
                 fillColor = this.colors.edge.active;
                 strokeColor = this.colors.vertex.active;
             } else if (isHovered) {
