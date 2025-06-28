@@ -127,7 +127,7 @@ class TyrexCAD {
         // تحديث استيراد وتهيئة Tools
         try {
             // استيراد نظام Tools الجديد
-            const ToolsModule = await import('./js/tools/index.js');
+            const ToolsModule = await import('../tools/index.js');
             
             // تهيئة ToolsManager
             if (ToolsModule.Tools) {

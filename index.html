@@ -666,38 +666,15 @@
         </div>
     </footer>
     
-    <!-- Include Three.js for 3D -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Main Module Entry Point ONLY -->
+    <script type="module" src="js/main.js"></script>
     
-    <!-- Core Libraries - Non-module scripts -->
-    <script src="js/core/Units.js"></script>
-    <script src="js/core/Geometry.js"></script>
-    <script src="js/lib/clipper.js"></script>
-    <script src="js/lib/earcut.min.js"></script>
-    <script src="js/geometry/GeometryAdvanced.js"></script>
-    <script src="js/ui/UI.js"></script>
-    <script src="js/core/TyrexCAD.js"></script>
-    
-    <!-- Main Module Entry Point -->
-    <script type="module">
-        // Import main application
-        import './js/main.js';
-    </script>
-    
-    <!-- Legacy Support Script -->
+    <!-- Legacy Support Script for UI functions -->
     <script>
         // Global variables for legacy compatibility
         let cad;
         
-        // Wait for CAD to be initialized
-        const checkCAD = setInterval(() => {
-            if (window.cad) {
-                cad = window.cad;
-                clearInterval(checkCAD);
-            }
-        }, 100);
-        
-        // Ribbon functions
+        // Ribbon function
         function showRibbon(tab) {
             document.querySelectorAll('.ribbon-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.ribbon-content').forEach(c => c.classList.remove('active'));
