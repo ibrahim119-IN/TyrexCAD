@@ -6,12 +6,6 @@
  * يدعم جميع العمليات المعقدة دون التأثير على واجهة المستخدم
  */
 
-// تحميل المكتبات المطلوبة
-importScripts(
-    'https://cdnjs.cloudflare.com/ajax/libs/clipper-lib/6.4.2/clipper.min.js',
-    'https://unpkg.com/earcut@2.2.4/dist/earcut.min.js'
-);
-
 // حالة الـ Worker
 const state = {
     initialized: false,
@@ -28,26 +22,51 @@ const state = {
     }
 };
 
+// ==================== تحميل المكتبات ====================
+
+/**
+ * تحميل المكتبات المطلوبة ديناميكياً
+ */
+async function loadLibraries() {
+    try {
+        // تحميل ClipperLib
+        const clipperResponse = await fetch('/js/lib/clipper.js');
+        const clipperCode = await clipperResponse.text();
+        
+        // تنفيذ الكود في السياق الحالي
+        const clipperFunc = new Function(clipperCode + '\n return ClipperLib;');
+        state.libraries.clipper = clipperFunc();
+        
+        // تحميل Earcut
+        const earcutResponse = await fetch('/js/lib/earcut.min.js');
+        const earcutCode = await earcutResponse.text();
+        
+        // Earcut يصدر نفسه كـ module.exports أو window.earcut
+        const earcutFunc = new Function('module', earcutCode + '\n return module.exports || earcut;');
+        state.libraries.earcut = earcutFunc({ exports: {} });
+        
+        console.log('✅ Libraries loaded in worker');
+        return true;
+    } catch (error) {
+        console.error('Failed to load libraries in worker:', error);
+        return false;
+    }
+}
+
 // ==================== التهيئة ====================
 
 /**
- * تهيئة المكتبات
+ * تهيئة Worker
  */
-function initialize() {
+async function initialize() {
     if (state.initialized) return;
     
     try {
-        // التحقق من وجود المكتبات المحقونة
-        if (typeof ClipperLib !== 'undefined') {
-            state.libraries.clipper = ClipperLib;
-        } else {
-            throw new Error('ClipperLib not loaded');
-        }
+        // تحميل المكتبات
+        const librariesLoaded = await loadLibraries();
         
-        if (typeof earcut !== 'undefined') {
-            state.libraries.earcut = earcut;
-        } else {
-            throw new Error('Earcut not loaded');
+        if (!librariesLoaded) {
+            throw new Error('Failed to load required libraries');
         }
         
         state.initialized = true;
@@ -55,7 +74,7 @@ function initialize() {
         self.postMessage({
             type: 'ready',
             status: 'Worker initialized successfully',
-            libraries: Object.keys(state.libraries)
+            libraries: ['clipper', 'earcut']
         });
         
     } catch (error) {
@@ -67,7 +86,7 @@ function initialize() {
     }
 }
 
-// بدء التهيئة
+// بدء التهيئة عند تحميل Worker
 initialize();
 
 // ==================== معالج الرسائل الرئيسي ====================
@@ -217,6 +236,10 @@ self.addEventListener('message', async (event) => {
  */
 function performUnion(shapes, scale) {
     const ClipperLib = state.libraries.clipper;
+    if (!ClipperLib) {
+        throw new Error('Clipper library not loaded');
+    }
+    
     const clipper = new ClipperLib.Clipper();
     
     // تحويل كل الأشكال لمسارات Clipper
@@ -251,6 +274,10 @@ function performUnion(shapes, scale) {
  */
 function performDifference(subject, clips, scale) {
     const ClipperLib = state.libraries.clipper;
+    if (!ClipperLib) {
+        throw new Error('Clipper library not loaded');
+    }
+    
     const clipper = new ClipperLib.Clipper();
     
     // إضافة الشكل الأساسي
@@ -296,6 +323,9 @@ function performIntersection(shapes, scale) {
     if (shapes.length < 2) return [];
     
     const ClipperLib = state.libraries.clipper;
+    if (!ClipperLib) {
+        throw new Error('Clipper library not loaded');
+    }
     
     // البدء بأول شكلين
     let result = intersectPair(shapes[0], shapes[1], scale);
@@ -355,6 +385,10 @@ function intersectPair(shape1, shape2, scale) {
  */
 function performXor(shape1, shape2, scale) {
     const ClipperLib = state.libraries.clipper;
+    if (!ClipperLib) {
+        throw new Error('Clipper library not loaded');
+    }
+    
     const clipper = new ClipperLib.Clipper();
     
     // إضافة الأشكال
@@ -397,6 +431,10 @@ function performXor(shape1, shape2, scale) {
  */
 function performOffsetPolygon(polygon, distance, scale) {
     const ClipperLib = state.libraries.clipper;
+    if (!ClipperLib) {
+        throw new Error('Clipper library not loaded');
+    }
+    
     const offset = new ClipperLib.ClipperOffset();
     
     // تحويل المضلع
@@ -426,6 +464,10 @@ function performOffsetPolygon(polygon, distance, scale) {
  */
 function performOffsetPolyline(polyline, distance, scale) {
     const ClipperLib = state.libraries.clipper;
+    if (!ClipperLib) {
+        throw new Error('Clipper library not loaded');
+    }
+    
     const offset = new ClipperLib.ClipperOffset();
     
     // تحويل الخط المتعدد
@@ -478,6 +520,9 @@ function performOffsetMultiple(shapes, distance, scale) {
  */
 function performTriangulation(polygon) {
     const earcut = state.libraries.earcut;
+    if (!earcut) {
+        throw new Error('Earcut library not loaded');
+    }
     
     // تحضير البيانات لـ earcut
     const vertices = [];
@@ -1496,6 +1541,3 @@ function updatePerformanceStats(executionTime) {
     state.performance.totalTime += executionTime;
     state.performance.averageTime = state.performance.totalTime / state.performance.operationCount;
 }
-
-// بدء الـ Worker
-initialize();

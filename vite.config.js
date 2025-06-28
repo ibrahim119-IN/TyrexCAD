@@ -26,12 +26,18 @@ export default defineConfig({
             output: {
                 // تجميع الأدوات في chunk منفصل
                 manualChunks: {
-                    'tools': [
+                    'tools-base': [
                         './js/tools/ToolsManager.js',
-                        './js/tools/base/BaseTool.js',
-                        './js/tools/drawing/index.js',
-                        './js/tools/modify/index.js',
-                        './js/tools/advanced/index.js',
+                        './js/tools/BaseTool.js'
+                    ],
+                    'tools-drawing': [
+                        './js/tools/drawing/index.js'
+                    ],
+                    'tools-modify': [
+                        './js/tools/modify/index.js'
+                    ],
+                    'tools-advanced': [
+                        './js/tools/advanced/index.js'
                     ],
                     'vendor': ['three']
                 },
@@ -51,7 +57,16 @@ export default defineConfig({
     server: {
         port: 3000,
         open: true,
-        cors: true
+        cors: true,
+        hmr: {
+            overlay: false // لتجنب مشاكل مع Canvas
+        }
+    },
+    
+    // إعدادات إضافية
+    optimizeDeps: {
+        include: ['three'],
+        exclude: ['js/lib/*']
     },
     
     // تجاهل تحذيرات معينة

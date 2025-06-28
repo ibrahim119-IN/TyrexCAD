@@ -415,3 +415,5 @@ class UnitsSystem {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = UnitsSystem;
 }
+window.UnitsSystem = UnitsSystem;
+export { UnitsSystem };

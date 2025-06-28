@@ -1,4 +1,3 @@
-
 // ==================== js/tools/advanced/index.js ====================
 
 /**
@@ -14,33 +13,51 @@ export { UnionTool, DifferenceTool, IntersectionTool } from './BooleanTools.js';
 export { DistanceAnalysisTool, AreaAnalysisTool, PropertiesAnalysisTool } from './AnalysisTools.js';
 export { ConvertToPolylineTool, SimplifyPolylineTool, SmoothPolylineTool } from './CurvesTools.js';
 
-// تصدير مجموعة الأدوات
-export const tools = {
-    'fillet': await import('./FilletTool.js').then(m => m.FilletTool).catch(() => null),
-    'chamfer': await import('./ChamferTool.js').then(m => m.ChamferTool).catch(() => null),
-    'rectangular-array': await import('./ArrayTools.js').then(m => m.RectangularArrayTool).catch(() => null),
-    'polar-array': await import('./ArrayTools.js').then(m => m.PolarArrayTool).catch(() => null),
-    'path-array': await import('./ArrayTools.js').then(m => m.PathArrayTool).catch(() => null),
-    'union': await import('./BooleanTools.js').then(m => m.UnionTool).catch(() => null),
-    'difference': await import('./BooleanTools.js').then(m => m.DifferenceTool).catch(() => null),
-    'intersection': await import('./BooleanTools.js').then(m => m.IntersectionTool).catch(() => null),
-    'distance-analysis': await import('./AnalysisTools.js').then(m => m.DistanceAnalysisTool).catch(() => null),
-    'area-analysis': await import('./AnalysisTools.js').then(m => m.AreaAnalysisTool).catch(() => null),
-    'properties-analysis': await import('./AnalysisTools.js').then(m => m.PropertiesAnalysisTool).catch(() => null),
-    'convert-to-polyline': await import('./CurvesTools.js').then(m => m.ConvertToPolylineTool).catch(() => null),
-    'simplify-polyline': await import('./CurvesTools.js').then(m => m.SimplifyPolylineTool).catch(() => null),
-    'smooth-polyline': await import('./CurvesTools.js').then(m => m.SmoothPolylineTool).catch(() => null)
-};
-
-// إزالة الأدوات الفاشلة
-Object.keys(tools).forEach(key => {
-    if (!tools[key]) {
-        delete tools[key];
-        console.warn(`⚠️ Advanced tool '${key}' failed to load`);
+// دالة لتحميل الأدوات ديناميكياً
+export async function loadAdvancedTools() {
+    const tools = {};
+    
+    try {
+        tools.fillet = (await import('./FilletTool.js')).FilletTool;
+        tools.chamfer = (await import('./ChamferTool.js')).ChamferTool;
+        
+        const arrayTools = await import('./ArrayTools.js');
+        tools['rectangular-array'] = arrayTools.RectangularArrayTool;
+        tools['polar-array'] = arrayTools.PolarArrayTool;
+        tools['path-array'] = arrayTools.PathArrayTool;
+        
+        const booleanTools = await import('./BooleanTools.js');
+        tools.union = booleanTools.UnionTool;
+        tools.difference = booleanTools.DifferenceTool;
+        tools.intersection = booleanTools.IntersectionTool;
+        
+        const analysisTools = await import('./AnalysisTools.js');
+        tools['distance-analysis'] = analysisTools.DistanceAnalysisTool;
+        tools['area-analysis'] = analysisTools.AreaAnalysisTool;
+        tools['properties-analysis'] = analysisTools.PropertiesAnalysisTool;
+        
+        const curvesTools = await import('./CurvesTools.js');
+        tools['convert-to-polyline'] = curvesTools.ConvertToPolylineTool;
+        tools['simplify-polyline'] = curvesTools.SimplifyPolylineTool;
+        tools['smooth-polyline'] = curvesTools.SmoothPolylineTool;
+    } catch (error) {
+        console.error('Error loading advanced tools:', error);
     }
-});
+    
+    // إزالة الأدوات الفاشلة
+    Object.keys(tools).forEach(key => {
+        if (!tools[key]) {
+            delete tools[key];
+            console.warn(`⚠️ Advanced tool '${key}' failed to load`);
+        }
+    });
+    
+    console.log(`✅ Loaded ${Object.keys(tools).length} advanced tools`);
+    return tools;
+}
+
+// تصدير مجموعة الأدوات (متوافق مع الإصدار القديم)
+export const tools = await loadAdvancedTools();
 
 // تصدير بالاسم القديم للتوافق
 export const advancedTools = tools;
-
-console.log(`✅ Loaded ${Object.keys(tools).length} advanced tools`);

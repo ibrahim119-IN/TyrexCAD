@@ -1825,3 +1825,4 @@ class UI {
 
 // تصدير النظام
 window.UI = UI;
+export { UI };

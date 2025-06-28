@@ -1,6 +1,4 @@
-function WebGLAttributes( gl, capabilities ) {
-
-	const isWebGL2 = capabilities.isWebGL2;
+function WebGLAttributes( gl ) {
 
 	const buffers = new WeakMap();
 
@@ -27,15 +25,7 @@ function WebGLAttributes( gl, capabilities ) {
 
 			if ( attribute.isFloat16BufferAttribute ) {
 
-				if ( isWebGL2 ) {
-
-					type = gl.HALF_FLOAT;
-
-				} else {
-
-					throw new Error( 'THREE.WebGLAttributes: Usage of Float16BufferAttribute requires WebGL2.' );
-
-				}
+				type = gl.HALF_FLOAT;
 
 			} else {
 
@@ -86,57 +76,71 @@ function WebGLAttributes( gl, capabilities ) {
 	function updateBuffer( buffer, attribute, bufferType ) {
 
 		const array = attribute.array;
-		const updateRange = attribute._updateRange; // deprecated
 		const updateRanges = attribute.updateRanges;
 
 		gl.bindBuffer( bufferType, buffer );
 
-		if ( updateRange.count === - 1 && updateRanges.length === 0 ) {
+		if ( updateRanges.length === 0 ) {
 
 			// Not using update ranges
 			gl.bufferSubData( bufferType, 0, array );
 
-		}
+		} else {
 
-		if ( updateRanges.length !== 0 ) {
+			// Before applying update ranges, we merge any adjacent / overlapping
+			// ranges to reduce load on `gl.bufferSubData`. Empirically, this has led
+			// to performance improvements for applications which make heavy use of
+			// update ranges. Likely due to GPU command overhead.
+			//
+			// Note that to reduce garbage collection between frames, we merge the
+			// update ranges in-place. This is safe because this method will clear the
+			// update ranges once updated.
 
-			for ( let i = 0, l = updateRanges.length; i < l; i ++ ) {
+			updateRanges.sort( ( a, b ) => a.start - b.start );
 
+			// To merge the update ranges in-place, we work from left to right in the
+			// existing updateRanges array, merging ranges. This may result in a final
+			// array which is smaller than the original. This index tracks the last
+			// index representing a merged range, any data after this index can be
+			// trimmed once the merge algorithm is completed.
+			let mergeIndex = 0;
+
+			for ( let i = 1; i < updateRanges.length; i ++ ) {
+
+				const previousRange = updateRanges[ mergeIndex ];
 				const range = updateRanges[ i ];
-				if ( isWebGL2 ) {
 
-					gl.bufferSubData( bufferType, range.start * array.BYTES_PER_ELEMENT,
-						array, range.start, range.count );
+				// We add one here to merge adjacent ranges. This is safe because ranges
+				// operate over positive integers.
+				if ( range.start <= previousRange.start + previousRange.count + 1 ) {
+
+					previousRange.count = Math.max(
+						previousRange.count,
+						range.start + range.count - previousRange.start
+					);
 
 				} else {
 
-					gl.bufferSubData( bufferType, range.start * array.BYTES_PER_ELEMENT,
-						array.subarray( range.start, range.start + range.count ) );
+					++ mergeIndex;
+					updateRanges[ mergeIndex ] = range;
 
 				}
 
 			}
 
-			attribute.clearUpdateRanges();
+			// Trim the array to only contain the merged ranges.
+			updateRanges.length = mergeIndex + 1;
 
-		}
+			for ( let i = 0, l = updateRanges.length; i < l; i ++ ) {
 
-		// deprecated
-		if ( updateRange.count !== - 1 ) {
+				const range = updateRanges[ i ];
 
-			if ( isWebGL2 ) {
-
-				gl.bufferSubData( bufferType, updateRange.offset * array.BYTES_PER_ELEMENT,
-					array, updateRange.offset, updateRange.count );
-
-			} else {
-
-				gl.bufferSubData( bufferType, updateRange.offset * array.BYTES_PER_ELEMENT,
-					array.subarray( updateRange.offset, updateRange.offset + updateRange.count ) );
+				gl.bufferSubData( bufferType, range.start * array.BYTES_PER_ELEMENT,
+					array, range.start, range.count );
 
 			}
 
-			updateRange.count = - 1; // reset range
+			attribute.clearUpdateRanges();
 
 		}
 
@@ -172,6 +176,8 @@ function WebGLAttributes( gl, capabilities ) {
 
 	function update( attribute, bufferType ) {
 
+		if ( attribute.isInterleavedBufferAttribute ) attribute = attribute.data;
+
 		if ( attribute.isGLBufferAttribute ) {
 
 			const cached = buffers.get( attribute );
@@ -190,8 +196,6 @@ function WebGLAttributes( gl, capabilities ) {
 			return;
 
 		}
-
-		if ( attribute.isInterleavedBufferAttribute ) attribute = attribute.data;
 
 		const data = buffers.get( attribute );
 

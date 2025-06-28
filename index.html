@@ -24,10 +24,10 @@
             </div>
         </div>
         <div style="display: flex; gap: 20px; align-items: center;">
-            <button class="btn" onclick="cad.newFile()"><i class="fas fa-file"></i> New</button>
-            <button class="btn" onclick="cad.openFile()"><i class="fas fa-folder-open"></i> Open</button>
-            <button class="btn" onclick="cad.saveFile()"><i class="fas fa-save"></i> Save</button>
-            <button class="btn" onclick="cad.exportFile()"><i class="fas fa-file-export"></i> Export</button>
+            <button class="btn" onclick="newFile()"><i class="fas fa-file"></i> New</button>
+            <button class="btn" onclick="openFile()"><i class="fas fa-folder-open"></i> Open</button>
+            <button class="btn" onclick="saveFile()"><i class="fas fa-save"></i> Save</button>
+            <button class="btn" onclick="exportFile()"><i class="fas fa-file-export"></i> Export</button>
         </div>
     </header>
     
@@ -47,11 +47,11 @@
             <div class="ribbon-group">
                 <div class="ribbon-group-title">Lines</div>
                 <div class="ribbon-group-content">
-                    <div class="ribbon-tool" onclick="cad.setTool('line')" title="Draw Line">
+                    <div class="ribbon-tool" onclick="setTool('line')" title="Draw Line">
                         <div class="ribbon-tool-icon"><i class="fas fa-slash"></i></div>
                         <div class="ribbon-tool-label">Line</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('polyline')" title="Draw Polyline">
+                    <div class="ribbon-tool" onclick="setTool('polyline')" title="Draw Polyline">
                         <div class="ribbon-tool-icon"><i class="fas fa-route"></i></div>
                         <div class="ribbon-tool-label">Polyline</div>
                     </div>
@@ -61,25 +61,25 @@
             <div class="ribbon-group">
                 <div class="ribbon-group-title">Shapes</div>
                 <div class="ribbon-group-content">
-                    <div class="ribbon-tool" onclick="cad.setTool('rectangle')" title="Draw Rectangle">
+                    <div class="ribbon-tool" onclick="setTool('rectangle')" title="Draw Rectangle">
                         <div class="ribbon-tool-icon"><i class="far fa-square"></i></div>
                         <div class="ribbon-tool-label">Rectangle</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('circle')" title="Draw Circle">
+                    <div class="ribbon-tool" onclick="setTool('circle')" title="Draw Circle">
                         <div class="ribbon-tool-icon"><i class="far fa-circle"></i></div>
                         <div class="ribbon-tool-label">Circle</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('arc')" title="Draw Arc">
+                    <div class="ribbon-tool" onclick="setTool('arc')" title="Draw Arc">
                         <div class="ribbon-tool-icon"><i class="fas fa-bezier-curve"></i></div>
                         <div class="ribbon-tool-label">Arc</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('ellipse')" title="Draw Ellipse">
+                    <div class="ribbon-tool" onclick="setTool('ellipse')" title="Draw Ellipse">
                         <div class="ribbon-tool-icon"><i class="fas fa-egg"></i></div>
                         <div class="ribbon-tool-label">Ellipse</div>
                     </div>
                     
                     <!-- Advanced Drawing Tools -->
-                    <button id="polygon" class="tool-btn" onclick="cad.setTool('polygon')" title="Polygon (POL)">
+                    <button id="polygon" class="tool-btn" onclick="setTool('polygon')" title="Polygon (POL)">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 2L3 7V17L12 22L21 17V7L12 2Z" stroke="currentColor" stroke-width="2"/>
                         </svg>
@@ -93,23 +93,23 @@
             <div class="ribbon-group">
                 <div class="ribbon-group-title">Transform</div>
                 <div class="ribbon-group-content">
-                    <div class="ribbon-tool" onclick="cad.setTool('move')" title="Move Objects">
+                    <div class="ribbon-tool" onclick="setTool('move')" title="Move Objects">
                         <div class="ribbon-tool-icon"><i class="fas fa-arrows-alt"></i></div>
                         <div class="ribbon-tool-label">Move</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('copy')" title="Copy Objects">
+                    <div class="ribbon-tool" onclick="setTool('copy')" title="Copy Objects">
                         <div class="ribbon-tool-icon"><i class="fas fa-copy"></i></div>
                         <div class="ribbon-tool-label">Copy</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('rotate')" title="Rotate Objects">
+                    <div class="ribbon-tool" onclick="setTool('rotate')" title="Rotate Objects">
                         <div class="ribbon-tool-icon"><i class="fas fa-sync-alt"></i></div>
                         <div class="ribbon-tool-label">Rotate</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('scale')" title="Scale Objects">
+                    <div class="ribbon-tool" onclick="setTool('scale')" title="Scale Objects">
                         <div class="ribbon-tool-icon"><i class="fas fa-expand-arrows-alt"></i></div>
                         <div class="ribbon-tool-label">Scale</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('mirror')" title="Mirror Objects">
+                    <div class="ribbon-tool" onclick="setTool('mirror')" title="Mirror Objects">
                         <div class="ribbon-tool-icon"><i class="fas fa-object-ungroup"></i></div>
                         <div class="ribbon-tool-label">Mirror</div>
                     </div>
@@ -119,15 +119,15 @@
             <div class="ribbon-group">
                 <div class="ribbon-group-title">Edit</div>
                 <div class="ribbon-group-content">
-                    <div class="ribbon-tool" onclick="cad.setTool('trim')" title="Trim Objects">
+                    <div class="ribbon-tool" onclick="setTool('trim')" title="Trim Objects">
                         <div class="ribbon-tool-icon"><i class="fas fa-cut"></i></div>
                         <div class="ribbon-tool-label">Trim</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('extend')" title="Extend Objects">
+                    <div class="ribbon-tool" onclick="setTool('extend')" title="Extend Objects">
                         <div class="ribbon-tool-icon"><i class="fas fa-expand"></i></div>
                         <div class="ribbon-tool-label">Extend</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('offset')" title="Offset Objects">
+                    <div class="ribbon-tool" onclick="setTool('offset')" title="Offset Objects">
                         <div class="ribbon-tool-icon"><i class="fas fa-clone"></i></div>
                         <div class="ribbon-tool-label">Offset</div>
                     </div>
@@ -135,14 +135,14 @@
                     <div class="tool-separator"></div>
                     
                     <!-- Advanced Modify Tools -->
-                    <button id="fillet" class="tool-btn" onclick="cad.setTool('fillet')" title="Fillet (F)">
+                    <button id="fillet" class="tool-btn" onclick="setTool('fillet')" title="Fillet (F)">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M4 4V16C4 18 6 20 8 20H20" stroke="currentColor" stroke-width="2"/>
                             <path d="M4 16Q4 20 8 20" stroke="currentColor" stroke-width="2" fill="none"/>
                         </svg>
                     </button>
                     
-                    <button id="chamfer" class="tool-btn" onclick="cad.setTool('chamfer')" title="Chamfer (CHA)">
+                    <button id="chamfer" class="tool-btn" onclick="setTool('chamfer')" title="Chamfer (CHA)">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M4 4V16L8 20H20" stroke="currentColor" stroke-width="2"/>
                             <path d="M4 16L8 20" stroke="currentColor" stroke-width="2"/>
@@ -153,7 +153,7 @@
                     
                     <!-- Array Tools Dropdown -->
                     <div class="dropdown">
-                        <button class="tool-btn" onclick="cad.ui.toggleArrayMenu()" title="Array (AR)">
+                        <button class="tool-btn" onclick="toggleArrayMenu()" title="Array (AR)">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <rect x="3" y="3" width="6" height="6" stroke="currentColor" stroke-width="2"/>
                                 <rect x="9" y="3" width="6" height="6" stroke="currentColor" stroke-width="2"/>
@@ -164,9 +164,9 @@
                             </svg>
                         </button>
                         <div id="arrayMenu" class="dropdown-content">
-                            <button onclick="cad.setTool('rectangular-array')">Rectangular Array</button>
-                            <button onclick="cad.setTool('polar-array')">Polar Array</button>
-                            <button onclick="cad.setTool('path-array')">Path Array</button>
+                            <button onclick="setTool('rectangular-array')">Rectangular Array</button>
+                            <button onclick="setTool('polar-array')">Polar Array</button>
+                            <button onclick="setTool('path-array')">Path Array</button>
                         </div>
                     </div>
                 </div>
@@ -176,7 +176,7 @@
             <div class="tool-section">
                 <div class="section-label">BOOLEAN</div>
                 
-                <button class="tool-btn" onclick="cad.toolsManager?.activateTool('union')" title="Union (UNI)">
+                <button class="tool-btn" onclick="activateTool('union')" title="Union (UNI)">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="10" cy="12" r="6" stroke="currentColor" stroke-width="2" fill="none"/>
                         <circle cx="14" cy="12" r="6" stroke="currentColor" stroke-width="2" fill="none"/>
@@ -184,7 +184,7 @@
                     </svg>
                 </button>
                 
-                <button class="tool-btn" onclick="cad.toolsManager?.activateTool('difference')" title="Difference (DIF)">
+                <button class="tool-btn" onclick="activateTool('difference')" title="Difference (DIF)">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="10" cy="12" r="6" stroke="currentColor" stroke-width="2" fill="none"/>
                         <circle cx="14" cy="12" r="6" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3"/>
@@ -192,7 +192,7 @@
                     </svg>
                 </button>
                 
-                <button class="tool-btn" onclick="cad.toolsManager?.activateTool('intersection')" title="Intersection (INT)">
+                <button class="tool-btn" onclick="activateTool('intersection')" title="Intersection (INT)">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="10" cy="12" r="6" stroke="currentColor" stroke-width="2" fill="none" opacity="0.5"/>
                         <circle cx="14" cy="12" r="6" stroke="currentColor" stroke-width="2" fill="none" opacity="0.5"/>
@@ -205,20 +205,20 @@
             <div class="tool-section">
                 <div class="section-label">ANALYSIS</div>
                 
-                <button class="tool-btn" onclick="cad.toolsManager?.activateTool('distance-analysis')" title="Distance (DIST)">
+                <button class="tool-btn" onclick="activateTool('distance-analysis')" title="Distance (DIST)">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 12H20M4 12L7 9M4 12L7 15M20 12L17 9M20 12L17 15" stroke="currentColor" stroke-width="2"/>
                     </svg>
                 </button>
                 
-                <button class="tool-btn" onclick="cad.toolsManager?.activateTool('area-analysis')" title="Area">
+                <button class="tool-btn" onclick="activateTool('area-analysis')" title="Area">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <rect x="4" y="4" width="16" height="16" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.2"/>
                         <text x="12" y="12" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="10">A</text>
                     </svg>
                 </button>
                 
-                <button class="tool-btn" onclick="cad.toolsManager?.activateTool('properties-analysis')" title="Properties (PROP)">
+                <button class="tool-btn" onclick="activateTool('properties-analysis')" title="Properties (PROP)">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="currentColor" stroke-width="2"/>
                         <circle cx="12" cy="12" r="3" fill="currentColor"/>
@@ -230,21 +230,21 @@
             <div class="tool-section">
                 <div class="section-label">CURVES</div>
                 
-                <button class="tool-btn" onclick="cad.toolsManager?.activateTool('convert-to-polyline')" title="Convert to Polyline">
+                <button class="tool-btn" onclick="activateTool('convert-to-polyline')" title="Convert to Polyline">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1" stroke-dasharray="2 2" opacity="0.5"/>
                         <polyline points="12,4 18,8 20,12 18,16 12,20 6,16 4,12 6,8 12,4" stroke="currentColor" stroke-width="2" fill="none"/>
                     </svg>
                 </button>
                 
-                <button class="tool-btn" onclick="cad.toolsManager?.activateTool('simplify-polyline')" title="Simplify">
+                <button class="tool-btn" onclick="activateTool('simplify-polyline')" title="Simplify">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <polyline points="4,4 8,12 16,8 20,20" stroke="currentColor" stroke-width="1" stroke-dasharray="2 2"/>
                         <polyline points="4,4 20,20" stroke="currentColor" stroke-width="2"/>
                     </svg>
                 </button>
                 
-                <button class="tool-btn" onclick="cad.toolsManager?.activateTool('smooth-polyline')" title="Smooth">
+                <button class="tool-btn" onclick="activateTool('smooth-polyline')" title="Smooth">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4,12 Q8,4 12,12 T20,12" stroke="currentColor" stroke-width="2" fill="none"/>
                     </svg>
@@ -257,23 +257,23 @@
             <div class="ribbon-group">
                 <div class="ribbon-group-title">Text & Dimensions</div>
                 <div class="ribbon-group-content">
-                    <div class="ribbon-tool" onclick="cad.setTool('text')" title="Add Text">
+                    <div class="ribbon-tool" onclick="setTool('text')" title="Add Text">
                         <div class="ribbon-tool-icon"><i class="fas fa-text-height"></i></div>
                         <div class="ribbon-tool-label">Text</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('dimension')" title="Linear Dimension">
+                    <div class="ribbon-tool" onclick="setTool('dimension')" title="Linear Dimension">
                         <div class="ribbon-tool-icon"><i class="fas fa-ruler-horizontal"></i></div>
                         <div class="ribbon-tool-label">Linear</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('dimension-angular')" title="Angular Dimension">
+                    <div class="ribbon-tool" onclick="setTool('dimension-angular')" title="Angular Dimension">
                         <div class="ribbon-tool-icon"><i class="fas fa-drafting-compass"></i></div>
                         <div class="ribbon-tool-label">Angular</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('dimension-radius')" title="Radius Dimension">
+                    <div class="ribbon-tool" onclick="setTool('dimension-radius')" title="Radius Dimension">
                         <div class="ribbon-tool-icon"><i class="fas fa-circle-notch"></i></div>
                         <div class="ribbon-tool-label">Radius</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('dimension-diameter')" title="Diameter Dimension">
+                    <div class="ribbon-tool" onclick="setTool('dimension-diameter')" title="Diameter Dimension">
                         <div class="ribbon-tool-icon"><i class="fas fa-circle"></i></div>
                         <div class="ribbon-tool-label">Diameter</div>
                     </div>
@@ -286,15 +286,15 @@
             <div class="ribbon-group">
                 <div class="ribbon-group-title">Navigation</div>
                 <div class="ribbon-group-content">
-                    <div class="ribbon-tool" onclick="cad.setTool('pan')" title="Pan View">
+                    <div class="ribbon-tool" onclick="setTool('pan')" title="Pan View">
                         <div class="ribbon-tool-icon"><i class="fas fa-hand-paper"></i></div>
                         <div class="ribbon-tool-label">Pan</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.zoomExtents()" title="Zoom Extents">
+                    <div class="ribbon-tool" onclick="zoomExtents()" title="Zoom Extents">
                         <div class="ribbon-tool-icon"><i class="fas fa-compress-arrows-alt"></i></div>
                         <div class="ribbon-tool-label">Zoom All</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.zoomWindow()" title="Zoom Window">
+                    <div class="ribbon-tool" onclick="zoomWindow()" title="Zoom Window">
                         <div class="ribbon-tool-icon"><i class="fas fa-search-plus"></i></div>
                         <div class="ribbon-tool-label">Zoom Window</div>
                     </div>
@@ -307,15 +307,15 @@
             <div class="ribbon-group">
                 <div class="ribbon-group-title">Selection</div>
                 <div class="ribbon-group-content">
-                    <div class="ribbon-tool active" onclick="cad.setTool('select')" title="Select Objects">
+                    <div class="ribbon-tool active" onclick="setTool('select')" title="Select Objects">
                         <div class="ribbon-tool-icon"><i class="fas fa-mouse-pointer"></i></div>
                         <div class="ribbon-tool-label">Select</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.selectAll()" title="Select All">
+                    <div class="ribbon-tool" onclick="selectAll()" title="Select All">
                         <div class="ribbon-tool-icon"><i class="fas fa-object-group"></i></div>
                         <div class="ribbon-tool-label">All</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.deselectAll()" title="Deselect All">
+                    <div class="ribbon-tool" onclick="deselectAll()" title="Deselect All">
                         <div class="ribbon-tool-icon"><i class="fas fa-ban"></i></div>
                         <div class="ribbon-tool-label">None</div>
                     </div>
@@ -325,15 +325,15 @@
             <div class="ribbon-group">
                 <div class="ribbon-group-title">Edit</div>
                 <div class="ribbon-group-content">
-                    <div class="ribbon-tool" onclick="cad.undo()" title="Undo">
+                    <div class="ribbon-tool" onclick="undo()" title="Undo">
                         <div class="ribbon-tool-icon"><i class="fas fa-undo"></i></div>
                         <div class="ribbon-tool-label">Undo</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.redo()" title="Redo">
+                    <div class="ribbon-tool" onclick="redo()" title="Redo">
                         <div class="ribbon-tool-icon"><i class="fas fa-redo"></i></div>
                         <div class="ribbon-tool-label">Redo</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.deleteSelected()" title="Delete">
+                    <div class="ribbon-tool" onclick="deleteSelected()" title="Delete">
                         <div class="ribbon-tool-icon"><i class="fas fa-trash"></i></div>
                         <div class="ribbon-tool-label">Delete</div>
                     </div>
@@ -346,15 +346,15 @@
             <div class="ribbon-group">
                 <div class="ribbon-group-title">3D Objects</div>
                 <div class="ribbon-group-content">
-                    <div class="ribbon-tool" onclick="cad.setTool('box')" title="Draw Box">
+                    <div class="ribbon-tool" onclick="setTool('box')" title="Draw Box">
                         <div class="ribbon-tool-icon"><i class="fas fa-cube"></i></div>
                         <div class="ribbon-tool-label">Box</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('sphere')" title="Draw Sphere">
+                    <div class="ribbon-tool" onclick="setTool('sphere')" title="Draw Sphere">
                         <div class="ribbon-tool-icon"><i class="fas fa-globe"></i></div>
                         <div class="ribbon-tool-label">Sphere</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.setTool('cylinder')" title="Draw Cylinder">
+                    <div class="ribbon-tool" onclick="setTool('cylinder')" title="Draw Cylinder">
                         <div class="ribbon-tool-icon"><i class="fas fa-database"></i></div>
                         <div class="ribbon-tool-label">Cylinder</div>
                     </div>
@@ -364,15 +364,15 @@
             <div class="ribbon-group">
                 <div class="ribbon-group-title">3D View</div>
                 <div class="ribbon-group-content">
-                    <div class="ribbon-tool" onclick="cad.set3DView('top')" title="Top View">
+                    <div class="ribbon-tool" onclick="set3DView('top')" title="Top View">
                         <div class="ribbon-tool-icon"><i class="fas fa-chevron-up"></i></div>
                         <div class="ribbon-tool-label">Top</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.set3DView('front')" title="Front View">
+                    <div class="ribbon-tool" onclick="set3DView('front')" title="Front View">
                         <div class="ribbon-tool-icon"><i class="fas fa-chevron-right"></i></div>
                         <div class="ribbon-tool-label">Front</div>
                     </div>
-                    <div class="ribbon-tool" onclick="cad.set3DView('iso')" title="Isometric View">
+                    <div class="ribbon-tool" onclick="set3DView('iso')" title="Isometric View">
                         <div class="ribbon-tool-icon"><i class="fas fa-cubes"></i></div>
                         <div class="ribbon-tool-label">Iso</div>
                     </div>
@@ -390,8 +390,8 @@
             
             <!-- View Controls -->
             <div class="view-controls">
-                <button class="view-btn active" onclick="cad.setViewMode('2D')">2D</button>
-                <button class="view-btn" onclick="cad.setViewMode('3D')">3D</button>
+                <button class="view-btn active" onclick="setViewMode('2D')">2D</button>
+                <button class="view-btn" onclick="setViewMode('3D')">3D</button>
             </div>
             
             <!-- 3D View Controls -->
@@ -425,8 +425,8 @@
                     <!-- Content will be added dynamically -->
                 </div>
                 <div class="input-dialog-buttons">
-                    <button class="btn" onclick="cad.cancelInputDialog()">Cancel</button>
-                    <button class="btn btn-primary" onclick="cad.confirmInputDialog()">OK</button>
+                    <button class="btn" onclick="cancelInputDialog()">Cancel</button>
+                    <button class="btn btn-primary" onclick="confirmInputDialog()">OK</button>
                 </div>
             </div>
             
@@ -446,39 +446,39 @@
             <!-- Toolbar -->
             <div class="toolbar">
                 <!-- Snap Button with Menu -->
-                <div class="toolbar-button" id="snapButton" onclick="cad.toggleSnapMenu()" title="Object Snap">
+                <div class="toolbar-button" id="snapButton" onclick="toggleSnapMenu()" title="Object Snap">
                     <i class="fas fa-magnet"></i>
                     <div class="snap-menu" id="snapMenu">
                         <div class="snap-menu-title">Object Snap</div>
-                        <div class="snap-option" id="snapEndpoint" onclick="cad.toggleSnapSetting('endpoint')">
+                        <div class="snap-option" id="snapEndpoint" onclick="toggleSnapSetting('endpoint')">
                             <span class="snap-option-icon"><i class="fas fa-dot-circle"></i></span>
                             <span>Endpoint</span>
                         </div>
-                        <div class="snap-option" id="snapMidpoint" onclick="cad.toggleSnapSetting('midpoint')">
+                        <div class="snap-option" id="snapMidpoint" onclick="toggleSnapSetting('midpoint')">
                             <span class="snap-option-icon"><i class="fas fa-minus"></i></span>
                             <span>Midpoint</span>
                         </div>
-                        <div class="snap-option" id="snapCenter" onclick="cad.toggleSnapSetting('center')">
+                        <div class="snap-option" id="snapCenter" onclick="toggleSnapSetting('center')">
                             <span class="snap-option-icon"><i class="far fa-circle"></i></span>
                             <span>Center</span>
                         </div>
-                        <div class="snap-option" id="snapIntersection" onclick="cad.toggleSnapSetting('intersection')">
+                        <div class="snap-option" id="snapIntersection" onclick="toggleSnapSetting('intersection')">
                             <span class="snap-option-icon"><i class="fas fa-times"></i></span>
                             <span>Intersection</span>
                         </div>
-                        <div class="snap-option" id="snapPerpendicular" onclick="cad.toggleSnapSetting('perpendicular')">
+                        <div class="snap-option" id="snapPerpendicular" onclick="toggleSnapSetting('perpendicular')">
                             <span class="snap-option-icon"><i class="fas fa-ruler-vertical"></i></span>
                             <span>Perpendicular</span>
                         </div>
-                        <div class="snap-option" id="snapTangent" onclick="cad.toggleSnapSetting('tangent')">
+                        <div class="snap-option" id="snapTangent" onclick="toggleSnapSetting('tangent')">
                             <span class="snap-option-icon"><i class="fas fa-arrows-alt-v"></i></span>
                             <span>Tangent</span>
                         </div>
-                        <div class="snap-option" id="snapNearest" onclick="cad.toggleSnapSetting('nearest')">
+                        <div class="snap-option" id="snapNearest" onclick="toggleSnapSetting('nearest')">
                             <span class="snap-option-icon"><i class="fas fa-magnet"></i></span>
                             <span>Nearest</span>
                         </div>
-                        <div class="snap-option" id="snapGrid" onclick="cad.toggleSnapSetting('grid')">
+                        <div class="snap-option" id="snapGrid" onclick="toggleSnapSetting('grid')">
                             <span class="snap-option-icon"><i class="fas fa-th"></i></span>
                             <span>Grid Snap</span>
                         </div>
@@ -486,17 +486,17 @@
                 </div>
                 
                 <!-- Ortho Button -->
-                <div class="toolbar-button" id="orthoButton" onclick="cad.toggleOrtho()" title="Orthogonal Mode">
+                <div class="toolbar-button" id="orthoButton" onclick="toggleOrtho()" title="Orthogonal Mode">
                     <i class="fas fa-ruler-combined"></i>
                 </div>
                 
                 <!-- Polar Button -->
-                <div class="toolbar-button" id="polarButton" onclick="cad.togglePolar()" title="Polar Tracking">
+                <div class="toolbar-button" id="polarButton" onclick="togglePolar()" title="Polar Tracking">
                     <i class="fas fa-compass"></i>
                 </div>
                 
                 <!-- Grid Button -->
-                <div class="toolbar-button" id="gridButton" onclick="cad.toggleGrid()" title="Toggle Grid">
+                <div class="toolbar-button" id="gridButton" onclick="toggleGrid()" title="Toggle Grid">
                     <i class="fas fa-th"></i>
                 </div>
             </div>
@@ -516,25 +516,25 @@
             
             <!-- Context Menu -->
             <div class="context-menu" id="contextMenu">
-                <div class="context-menu-item" onclick="cad.repeatLastCommand()">
+                <div class="context-menu-item" onclick="repeatLastCommand()">
                     <i class="fas fa-redo"></i> Repeat Last
                 </div>
                 <div class="context-menu-separator"></div>
-                <div class="context-menu-item" onclick="cad.copySelected()">
+                <div class="context-menu-item" onclick="copySelected()">
                     <i class="fas fa-copy"></i> Copy
                 </div>
-                <div class="context-menu-item" onclick="cad.pasteClipboard()">
+                <div class="context-menu-item" onclick="pasteClipboard()">
                     <i class="fas fa-paste"></i> Paste
                 </div>
                 <div class="context-menu-separator"></div>
-                <div class="context-menu-item" onclick="cad.deleteSelected()">
+                <div class="context-menu-item" onclick="deleteSelected()">
                     <i class="fas fa-trash"></i> Delete
                 </div>
                 <div class="context-menu-separator"></div>
-                <div class="context-menu-item" onclick="cad.selectSimilar()">
+                <div class="context-menu-item" onclick="selectSimilar()">
                     <i class="fas fa-object-group"></i> Select Similar
                 </div>
-                <div class="context-menu-item" onclick="cad.showProperties()">
+                <div class="context-menu-item" onclick="showProperties()">
                     <i class="fas fa-info-circle"></i> Properties
                 </div>
             </div>
@@ -542,7 +542,7 @@
         
         <!-- Properties Panel -->
         <div class="properties-panel" id="propertiesPanel">
-            <div class="panel-header" onclick="cad.togglePropertiesPanel()">
+            <div class="panel-header" onclick="togglePropertiesPanel()">
                 <div class="panel-title">Properties</div>
                 <i class="fas fa-chevron-left"></i>
             </div>
@@ -561,7 +561,7 @@
                 <div class="panel-section">
                     <div class="section-title">
                         Layers
-                        <button class="btn btn-small" onclick="cad.addLayer()">
+                        <button class="btn btn-small" onclick="addLayer()">
                             <i class="fas fa-plus"></i> Add
                         </button>
                     </div>
@@ -578,7 +578,7 @@
                         <div class="line-width-control">
                             <input type="range" id="lineWidthSlider" 
                                    min="1" max="10" value="2" 
-                                   oninput="cad.setLineWidth(this.value)"
+                                   oninput="setLineWidth(this.value)"
                                    style="width: 100px;">
                             <span class="line-width-value" id="lineWidthValue">2</span>
                         </div>
@@ -587,7 +587,7 @@
                     <!-- Line Type -->
                     <div class="property-row">
                         <span class="property-label">Line Type:</span>
-                        <select id="lineTypeSelect" onchange="cad.setLineType(this.value)"
+                        <select id="lineTypeSelect" onchange="setLineType(this.value)"
                                 style="width: 120px; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 4px; border-radius: 4px;">
                             <option value="solid">Solid</option>
                             <option value="dashed">Dashed</option>
@@ -599,7 +599,7 @@
                     <div class="property-row">
                         <span class="property-label">Color:</span>
                         <div class="color-dropdown" id="colorDropdown">
-                            <div class="color-dropdown-toggle" onclick="cad.toggleColorDropdown()">
+                            <div class="color-dropdown-toggle" onclick="toggleColorDropdown()">
                                 <div class="color-preview" id="currentColorPreview" style="background: #00d4aa;"></div>
                                 <span id="currentColorText">#00d4aa</span>
                                 <i class="fas fa-chevron-down" style="margin-left: auto;"></i>
@@ -650,7 +650,7 @@
             </div>
             <div class="bottom-item">
                 Units: 
-                <select id="unitsSelect" onchange="cad.changeUnits(this.value)" 
+                <select id="unitsSelect" onchange="changeUnits(this.value)" 
                         style="background: transparent; border: 1px solid var(--border-color); 
                                color: var(--text-primary); padding: 2px; font-size: 11px;">
                     <option value="mm">mm</option>
@@ -666,15 +666,12 @@
         </div>
     </footer>
     
-    <!-- Main Module Entry Point ONLY -->
-    <script type="module" src="js/app.js"></script>
+    <!-- Main Module Entry Point -->
+    <script type="module" src="/js/main.js"></script>
     
-    <!-- Legacy Support Script for UI functions -->
+    <!-- Simple UI Helper -->
     <script>
-        // Global variables for legacy compatibility
-        let cad;
-        
-        // Ribbon function
+        // Ribbon tabs
         function showRibbon(tab) {
             document.querySelectorAll('.ribbon-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.ribbon-content').forEach(c => c.classList.remove('active'));
@@ -682,6 +679,13 @@
             event.target.classList.add('active');
             document.getElementById(`ribbon-${tab}`).classList.add('active');
         }
+        
+        // Array menu
+        function toggleArrayMenu() {
+            const menu = document.getElementById('arrayMenu');
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
     </script>
+    
 </body>
 </html>

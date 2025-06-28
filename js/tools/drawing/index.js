@@ -15,25 +15,28 @@ export { EllipseTool } from './EllipseTool.js';
 export { PolygonTool } from './PolygonTool.js';
 export { TextTool } from './TextTool.js';
 
-// تصدير مجموعة الأدوات (للاستخدام مع ToolsManager)
-export const tools = {
-    'line': await import('./LineTool.js').then(m => m.LineTool).catch(() => null),
-    'polyline': await import('./PolylineTool.js').then(m => m.PolylineTool).catch(() => null),
-    'rectangle': await import('./RectangleTool.js').then(m => m.RectangleTool).catch(() => null),
-    'circle': await import('./CircleTool.js').then(m => m.CircleTool).catch(() => null),
-    'arc': await import('./ArcTool.js').then(m => m.ArcTool).catch(() => null),
-    'ellipse': await import('./EllipseTool.js').then(m => m.EllipseTool).catch(() => null),
-    'polygon': await import('./PolygonTool.js').then(m => m.PolygonTool).catch(() => null),
-    'text': await import('./TextTool.js').then(m => m.TextTool).catch(() => null)
-};
-
-// إزالة الأدوات الفاشلة
-Object.keys(tools).forEach(key => {
-    if (!tools[key]) {
-        delete tools[key];
-        console.warn(`⚠️ Drawing tool '${key}' failed to load`);
+// دالة لتحميل الأدوات بشكل ديناميكي
+export async function loadDrawingTools() {
+    const tools = {};
+    
+    try {
+        tools.line = (await import('./LineTool.js')).LineTool;
+        tools.polyline = (await import('./PolylineTool.js')).PolylineTool;
+        tools.rectangle = (await import('./RectangleTool.js')).RectangleTool;
+        tools.circle = (await import('./CircleTool.js')).CircleTool;
+        tools.arc = (await import('./ArcTool.js')).ArcTool;
+        tools.ellipse = (await import('./EllipseTool.js')).EllipseTool;
+        tools.polygon = (await import('./PolygonTool.js')).PolygonTool;
+        tools.text = (await import('./TextTool.js')).TextTool;
+    } catch (error) {
+        console.error('Error loading drawing tools:', error);
     }
-});
+    
+    return tools;
+}
+
+// تصدير مجموعة الأدوات (متوافق مع الإصدار القديم)
+export const tools = await loadDrawingTools();
 
 // تصدير بالاسم القديم للتوافق
 export const drawingTools = tools;

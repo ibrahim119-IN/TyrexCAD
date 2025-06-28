@@ -282,3 +282,4 @@ class Geometry {
 
 // Make available globally
 window.Geometry = Geometry;
+export { Geometry };

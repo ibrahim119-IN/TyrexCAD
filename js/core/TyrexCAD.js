@@ -5,6 +5,19 @@
 
 class TyrexCAD {
     constructor() {
+
+      console.log('📐 Creating TyrexCAD instance...');
+    
+        // تأكد من وجود المتطلبات
+        if (!window.THREE) {
+            throw new Error('THREE.js not loaded');
+        }
+        if (!window.Geometry) {
+            throw new Error('Geometry not loaded');
+        }
+        if (!window.UI) {
+            throw new Error('UI not loaded');
+        }
         // Geometry library reference
         this.geo = window.Geometry;
         
@@ -3583,5 +3596,7 @@ Other:
     }
 }
 
-// تصدير الـ class للاستخدام العام
+
+// في نهاية الملف
 window.TyrexCAD = TyrexCAD;
+export { TyrexCAD };

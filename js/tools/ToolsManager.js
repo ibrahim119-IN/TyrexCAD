@@ -61,59 +61,98 @@ export class ToolsManager {
         try {
             // محاولة تحميل مجموعات الأدوات
             const results = await Promise.allSettled([
-                import('./drawing/index.js').catch(err => ({ error: err, type: 'drawing' })),
-                import('./modify/index.js').catch(err => ({ error: err, type: 'modify' })),
-                import('./advanced/index.js').catch(err => ({ error: err, type: 'advanced' }))
+                import('./drawing/index.js'),
+                import('./modify/index.js'),
+                import('./advanced/index.js')
             ]);
             
             let loadedCount = 0;
             
             // معالجة أدوات الرسم
-            if (results[0].status === 'fulfilled' && results[0].value.tools) {
-                const { tools } = results[0].value;
-                Object.entries(tools).forEach(([name, ToolClass]) => {
-                    try {
-                        this.registerTool(name, new ToolClass(this.cad));
-                        loadedCount++;
-                    } catch (err) {
-                        console.warn(`Failed to register ${name}:`, err);
-                    }
-                });
-                console.log(`✅ Loaded ${Object.keys(tools).length} drawing tools`);
+            if (results[0].status === 'fulfilled') {
+                const drawingModule = results[0].value;
+                
+                // استخدم loadDrawingTools إذا كانت متاحة
+                let tools;
+                if (drawingModule.loadDrawingTools) {
+                    tools = await drawingModule.loadDrawingTools();
+                } else if (drawingModule.tools) {
+                    tools = drawingModule.tools;
+                }
+                
+                if (tools) {
+                    Object.entries(tools).forEach(([name, ToolClass]) => {
+                        if (ToolClass) {
+                            try {
+                                this.registerTool(name, new ToolClass(this, name));
+                                loadedCount++;
+                            } catch (err) {
+                                console.warn(`Failed to register ${name}:`, err);
+                            }
+                        }
+                    });
+                    console.log(`✅ Loaded ${Object.keys(tools).length} drawing tools`);
+                }
             } else {
                 console.warn('⚠️ Drawing tools not loaded');
                 this.loadingStatus.errors.push('drawing');
             }
             
             // معالجة أدوات التعديل
-            if (results[1].status === 'fulfilled' && results[1].value.tools) {
-                const { tools } = results[1].value;
-                Object.entries(tools).forEach(([name, ToolClass]) => {
-                    try {
-                        this.registerTool(name, new ToolClass(this.cad));
-                        loadedCount++;
-                    } catch (err) {
-                        console.warn(`Failed to register ${name}:`, err);
-                    }
-                });
-                console.log(`✅ Loaded ${Object.keys(tools).length} modify tools`);
+            if (results[1].status === 'fulfilled') {
+                const modifyModule = results[1].value;
+                
+                // استخدم loadModifyTools إذا كانت متاحة
+                let tools;
+                if (modifyModule.loadModifyTools) {
+                    tools = await modifyModule.loadModifyTools();
+                } else if (modifyModule.tools) {
+                    tools = modifyModule.tools;
+                }
+                
+                if (tools) {
+                    Object.entries(tools).forEach(([name, ToolClass]) => {
+                        if (ToolClass) {
+                            try {
+                                this.registerTool(name, new ToolClass(this, name));
+                                loadedCount++;
+                            } catch (err) {
+                                console.warn(`Failed to register ${name}:`, err);
+                            }
+                        }
+                    });
+                    console.log(`✅ Loaded ${Object.keys(tools).length} modify tools`);
+                }
             } else {
                 console.warn('⚠️ Modify tools not loaded');
                 this.loadingStatus.errors.push('modify');
             }
             
             // معالجة الأدوات المتقدمة
-            if (results[2].status === 'fulfilled' && results[2].value.tools) {
-                const { tools } = results[2].value;
-                Object.entries(tools).forEach(([name, ToolClass]) => {
-                    try {
-                        this.registerTool(name, new ToolClass(this.cad));
-                        loadedCount++;
-                    } catch (err) {
-                        console.warn(`Failed to register ${name}:`, err);
-                    }
-                });
-                console.log(`✅ Loaded ${Object.keys(tools).length} advanced tools`);
+            if (results[2].status === 'fulfilled') {
+                const advancedModule = results[2].value;
+                
+                // استخدم loadAdvancedTools إذا كانت متاحة
+                let tools;
+                if (advancedModule.loadAdvancedTools) {
+                    tools = await advancedModule.loadAdvancedTools();
+                } else if (advancedModule.tools) {
+                    tools = advancedModule.tools;
+                }
+                
+                if (tools) {
+                    Object.entries(tools).forEach(([name, ToolClass]) => {
+                        if (ToolClass) {
+                            try {
+                                this.registerTool(name, new ToolClass(this, name));
+                                loadedCount++;
+                            } catch (err) {
+                                console.warn(`Failed to register ${name}:`, err);
+                            }
+                        }
+                    });
+                    console.log(`✅ Loaded ${Object.keys(tools).length} advanced tools`);
+                }
             } else {
                 console.warn('⚠️ Advanced tools not loaded');
                 this.loadingStatus.errors.push('advanced');
@@ -145,6 +184,7 @@ export class ToolsManager {
                 this.name = 'base';
                 this.active = false;
                 this.isDrawing = false;
+                this.cursor = 'crosshair';
             }
             
             activate() {
@@ -456,6 +496,11 @@ export class ToolsManager {
             // تفعيل الأداة
             tool.activate();
             
+            // تحديث المؤشر إذا كان مدعوماً
+            if (this.cad && this.cad.canvas) {
+                this.cad.canvas.style.cursor = tool.cursor || 'crosshair';
+            }
+            
             return true;
         }
         
@@ -494,6 +539,146 @@ export class ToolsManager {
             };
         }
         return null;
+    }
+    
+    // ==================== دوال التوافق مع TyrexCAD ====================
+    
+    /**
+     * معالج حركة الماوس (مطلوب من TyrexCAD.js)
+     */
+    handleMouseMove(point) {
+        if (this.activeTool) {
+            if (this.activeTool.onMouseMove) {
+                this.activeTool.onMouseMove(point);
+            } else if (this.activeTool.handleMouseMove) {
+                this.activeTool.handleMouseMove(point);
+            }
+        }
+        
+        // تحديث المعاينة إذا كان هناك رسم جاري
+        if (this.cad && this.cad.isDrawing) {
+            this.cad.render();
+        }
+    }
+    
+    /**
+     * معالج ضغط المفاتيح (مطلوب من TyrexCAD.js)
+     */
+    handleKeyPress(key) {
+        if (this.activeTool) {
+            // Handle special keys
+            if (key === 'Enter') {
+                if (this.activeTool.name === 'polyline' && this.activeTool.finishPolyline) {
+                    this.activeTool.finishPolyline();
+                } else if (this.activeTool.onKeyPress) {
+                    this.activeTool.onKeyPress(key);
+                } else if (this.activeTool.onKeyDown) {
+                    this.activeTool.onKeyDown({ key: key });
+                }
+            } else if (key === 'Escape') {
+                if (this.activeTool.onKeyPress) {
+                    this.activeTool.onKeyPress(key);
+                } else if (this.activeTool.onKeyDown) {
+                    this.activeTool.onKeyDown({ key: key });
+                }
+            } else {
+                // Regular keys
+                if (this.activeTool.onKeyPress) {
+                    this.activeTool.onKeyPress(key);
+                } else if (this.activeTool.onKeyDown) {
+                    this.activeTool.onKeyDown({ key: key });
+                }
+            }
+        }
+    }
+    
+    /**
+     * معالج النقر (للتوافق مع handleDrawing في TyrexCAD)
+     */
+    handleClick(point) {
+        if (this.activeTool) {
+            if (this.activeTool.onClick) {
+                this.activeTool.onClick(point);
+            } else if (this.activeTool.onMouseDown) {
+                this.activeTool.onMouseDown(point);
+            } else if (this.activeTool.handleClick) {
+                this.activeTool.handleClick(point);
+            }
+        }
+    }
+    
+    /**
+     * معالج رفع الماوس
+     */
+    handleMouseUp(point) {
+        if (this.activeTool && this.activeTool.onMouseUp) {
+            this.activeTool.onMouseUp(point);
+        }
+    }
+    
+    /**
+     * الحصول على الأداة النشطة
+     */
+    getActiveTool() {
+        return this.activeTool;
+    }
+    
+    /**
+     * التحقق من وجود أداة نشطة
+     */
+    hasActiveTool() {
+        return this.activeTool !== null;
+    }
+    
+    /**
+     * إلغاء العملية الحالية
+     */
+    cancelCurrentOperation() {
+        this.deactivateCurrentTool();
+        if (this.cad) {
+            this.cad.isDrawing = false;
+            this.cad.tempShape = null;
+            this.cad.drawingPoints = [];
+            this.cad.render();
+        }
+    }
+    
+    /**
+     * إعادة تعيين حالة الرسم
+     */
+    resetDrawingState() {
+        if (this.cad) {
+            this.cad.isDrawing = false;
+            this.cad.tempShape = null;
+            this.cad.drawingPoints = [];
+        }
+    }
+    
+    /**
+     * تحديث معاينة الرسم
+     */
+    updateDrawingPreview() {
+        if (this.activeTool && this.cad && this.cad.isDrawing) {
+            const world = this.cad.screenToWorld(this.cad.mouseX, this.cad.mouseY);
+            const snapPoint = this.cad.getSnapPoint(world.x, world.y);
+            this.handleMouseMove(snapPoint);
+        }
+    }
+    
+    /**
+     * delegateToTool - للتوافق مع TyrexCAD
+     */
+    delegateToTool(methodName, ...args) {
+        if (this.activeTool && typeof this.activeTool[methodName] === 'function') {
+            return this.activeTool[methodName](...args);
+        }
+        
+        // محاولة استدعاء الدالة من wrapper functions
+        if (typeof this[methodName] === 'function') {
+            return this[methodName](...args);
+        }
+        
+        console.warn(`Method ${methodName} not found in active tool or manager`);
     }
     
     // ==================== Wrapper Functions للتوافق مع الكود القديم ====================
@@ -566,6 +751,15 @@ export class ToolsManager {
     drawText(point) {
         if (!this.activeTool || this.activeTool.name !== 'text') {
             this.activateTool('text');
+        }
+        if (this.activeTool && this.activeTool.onMouseDown) {
+            this.activeTool.onMouseDown(point);
+        }
+    }
+    
+    drawPolygon(point) {
+        if (!this.activeTool || this.activeTool.name !== 'polygon') {
+            this.activateTool('polygon');
         }
         if (this.activeTool && this.activeTool.onMouseDown) {
             this.activeTool.onMouseDown(point);
@@ -689,6 +883,27 @@ export class ToolsManager {
         this.activateTool('smooth-polyline', { iterations });
     }
     
+    // أدوات إضافية
+    createFillet() {
+        this.activateTool('fillet');
+    }
+    
+    createChamfer() {
+        this.activateTool('chamfer');
+    }
+    
+    createRectangularArray() {
+        this.activateTool('rectangular-array');
+    }
+    
+    createPolarArray() {
+        this.activateTool('polar-array');
+    }
+    
+    createPathArray() {
+        this.activateTool('path-array');
+    }
+    
     // ==================== معلومات التطوير ====================
     
     /**
@@ -710,7 +925,9 @@ export class ToolsManager {
     resetSystem() {
         this.deactivateCurrentTool();
         this.resetModifyState();
-        this.cad.cancelCurrentOperation();
+        if (this.cad && this.cad.cancelCurrentOperation) {
+            this.cad.cancelCurrentOperation();
+        }
         console.log('🔄 Tools system reset');
     }
     

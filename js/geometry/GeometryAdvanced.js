@@ -9,6 +9,9 @@
  * - تكامل كامل مع نظام TyrexCAD
  */
 
+// في البداية، أضف هذا التحقق للـ Worker
+const WORKER_SUPPORTED = typeof Worker !== 'undefined' && !import.meta.env?.SSR;
+
 class GeometryAdvanced {
     constructor() {
         // حالة المكتبات الخارجية
@@ -80,88 +83,78 @@ class GeometryAdvanced {
     }
     
    /**
-     * تهيئة Web Worker مع المكتبات المحلية
+     * تهيئة Web Worker مع Vite
      */
     async initWorker() {
-        try {
-            // تحميل المكتبات المحلية والـ Worker code
-            const [clipperCode, earcutCode, workerCode] = await Promise.all([
-                fetch('js/lib/clipper.js').then(r => r.text()),
-                fetch('js/lib/earcut.min.js').then(r => r.text()),
-                fetch('js/geometry/GeometryWorker.js').then(r => r.text())
-            ]);
-            
-            // إزالة importScripts من كود Worker
-            const cleanWorkerCode = workerCode
-                .replace(/importScripts\([^)]*\);?/g, '')
-                .replace(/\/\/ تحميل المكتبات المطلوبة[\s\S]*?(?=\/\/ حالة الـ Worker)/g, '');
-            
-            // بناء كود Worker الكامل
-            const fullWorkerCode = `
-                // Local Clipper Library
-                ${clipperCode}
-                
-                // Local Earcut Library
-                ${earcutCode}
-                
-                // Original Worker Code (cleaned)
-                ${cleanWorkerCode}
-            `;
-            
-            // إنشاء Blob Worker
-            const blob = new Blob([fullWorkerCode], { type: 'application/javascript' });
-            const workerUrl = URL.createObjectURL(blob);
-            
-            this.worker = new Worker(workerUrl);
-            
-            // إعداد handlers
-            this.worker.onmessage = (event) => {
-                const { id, type, result, error } = event.data;
-                
-                if (type === 'ready') {
-                    this.workerReady = true;
-                    console.log('Worker initialized with local libraries');
-                    URL.revokeObjectURL(workerUrl); // تنظيف
-                    return;
-                }
-                
-                const callback = this.workerCallbacks.get(id);
-                if (callback) {
-                    if (error) {
-                        callback.reject(new Error(error));
-                    } else {
-                        callback.resolve(result);
-                    }
-                    this.workerCallbacks.delete(id);
-                }
-            };
-            
-            this.worker.onerror = (error) => {
-                console.error('Worker error:', error);
-                this.workerReady = false;
-                this.worker = null;
-                URL.revokeObjectURL(workerUrl);
-            };
-            
-            // انتظار جاهزية Worker
-            await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    reject(new Error('Worker initialization timeout'));
-                }, 5000);
-                
-                const checkInterval = setInterval(() => {
-                    if (this.workerReady) {
-                        clearInterval(checkInterval);
-                        clearTimeout(timeout);
-                        resolve();
-                    }
-                }, 100);
-            });
-            
-        } catch (error) {
-            console.error('Failed to initialize worker:', error);
-            throw error;
+        if (!WORKER_SUPPORTED) {
+            console.warn('Web Workers not supported in this environment');
+            this.worker = null;
+            return;
         }
+        
+        try {
+            // Method 1: استخدام Vite Worker syntax (الأفضل)
+            const WorkerModule = await import('./GeometryWorker.js?worker');
+            this.worker = new WorkerModule.default();
+            
+            // إذا فشلت الطريقة الأولى، جرب الطريقة الثانية
+        } catch (error) {
+            console.warn('Failed to load worker with Vite syntax, trying URL method:', error);
+            
+            try {
+                // Method 2: استخدام Worker URL
+                const workerUrl = new URL('./GeometryWorker.js', import.meta.url);
+                this.worker = new Worker(workerUrl, { type: 'module' });
+            } catch (error2) {
+                console.error('Failed to initialize Web Worker:', error2);
+                this.worker = null;
+                return;
+            }
+        }
+        
+        // إعداد معالج الرسائل
+        this.worker.onmessage = (event) => {
+            const { id, type, result, error } = event.data;
+            
+            if (type === 'ready') {
+                this.workerReady = true;
+                console.log('✅ GeometryWorker ready');
+                return;
+            }
+            
+            const callback = this.workerCallbacks.get(id);
+            if (callback) {
+                if (error) {
+                    callback.reject(new Error(error));
+                } else {
+                    callback.resolve(result);
+                }
+                this.workerCallbacks.delete(id);
+            }
+        };
+        
+        // معالج الأخطاء
+        this.worker.onerror = (error) => {
+            console.error('Worker error:', error);
+            this.workerReady = false;
+        };
+        
+        // انتظر حتى يكون Worker جاهز (مع timeout)
+        await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                if (!this.workerReady) {
+                    reject(new Error('Worker initialization timeout'));
+                }
+            }, 5000);
+            
+            const checkReady = setInterval(() => {
+                if (this.workerReady) {
+                    clearInterval(checkReady);
+                    clearTimeout(timeout);
+                    resolve();
+                }
+            }, 100);
+        });
     }
 
 /**
@@ -214,88 +207,62 @@ async loadLibraryCode(url) {
 /**
  * تحميل مكتبة خارجية عند الحاجة (للاستخدام في main thread)
  */
-async loadLibrary(libName) {
-    const lib = this.libraries[libName];
-    if (!lib) {
-        throw new Error(`Unknown library: ${libName}`);
-    }
-    
-    if (lib.loaded) {
-        return lib.instance;
-    }
-    
-    if (lib.loading) {
-        // انتظر التحميل الحالي
-        while (lib.loading) {
-            await new Promise(resolve => setTimeout(resolve, 50));
-        }
-        return lib.instance;
-    }
+async loadLibrary(name) {
+    const lib = this.libraries[name];
+    if (lib.loaded || lib.loading) return lib.instance;
     
     lib.loading = true;
     
     try {
-        // استخدم المسارات المحلية أولاً، ثم الروابط الخارجية كـ fallback
-        const localUrls = {
-            'clipper': 'js/lib/clipper.js',
-            'earcut': 'js/lib/earcut.min.js',
-            'martinez': 'js/lib/martinez.min.js'
+        // تحديث المسارات لتعمل مع Vite
+        const libraryUrls = {
+            clipper: '/js/lib/clipper.js',
+            martinez: '/js/lib/martinez.min.js',
+            earcut: '/js/lib/earcut.min.js'
         };
         
-        const remoteUrls = {
-            'clipper': 'https://unpkg.com/js-angusj-clipper@1.2.1/web/clipper.js',
-            'earcut': 'https://unpkg.com/earcut@2.2.4/dist/earcut.min.js',
-            'martinez': 'https://unpkg.com/martinez-polygon-clipping@0.5.0/dist/martinez.min.js'
-        };
+        const url = libraryUrls[name] || lib.url;
         
-        // حاول تحميل من المسار المحلي أولاً
-        let url = localUrls[libName] || lib.url;
-        
-        try {
-            // تحقق من وجود الملف المحلي
-            const checkResponse = await fetch(url, { method: 'HEAD' });
-            if (!checkResponse.ok) {
-                throw new Error('Local file not found');
-            }
-        } catch (e) {
-            // إذا فشل، استخدم الرابط الخارجي
-            console.warn(`Local library not found, using remote: ${libName}`);
-            url = remoteUrls[libName] || lib.url;
-        }
-        
+        // تحميل المكتبة
         await this.loadScript(url);
         
-        // تعيين المكتبة حسب النوع
-        switch (libName) {
+        // التحقق من تحميل المكتبة
+        switch (name) {
             case 'clipper':
-                lib.instance = window.ClipperLib;
-                if (!lib.instance) {
-                    throw new Error('ClipperLib not found in global scope');
+                if (window.ClipperLib) {
+                    lib.instance = window.ClipperLib;
+                    lib.loaded = true;
+                } else {
+                    throw new Error('ClipperLib not found after loading');
                 }
                 break;
+                
             case 'martinez':
-                lib.instance = window.martinez;
-                if (!lib.instance) {
-                    throw new Error('Martinez not found in global scope');
+                if (window.martinez) {
+                    lib.instance = window.martinez;
+                    lib.loaded = true;
+                } else {
+                    throw new Error('Martinez not found after loading');
                 }
                 break;
+                
             case 'earcut':
-                lib.instance = window.earcut;
-                if (!lib.instance) {
-                    throw new Error('Earcut not found in global scope');
+                if (window.earcut) {
+                    lib.instance = window.earcut;
+                    lib.loaded = true;
+                } else {
+                    throw new Error('Earcut not found after loading');
                 }
                 break;
         }
         
-        lib.loaded = true;
-        lib.loading = false;
-        console.log(`Library ${libName} loaded successfully from ${url}`);
-        
+        console.log(`✅ ${name} library loaded`);
         return lib.instance;
         
     } catch (error) {
         lib.loading = false;
-        throw new Error(`Failed to load ${libName}: ${error.message}`);
+        console.error(`Failed to load ${name} library:`, error);
+        throw error;
     }
 }
 
@@ -3574,10 +3541,10 @@ getShapePoints(shape) {
     return points;
 }
 
-
-
-
 }
 
-// تصدير للاستخدام العام
+// تصدير الكلاس
+export { GeometryAdvanced };
+
+// جعله متاح globally للتوافق مع الكود القديم
 window.GeometryAdvanced = GeometryAdvanced;
