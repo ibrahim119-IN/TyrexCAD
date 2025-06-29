@@ -1,251 +1,319 @@
 // ==================== js/tools/modify/BreakAtPointTool.js ====================
 
-import { ModifyToolBase } from '../BaseTool.js';
+import { BaseTool } from '../BaseTool.js';
 
 /**
- * أداة القطع عند نقطة (Break at Point)
- * تقسيم العنصر إلى جزئين عند نقطة واحدة بدون حذف - متوافقة مع معايير CAD
+ * أداة التقسيم عند نقطة (Break at Point)
+ * تُستخدم لتقسيم عنصر عند نقطة واحدة دون حذف أي جزء
  */
-export class BreakAtPointTool extends ModifyToolBase {
+export class BreakAtPointTool extends BaseTool {
     constructor(toolsManager, name) {
         super(toolsManager, name);
-        this.icon = 'fa-crosshairs';
+        this.icon = 'fa-scissors';
         this.cursor = 'crosshair';
         
         // حالة الأداة
-        this.state = {
-            phase: 'selectObject', // 'selectObject', 'selectPoint'
-            targetShape: null,
-            previewPoint: null
-        };
-        
-        // إعدادات الأداة
-        this.settings = {
-            avoidEndpoints: true, // تجنب القطع قريباً من النهايات
-            endpointTolerance: 0.05 // 5% من طول العنصر
-        };
+        this.step = 'select-object'; // select-object, break-point
+        this.targetShape = null;
+        this.breakPoint = null;
     }
     
     onActivate() {
-        // دعم Post-selection: التحقق من وجود عنصر واحد محدد
+        // إذا كان هناك تحديد مسبق، ابدأ من نقطة الكسر
         if (this.cad.selectedShapes.size === 1) {
-            const selectedShape = Array.from(this.cad.selectedShapes)[0];
-            if (this.canBreakShape(selectedShape)) {
-                this.state.targetShape = selectedShape;
-                this.state.phase = 'selectPoint';
-                this.updateStatus('Specify break point on object');
-                return true;
+            this.targetShape = Array.from(this.cad.selectedShapes)[0];
+            if (this.canBreakShape(this.targetShape)) {
+                this.step = 'break-point';
+                this.updateStatus('Specify break point');
+            } else {
+                this.updateStatus('Selected object cannot be broken');
+                this.deactivate();
             }
+        } else {
+            this.step = 'select-object';
+            this.updateStatus('Select object to break');
         }
         
-        // طلب اختيار العنصر
-        this.state.phase = 'selectObject';
-        this.updateStatus('Select object to break at point');
-        return true;
+        this.breakPoint = null;
     }
     
     onDeactivate() {
         this.cleanup();
-        super.onDeactivate();
     }
     
     onClick(point) {
-        switch (this.state.phase) {
-            case 'selectObject':
-                this.selectObject(point);
+        switch (this.step) {
+            case 'select-object':
+                this.handleObjectSelection(point);
                 break;
                 
-            case 'selectPoint':
-                this.breakAtPoint(point);
+            case 'break-point':
+                this.handleBreakPoint(point);
                 break;
         }
     }
     
     onMouseMove(point) {
-        if (this.state.phase === 'selectPoint' && this.state.targetShape) {
-            this.showPointPreview(point);
+        if (this.step === 'break-point' && this.targetShape) {
+            this.updateBreakPreview(point);
         }
     }
     
     onKeyPress(key) {
         if (key === 'Escape') {
-            this.cancelOperation();
+            this.cleanup();
+            this.deactivate();
         }
     }
     
     /**
-     * اختيار العنصر المراد قطعه
+     * معالجة اختيار الكائن
      */
-    selectObject(point) {
-        const world = this.cad.screenToWorld(this.cad.mouseX, this.cad.mouseY);
-        const shape = this.cad.getShapeAt(world.x, world.y);
+    handleObjectSelection(point) {
+        // استخدم النقطة المرسلة مباشرة
+        const shape = this.findShapeAtPoint(point);
         
-        if (shape && this.canBreakShape(shape) && this.canModifyShape(shape)) {
-            this.state.targetShape = shape;
-            this.state.phase = 'selectPoint';
-            
-            // مسح التحديد السابق وتحديد العنصر الجديد
-            this.cad.selectedShapes.clear();
-            this.cad.selectedShapes.add(shape);
-            
-            this.updateStatus('Specify break point on object');
-            this.cad.render();
-        } else {
-            this.updateStatus('Select a breakable object (line, arc, circle, polyline)');
-        }
-    }
-    
-    /**
-     * تطبيق القطع عند النقطة
-     */
-    breakAtPoint(point) {
-        const world = this.cad.screenToWorld(this.cad.mouseX, this.cad.mouseY);
-        const breakPoint = this.getValidBreakPoint(this.state.targetShape, world);
-        
-        if (!breakPoint.valid) {
-            this.updateStatus(breakPoint.reason || 'Invalid break point');
+        if (!shape) {
+            this.updateStatus('No object found - try clicking directly on an object');
             return;
         }
         
-        this.performBreakAtPoint(breakPoint);
-    }
-    
-    /**
-     * التحقق من إمكانية قطع الشكل
-     */
-    canBreakShape(shape) {
-        return ['line', 'arc', 'circle', 'polyline'].includes(shape.type);
-    }
-    
-    /**
-     * الحصول على نقطة قطع صالحة
-     */
-    getValidBreakPoint(shape, point) {
-        const breakPoint = this.getClosestPointOnShape(shape, point);
-        
-        // التحقق من صحة النقطة
-        if (this.settings.avoidEndpoints && this.isTooCloseToEndpoint(shape, breakPoint)) {
-            return {
-                valid: false,
-                reason: 'Break point too close to endpoint',
-                point: breakPoint
-            };
+        if (!this.canBreakShape(shape)) {
+            this.updateStatus('Object cannot be broken - only open objects supported');
+            return;
         }
         
-        return {
-            valid: true,
-            point: breakPoint
-        };
+        this.targetShape = shape;
+        this.step = 'break-point';
+        this.updateStatus('Specify break point');
+        
+        // إضافة الشكل للتحديد لأغراض البصرية
+        this.cad.selectedShapes.clear();
+        this.cad.selectedShapes.add(shape);
+        this.cad.render();
     }
     
     /**
-     * التحقق من قرب النقطة من النهايات
+     * معالجة نقطة الكسر
      */
-    isTooCloseToEndpoint(shape, point) {
+    handleBreakPoint(point) {
+        // إسقاط النقطة على الشكل
+        this.breakPoint = this.projectPointOnShape(point, this.targetShape);
+        
+        if (!this.breakPoint) {
+            this.updateStatus('Point not on object - click closer to the object');
+            return;
+        }
+        
+        // تطبيق التقسيم
+        this.applyBreakAtPoint();
+        this.finishBreak();
+    }
+    
+    /**
+     * البحث عن شكل في نقطة معينة
+     */
+    findShapeAtPoint(point) {
+        // استخدم الدالة الموجودة في CAD أو اكتب دالة بديلة
+        if (this.cad.getShapeAt) {
+            return this.cad.getShapeAt(point.x, point.y);
+        }
+        
+        // دالة بديلة للبحث عن الأشكال
+        const tolerance = 5 / this.cad.zoom; // tolerance متكيف مع التكبير
+        
+        for (const shape of this.cad.shapes) {
+            if (this.isPointNearShape(point, shape, tolerance)) {
+                return shape;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * التحقق من قرب النقطة من الشكل
+     */
+    isPointNearShape(point, shape, tolerance) {
         switch (shape.type) {
             case 'line':
-                if (point.t !== undefined) {
-                    return point.t < this.settings.endpointTolerance || 
-                           point.t > (1 - this.settings.endpointTolerance);
-                }
-                break;
-                
+                return this.distanceToLine(point, shape.start, shape.end) <= tolerance;
             case 'arc':
-                if (point.angle !== undefined) {
-                    const totalAngle = shape.endAngle - shape.startAngle;
-                    const angleFromStart = point.angle - shape.startAngle;
-                    const ratio = angleFromStart / totalAngle;
-                    return ratio < this.settings.endpointTolerance || 
-                           ratio > (1 - this.settings.endpointTolerance);
-                }
-                break;
-                
-            case 'circle':
-                // الدوائر لا تحتاج فحص نهايات
-                return false;
-                
+                return this.isPointNearArc(point, shape, tolerance);
             case 'polyline':
-                // فحص مبسط للـ polyline
+                return this.isPointNearPolyline(point, shape, tolerance);
+            default:
                 return false;
+        }
+    }
+    
+    /**
+     * حساب المسافة بين نقطتين
+     */
+    distance(p1, p2) {
+        const dx = p1.x - p2.x;
+        const dy = p1.y - p2.y;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    /**
+     * حساب المسافة من نقطة إلى خط
+     */
+    distanceToLine(point, lineStart, lineEnd) {
+        const A = lineStart;
+        const B = lineEnd;
+        const P = point;
+        
+        const AP_x = P.x - A.x;
+        const AP_y = P.y - A.y;
+        const AB_x = B.x - A.x;
+        const AB_y = B.y - A.y;
+        
+        const AB_squared = AB_x * AB_x + AB_y * AB_y;
+        if (AB_squared === 0) {
+            return this.distance(P, A);
+        }
+        
+        const t = Math.max(0, Math.min(1, (AP_x * AB_x + AP_y * AB_y) / AB_squared));
+        
+        const projection = {
+            x: A.x + t * AB_x,
+            y: A.y + t * AB_y
+        };
+        
+        return this.distance(P, projection);
+    }
+    
+    /**
+     * التحقق من قرب النقطة من قوس
+     */
+    isPointNearArc(point, arc, tolerance) {
+        const distToCenter = this.distance(point, arc.center);
+        if (Math.abs(distToCenter - arc.radius) > tolerance) {
+            return false;
+        }
+        
+        // التحقق من أن النقطة داخل نطاق القوس
+        const angle = Math.atan2(point.y - arc.center.y, point.x - arc.center.x);
+        // تبسيط: لنفترض أن النقطة داخل نطاق القوس
+        return true;
+    }
+    
+    /**
+     * التحقق من قرب النقطة من بوليلاين
+     */
+    isPointNearPolyline(point, polyline, tolerance) {
+        if (!polyline.points || polyline.points.length < 2) return false;
+        
+        for (let i = 0; i < polyline.points.length - 1; i++) {
+            if (this.distanceToLine(point, polyline.points[i], polyline.points[i + 1]) <= tolerance) {
+                return true;
+            }
         }
         
         return false;
     }
     
     /**
-     * الحصول على أقرب نقطة على الشكل
+     * التحقق من إمكانية كسر الشكل
      */
-    getClosestPointOnShape(shape, point) {
+    canBreakShape(shape) {
+        if (!shape) return false;
+        
+        // التحقق من صلاحيات الطبقة
+        if (this.cad.layerManager) {
+            const layer = this.cad.layerManager.layers.get(shape.layerId);
+            if (!layer || layer.locked || layer.frozen) {
+                return false;
+            }
+        }
+        
+        // الأشكال المدعومة للتقسيم عند نقطة (العناصر المفتوحة فقط)
+        const breakableTypes = ['line', 'polyline', 'arc'];
+        return breakableTypes.includes(shape.type);
+    }
+    
+    /**
+     * إسقاط نقطة على الشكل
+     */
+    projectPointOnShape(point, shape) {
+        if (!shape) return null;
+        
         switch (shape.type) {
             case 'line':
-                return this.getClosestPointOnLine(shape, point);
+                return this.projectPointOnLine(point, shape);
             case 'arc':
-                return this.getClosestPointOnArc(shape, point);
-            case 'circle':
-                return this.getClosestPointOnCircle(shape, point);
+                return this.projectPointOnArc(point, shape);
             case 'polyline':
-                return this.getClosestPointOnPolyline(shape, point);
+                return this.projectPointOnPolyline(point, shape);
             default:
-                return point;
+                return null;
         }
     }
     
     /**
-     * أقرب نقطة على خط
+     * إسقاط نقطة على خط
      */
-    getClosestPointOnLine(line, point) {
-        const dx = line.end.x - line.start.x;
-        const dy = line.end.y - line.start.y;
-        const length = Math.sqrt(dx * dx + dy * dy);
+    projectPointOnLine(point, line) {
+        const A = line.start;
+        const B = line.end;
+        const P = point;
         
-        if (length === 0) return line.start;
+        // حساب المسقط
+        const AP_x = P.x - A.x;
+        const AP_y = P.y - A.y;
+        const AB_x = B.x - A.x;
+        const AB_y = B.y - A.y;
         
-        const t = Math.max(0.01, Math.min(0.99, // تجنب النهايات تماماً
-            ((point.x - line.start.x) * dx + (point.y - line.start.y) * dy) / (length * length)
-        ));
+        const AB_squared = AB_x * AB_x + AB_y * AB_y;
+        if (AB_squared === 0) return A; // النقطتان متطابقتان
+        
+        const t = (AP_x * AB_x + AP_y * AB_y) / AB_squared;
+        
+        // التأكد من أن النقطة على الخط وليس على امتداده (ليس في النهايات)
+        if (t <= 0.01 || t >= 0.99) return null; // تجنب التقسيم قريباً من النهايات
         
         return {
-            x: line.start.x + t * dx,
-            y: line.start.y + t * dy,
-            t: t
+            x: A.x + t * AB_x,
+            y: A.y + t * AB_y,
+            t: t // نسبة الموقع على الخط
         };
     }
     
     /**
-     * أقرب نقطة على قوس
+     * إسقاط نقطة على قوس
      */
-    getClosestPointOnArc(arc, point) {
+    projectPointOnArc(point, arc) {
         const dx = point.x - arc.center.x;
         const dy = point.y - arc.center.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance === 0) return null;
+        
+        // إسقاط النقطة على محيط الدائرة
         let angle = Math.atan2(dy, dx);
         
-        // تطبيع الزاوية
+        // تطبيع الزوايا
         while (angle < 0) angle += 2 * Math.PI;
         while (angle > 2 * Math.PI) angle -= 2 * Math.PI;
         
         let startAngle = arc.startAngle;
         let endAngle = arc.endAngle;
         
-        // تطبيع زوايا القوس
         while (startAngle < 0) startAngle += 2 * Math.PI;
         while (endAngle < 0) endAngle += 2 * Math.PI;
         
-        // التأكد أن النقطة ضمن القوس
-        if (endAngle > startAngle) {
-            if (angle < startAngle || angle > endAngle) {
-                // اختيار منتصف القوس كنقطة افتراضية
-                angle = (startAngle + endAngle) / 2;
-            }
+        // التحقق من وجود الزاوية داخل نطاق القوس (ليس في النهايات)
+        const tolerance = 0.05; // tolerance أكبر لتجنب النهايات
+        
+        let isInRange = false;
+        if (startAngle <= endAngle) {
+            isInRange = angle > (startAngle + tolerance) && angle < (endAngle - tolerance);
+        } else {
+            isInRange = angle > (startAngle + tolerance) || angle < (endAngle - tolerance);
         }
         
-        // تجنب النهايات
-        const minGap = (endAngle - startAngle) * this.settings.endpointTolerance;
-        if (Math.abs(angle - startAngle) < minGap) {
-            angle = startAngle + minGap;
-        }
-        if (Math.abs(angle - endAngle) < minGap) {
-            angle = endAngle - minGap;
-        }
+        if (!isInRange) return null;
         
         return {
             x: arc.center.x + arc.radius * Math.cos(angle),
@@ -255,320 +323,247 @@ export class BreakAtPointTool extends ModifyToolBase {
     }
     
     /**
-     * أقرب نقطة على دائرة
+     * إسقاط نقطة على بوليلاين
      */
-    getClosestPointOnCircle(circle, point) {
-        const dx = point.x - circle.center.x;
-        const dy = point.y - circle.center.y;
-        const angle = Math.atan2(dy, dx);
+    projectPointOnPolyline(point, polyline) {
+        if (!polyline.points || polyline.points.length < 2) return null;
         
-        return {
-            x: circle.center.x + circle.radius * Math.cos(angle),
-            y: circle.center.y + circle.radius * Math.sin(angle),
-            angle: angle
-        };
-    }
-    
-    /**
-     * أقرب نقطة على polyline
-     */
-    getClosestPointOnPolyline(polyline, point) {
-        if (!polyline.points || polyline.points.length < 2) return point;
-        
-        let closestPoint = null;
+        let closestProjection = null;
         let minDistance = Infinity;
-        let segmentIndex = -1;
         
-        // البحث في كل segment
+        // البحث في كل ضلع من البوليلاين
         for (let i = 0; i < polyline.points.length - 1; i++) {
-            const segmentStart = polyline.points[i];
-            const segmentEnd = polyline.points[i + 1];
+            const line = {
+                start: polyline.points[i],
+                end: polyline.points[i + 1]
+            };
             
-            const segmentPoint = this.getClosestPointOnLine(
-                { start: segmentStart, end: segmentEnd },
-                point
-            );
-            
-            const distance = this.cad.distance(point.x, point.y, segmentPoint.x, segmentPoint.y);
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestPoint = segmentPoint;
-                segmentIndex = i;
+            const projection = this.projectPointOnLine(point, line);
+            if (projection) {
+                const distance = Math.sqrt(
+                    Math.pow(point.x - projection.x, 2) + 
+                    Math.pow(point.y - projection.y, 2)
+                );
+                
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestProjection = {
+                        ...projection,
+                        segmentIndex: i
+                    };
+                }
             }
         }
         
-        if (closestPoint) {
-            closestPoint.segmentIndex = segmentIndex;
-        }
-        
-        return closestPoint || point;
+        return closestProjection;
     }
     
     /**
-     * معاينة نقطة القطع
+     * تحديث معاينة التقسيم
      */
-    showPointPreview(point) {
-        const world = this.cad.screenToWorld(this.cad.mouseX, this.cad.mouseY);
-        const breakPointInfo = this.getValidBreakPoint(this.state.targetShape, world);
+    updateBreakPreview(point) {
+        if (!this.targetShape) return;
         
-        if (!breakPointInfo.valid) {
-            // إظهار نقطة غير صالحة
-            const indicator = {
-                type: 'circle',
-                center: breakPointInfo.point,
-                radius: 4,
-                color: '#ff4444',
-                lineWidth: 2
-            };
-            
-            this.cad.tempShapes = [indicator];
-        } else {
-            // إظهار نقطة صالحة مع معاينة النتيجة
-            const breakPoint = breakPointInfo.point;
-            const previewShapes = this.calculateBreakAtPointResult(this.state.targetShape, breakPoint, true);
-            
-            // إضافة مؤشر النقطة
-            const indicator = {
-                type: 'circle',
-                center: breakPoint,
-                radius: 3,
-                color: '#00ff88',
-                lineWidth: 2
-            };
-            
-            previewShapes.push(indicator);
-            this.cad.tempShapes = previewShapes;
+        const breakPoint = this.projectPointOnShape(point, this.targetShape);
+        if (!breakPoint) {
+            this.cad.tempShapes = null;
+            this.cad.render();
+            return;
         }
+        
+        // إنشاء أشكال المعاينة
+        const previewShapes = this.createBreakAtPointPreview(this.targetShape, breakPoint);
+        
+        // تطبيق ستايل المعاينة
+        previewShapes.forEach(shape => {
+            shape.color = '#00d4aa';
+            shape.lineWidth = 1;
+        });
+        
+        this.cad.tempShapes = previewShapes;
+        this.cad.render();
+    }
+    
+    /**
+     * إنشاء معاينة التقسيم عند نقطة
+     */
+    createBreakAtPointPreview(shape, breakPoint) {
+        const previewShapes = [];
+        
+        switch (shape.type) {
+            case 'line':
+                previewShapes.push(...this.createLineBreakAtPointPreview(shape, breakPoint));
+                break;
+            case 'arc':
+                previewShapes.push(...this.createArcBreakAtPointPreview(shape, breakPoint));
+                break;
+            case 'polyline':
+                previewShapes.push(...this.createPolylineBreakAtPointPreview(shape, breakPoint));
+                break;
+        }
+        
+        return previewShapes;
+    }
+    
+    /**
+     * إنشاء معاينة تقسيم الخط عند نقطة
+     */
+    createLineBreakAtPointPreview(line, breakPoint) {
+        const shapes = [];
+        
+        // الجزء الأول (من البداية إلى نقطة الكسر)
+        shapes.push({
+            type: 'line',
+            start: { ...line.start },
+            end: { x: breakPoint.x, y: breakPoint.y }
+        });
+        
+        // الجزء الثاني (من نقطة الكسر إلى النهاية)
+        shapes.push({
+            type: 'line',
+            start: { x: breakPoint.x, y: breakPoint.y },
+            end: { ...line.end }
+        });
+        
+        return shapes;
+    }
+    
+    /**
+     * إنشاء معاينة تقسيم القوس عند نقطة
+     */
+    createArcBreakAtPointPreview(arc, breakPoint) {
+        const shapes = [];
+        
+        // الجزء الأول (من بداية القوس إلى نقطة الكسر)
+        shapes.push({
+            type: 'arc',
+            center: { ...arc.center },
+            radius: arc.radius,
+            startAngle: arc.startAngle,
+            endAngle: breakPoint.angle
+        });
+        
+        // الجزء الثاني (من نقطة الكسر إلى نهاية القوس)
+        shapes.push({
+            type: 'arc',
+            center: { ...arc.center },
+            radius: arc.radius,
+            startAngle: breakPoint.angle,
+            endAngle: arc.endAngle
+        });
+        
+        return shapes;
+    }
+    
+    /**
+     * إنشاء معاينة تقسيم البوليلاين عند نقطة
+     */
+    createPolylineBreakAtPointPreview(polyline, breakPoint) {
+        if (breakPoint.segmentIndex === undefined) return [polyline];
+        
+        const shapes = [];
+        const segmentIndex = breakPoint.segmentIndex;
+        
+        // الجزء الأول: من بداية البوليلاين إلى نقطة الكسر
+        if (segmentIndex > 0 || breakPoint.t > 0) {
+            const firstPart = {
+                type: 'polyline',
+                points: []
+            };
+            
+            // إضافة النقاط من البداية حتى نقطة الكسر
+            for (let i = 0; i <= segmentIndex; i++) {
+                firstPart.points.push({ ...polyline.points[i] });
+            }
+            
+            // إضافة نقطة الكسر
+            firstPart.points.push({ x: breakPoint.x, y: breakPoint.y });
+            
+            shapes.push(firstPart);
+        }
+        
+        // الجزء الثاني: من نقطة الكسر إلى نهاية البوليلاين
+        if (segmentIndex < polyline.points.length - 2 || breakPoint.t < 1) {
+            const secondPart = {
+                type: 'polyline',
+                points: []
+            };
+            
+            // إضافة نقطة الكسر
+            secondPart.points.push({ x: breakPoint.x, y: breakPoint.y });
+            
+            // إضافة النقاط من نقطة الكسر حتى النهاية
+            for (let i = segmentIndex + 1; i < polyline.points.length; i++) {
+                secondPart.points.push({ ...polyline.points[i] });
+            }
+            
+            shapes.push(secondPart);
+        }
+        
+        return shapes;
+    }
+    
+    /**
+     * تطبيق التقسيم عند نقطة
+     */
+    applyBreakAtPoint() {
+        if (!this.targetShape || !this.breakPoint) return;
+        
+        this.cad.recordState();
+        
+        // إزالة الشكل الأصلي
+        const shapeIndex = this.cad.shapes.indexOf(this.targetShape);
+        if (shapeIndex >= 0) {
+            this.cad.shapes.splice(shapeIndex, 1);
+        }
+        
+        // إضافة الأجزاء الجديدة
+        const newShapes = this.createBrokenAtPointShapes(this.targetShape, this.breakPoint);
+        
+        newShapes.forEach(shape => {
+            // نسخ خصائص الشكل الأصلي
+            shape.color = this.targetShape.color;
+            shape.lineWidth = this.targetShape.lineWidth;
+            shape.lineType = this.targetShape.lineType;
+            shape.layerId = this.targetShape.layerId;
+            shape.id = this.cad.generateId();
+            
+            this.cad.shapes.push(shape);
+        });
         
         this.cad.render();
     }
     
     /**
-     * تطبيق القطع عند النقطة
+     * إنشاء الأشكال الجديدة بعد التقسيم
      */
-    performBreakAtPoint(breakPointInfo) {
-        this.cad.recordState();
-        
-        const breakPoint = breakPointInfo.point;
-        const resultShapes = this.calculateBreakAtPointResult(this.state.targetShape, breakPoint, false);
-        
-        // حذف الشكل الأصلي
-        const shapeIndex = this.cad.shapes.indexOf(this.state.targetShape);
-        if (shapeIndex !== -1) {
-            this.cad.shapes.splice(shapeIndex, 1);
-        }
-        
-        // إضافة الأشكال الجديدة
-        resultShapes.forEach(newShape => {
-            newShape.id = this.cad.generateId();
-            this.cad.shapes.push(newShape);
-        });
-        
-        // مسح التحديد
-        this.cad.selectedShapes.clear();
-        
-        this.updateStatus(`Object split into ${resultShapes.length} parts`);
-        this.finishOperation();
+    createBrokenAtPointShapes(shape, breakPoint) {
+        return this.createBreakAtPointPreview(shape, breakPoint);
     }
     
     /**
-     * حساب نتيجة القطع عند النقطة
+     * إنهاء عملية التقسيم
      */
-    calculateBreakAtPointResult(shape, breakPoint, isPreview = false) {
-        let results = [];
-        
-        switch (shape.type) {
-            case 'line':
-                results = this.breakLineAtPoint(shape, breakPoint);
-                break;
-                
-            case 'arc':
-                results = this.breakArcAtPoint(shape, breakPoint);
-                break;
-                
-            case 'circle':
-                results = this.breakCircleAtPoint(shape, breakPoint);
-                break;
-                
-            case 'polyline':
-                results = this.breakPolylineAtPoint(shape, breakPoint);
-                break;
-        }
-        
-        // تطبيق خصائص المعاينة
-        if (isPreview) {
-            results.forEach(result => {
-                result.color = '#4ecdc4';
-                result.lineWidth = (result.lineWidth || 1) + 1;
-            });
-        }
-        
-        return results;
-    }
-    
-    /**
-     * قطع خط عند نقطة
-     */
-    breakLineAtPoint(line, breakPoint) {
-        const results = [];
-        
-        // الجزء الأول (من البداية إلى نقطة القطع)
-        const firstPart = {
-            ...line,
-            end: { ...breakPoint }
-        };
-        
-        // الجزء الثاني (من نقطة القطع إلى النهاية)
-        const secondPart = {
-            ...line,
-            start: { ...breakPoint }
-        };
-        
-        // التحقق من أن كل جزء له طول مفيد
-        if (this.cad.distance(firstPart.start.x, firstPart.start.y, firstPart.end.x, firstPart.end.y) > 0.1) {
-            results.push(firstPart);
-        }
-        
-        if (this.cad.distance(secondPart.start.x, secondPart.start.y, secondPart.end.x, secondPart.end.y) > 0.1) {
-            results.push(secondPart);
-        }
-        
-        return results;
-    }
-    
-    /**
-     * قطع قوس عند نقطة
-     */
-    breakArcAtPoint(arc, breakPoint) {
-        const breakAngle = breakPoint.angle;
-        const results = [];
-        
-        // الجزء الأول (من البداية إلى نقطة القطع)
-        const firstArc = {
-            ...arc,
-            endAngle: breakAngle
-        };
-        
-        // الجزء الثاني (من نقطة القطع إلى النهاية)
-        const secondArc = {
-            ...arc,
-            startAngle: breakAngle
-        };
-        
-        // التحقق من أن كل جزء له زاوية مفيدة
-        if (Math.abs(firstArc.endAngle - firstArc.startAngle) > 0.01) {
-            results.push(firstArc);
-        }
-        
-        if (Math.abs(secondArc.endAngle - secondArc.startAngle) > 0.01) {
-            results.push(secondArc);
-        }
-        
-        return results;
-    }
-    
-    /**
-     * قطع دائرة عند نقطة
-     */
-    breakCircleAtPoint(circle, breakPoint) {
-        const breakAngle = breakPoint.angle;
-        
-        // تحويل الدائرة إلى قوس مفتوح عند نقطة القطع
-        return [{
-            type: 'arc',
-            center: circle.center,
-            radius: circle.radius,
-            startAngle: breakAngle + 0.01, // فجوة صغيرة
-            endAngle: breakAngle + 2 * Math.PI - 0.01,
-            color: circle.color,
-            lineWidth: circle.lineWidth,
-            lineType: circle.lineType,
-            layerId: circle.layerId
-        }];
-    }
-    
-    /**
-     * قطع polyline عند نقطة
-     */
-    breakPolylineAtPoint(polyline, breakPoint) {
-        if (!polyline.points || polyline.points.length < 2) return [polyline];
-        
-        const results = [];
-        const segmentIndex = breakPoint.segmentIndex;
-        
-        if (segmentIndex >= 0 && segmentIndex < polyline.points.length - 1) {
-            // الجزء الأول: من البداية إلى نقطة القطع
-            const firstPoints = polyline.points.slice(0, segmentIndex + 1);
-            firstPoints.push({ x: breakPoint.x, y: breakPoint.y });
-            
-            // الجزء الثاني: من نقطة القطع إلى النهاية
-            const secondPoints = [{ x: breakPoint.x, y: breakPoint.y }];
-            secondPoints.push(...polyline.points.slice(segmentIndex + 1));
-            
-            // إنشاء polylines جديدة
-            if (firstPoints.length >= 2) {
-                results.push({
-                    ...polyline,
-                    points: firstPoints
-                });
-            }
-            
-            if (secondPoints.length >= 2) {
-                results.push({
-                    ...polyline,
-                    points: secondPoints
-                });
-            }
-        } else {
-            // إذا لم نتمكن من تحديد segment، أرجع الأصل
-            results.push({ ...polyline });
-        }
-        
-        return results;
-    }
-    
-    /**
-     * إلغاء العملية
-     */
-    cancelOperation() {
-        this.finishOperation();
-    }
-    
-    /**
-     * إنهاء العملية
-     */
-    finishOperation() {
+    finishBreak() {
+        this.updateStatus('Break at point completed');
         this.cleanup();
         this.deactivate();
     }
     
     /**
-     * تنظيف الحالة
+     * تنظيف البيانات
      */
     cleanup() {
-        this.state = {
-            phase: 'selectObject',
-            targetShape: null,
-            previewPoint: null
-        };
-        
+        this.step = 'select-object';
+        this.targetShape = null;
+        this.breakPoint = null;
         this.cad.tempShapes = null;
-        this.cad.canvas.style.cursor = 'default';
-    }
-    
-    /**
-     * معلومات الأداة للمطورين
-     */
-    getInfo() {
-        return {
-            name: 'Break at Point',
-            version: '1.0.0',
-            phase: this.state.phase,
-            targetShape: this.state.targetShape?.type || 'none',
-            supportsPostSelection: true,
-            supportedShapes: ['line', 'arc', 'circle', 'polyline'],
-            keyboardShortcuts: ['Shift+B', 'BRP'],
-            settings: this.settings
-        };
+        this.cad.selectedShapes.clear();
+        this.cad.render();
+        
+        // إخفاء dynamic input
+        if (this.cad.ui && this.cad.ui.hideDynamicInput) {
+            this.cad.ui.hideDynamicInput();
+        }
     }
 }
