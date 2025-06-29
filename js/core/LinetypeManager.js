@@ -504,6 +504,111 @@ class LinetypeManager {
             this.cad.ui.updateLineWeightDisplay();
         }
     }
+
+
+    togglePlot(id) {
+    const layer = this.layers.get(id);
+    if (layer) {
+        layer.plot = !layer.plot;
+        this.cad.render();
+        if (this.cad.ui) {
+            this.cad.ui.updateLayersList();
+        }
+    }
+}
+
+/**
+ * تعيين شفافية الطبقة
+ */
+setLayerTransparency(id, transparency) {
+    const layer = this.layers.get(id);
+    if (!layer) return false;
+    
+    // التحقق من صحة القيمة
+    transparency = parseInt(transparency);
+    if (isNaN(transparency)) transparency = 0;
+    transparency = Math.max(0, Math.min(100, transparency));
+    
+    layer.transparency = transparency;
+    
+    this.cad.render();
+    if (this.cad.ui) {
+        this.cad.ui.updateLayersList();
+    }
+    
+    return true;
+}
+
+/**
+ * الحصول على حالات الطبقات المحفوظة
+ */
+getLayerStates() {
+    if (!this.layerStates) {
+        this.layerStates = new Map();
+    }
+    return Array.from(this.layerStates.keys());
+}
+
+/**
+ * حفظ حالة الطبقات
+ */
+saveLayerState(stateName) {
+    if (!this.layerStates) {
+        this.layerStates = new Map();
+    }
+    
+    const state = {
+        layers: {},
+        currentLayerId: this.currentLayerId
+    };
+    
+    this.layers.forEach((layer, id) => {
+        state.layers[id] = {
+            visible: layer.visible,
+            frozen: layer.frozen,
+            locked: layer.locked,
+            color: layer.color,
+            lineType: layer.lineType,
+            lineWidth: layer.lineWidth,
+            transparency: layer.transparency,
+            plot: layer.plot
+        };
+    });
+    
+    this.layerStates.set(stateName, state);
+    return true;
+}
+
+/**
+ * استعادة حالة الطبقات
+ */
+restoreLayerState(stateName) {
+    if (!this.layerStates || !this.layerStates.has(stateName)) {
+        return false;
+    }
+    
+    const state = this.layerStates.get(stateName);
+    
+    // استعادة خصائص الطبقات
+    Object.entries(state.layers).forEach(([id, props]) => {
+        const layer = this.layers.get(parseInt(id));
+        if (layer) {
+            Object.assign(layer, props);
+        }
+    });
+    
+    // استعادة الطبقة الحالية
+    if (this.layers.has(state.currentLayerId)) {
+        this.setCurrentLayer(state.currentLayerId);
+    }
+    
+    this.cad.render();
+    if (this.cad.ui) {
+        this.cad.ui.updateLayersList();
+    }
+    
+    return true;
+}
 }
 
 // تصدير للاستخدام

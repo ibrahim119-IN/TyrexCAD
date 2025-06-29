@@ -1,0 +1,2081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TyrexCAD - Professional CAD System with Revolutionary Engine</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            background: linear-gradient(45deg, #0a0a0a, #1a1a2e);
+            overflow: hidden;
+        }
+
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(0, 255, 170, 0.03) 10px,
+                rgba(0, 255, 170, 0.03) 20px
+            );
+            animation: grid-move 20s linear infinite;
+        }
+
+        @keyframes grid-move {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(20px, 20px); }
+        }
+
+        /* Slide Container */
+        .slide {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 60px 40px;
+        }
+
+        /* ITI Logo */
+        .iti-logo {
+            position: absolute;
+            top: 40px;
+            right: 40px;  /* Changed from left to right */
+            width: 150px;  /* Increased from 120px */
+            height: auto;
+            opacity: 0.9;
+            animation: fadeIn 1s ease-out;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+        }
+
+        /* Navigation */
+        .nav-dots {
+            position: fixed;
+            right: 30px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .nav-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .nav-dot.active {
+            background: #00ffaa;
+            transform: scale(1.5);
+        }
+
+        .nav-dot:hover::after {
+            content: attr(data-title);
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 5px 10px;
+            border-radius: 5px;
+            white-space: nowrap;
+            font-size: 12px;
+        }
+
+        /* Slide 1 - Hero */
+        .hero-content {
+            text-align: center;
+            animation: slideUp 1s ease-out;
+        }
+
+        .hero-title {
+            font-size: 120px;  /* Increased from 100px */
+            font-weight: bold;
+            background: linear-gradient(45deg, #00ffaa, #00d4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
+            letter-spacing: -5px;
+            animation: glow 2s ease-in-out infinite alternate;
+            text-shadow: 0 0 80px rgba(0, 255, 170, 0.5);
+        }
+
+        @keyframes glow {
+            from { 
+                filter: drop-shadow(0 0 20px rgba(0, 255, 170, 0.5));
+                transform: scale(1);
+            }
+            to { 
+                filter: drop-shadow(0 0 30px rgba(0, 212, 255, 0.8));
+                transform: scale(1.02);
+            }
+        }
+
+        .hero-subtitle {
+            font-size: 32px;  /* Increased from 24px */
+            color: #aaa;
+            margin-bottom: 30px;
+            animation: fadeIn 1s ease-out 0.5s both;
+            letter-spacing: 2px;
+        }
+
+        .hero-description {
+            font-size: 36px;  /* Increased from 28px */
+            color: #00ffaa;
+            margin-bottom: 50px;
+            animation: fadeIn 1s ease-out 0.7s both;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .hero-info {
+            animation: fadeIn 1s ease-out 1s both;
+        }
+
+        .hero-info p {
+            font-size: 24px;  /* Increased from 20px */
+            margin: 15px 0;
+            color: #ddd;
+            letter-spacing: 0.5px;
+        }
+
+        .hero-info .highlight {
+            color: #00ffaa;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(0, 255, 170, 0.5);
+        }
+
+        /* Common Slide Styles */
+        .slide-title {
+            font-size: 56px;
+            margin-bottom: 40px;
+            background: linear-gradient(45deg, #00ffaa, #00d4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+
+        .slide-subtitle {
+            font-size: 24px;
+            color: #888;
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .slide-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Architecture Diagram */
+        .architecture-container {
+            display: flex;
+            gap: 60px;
+            align-items: flex-start;
+        }
+
+        .architecture-diagram {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(0, 255, 170, 0.3);
+            border-radius: 20px;
+            padding: 40px;
+            position: relative;
+        }
+
+        .arch-layer {
+            background: rgba(0, 255, 170, 0.1);
+            border: 2px solid #00ffaa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+
+        .arch-layer:hover {
+            transform: translateX(10px);
+            background: rgba(0, 255, 170, 0.2);
+        }
+
+        .arch-layer h4 {
+            color: #00ffaa;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .arch-layer p {
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        .architecture-details {
+            flex: 1;
+        }
+
+        .detail-section {
+            margin-bottom: 30px;
+        }
+
+        .detail-section h3 {
+            color: #00ffaa;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        .detail-list {
+            list-style: none;
+        }
+
+        .detail-list li {
+            padding: 10px 0;
+            padding-left: 30px;
+            position: relative;
+            color: #ccc;
+            font-size: 16px;
+        }
+
+        .detail-list li::before {
+            content: '▸';
+            position: absolute;
+            left: 0;
+            color: #00ffaa;
+            font-size: 20px;
+        }
+
+        /* Engine Components */
+        .engine-components {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .component-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(0, 255, 170, 0.3);
+            border-radius: 20px;
+            padding: 30px;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .component-card:hover {
+            transform: translateY(-10px);
+            border-color: #00ffaa;
+            box-shadow: 0 20px 40px rgba(0, 255, 170, 0.2);
+        }
+
+        .component-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #00ffaa;
+        }
+
+        .component-card h3 {
+            color: #00ffaa;
+            font-size: 22px;
+            margin-bottom: 15px;
+        }
+
+        .component-card p {
+            color: #ccc;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* Tools Grid */
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-top: 40px;
+        }
+
+        .tool-category {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 255, 170, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .tool-category:hover {
+            transform: scale(1.05);
+            border-color: #00ffaa;
+            background: rgba(0, 255, 170, 0.1);
+        }
+
+        .tool-category h4 {
+            color: #00ffaa;
+            font-size: 18px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .tool-list {
+            list-style: none;
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .tool-list li {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Features Showcase */
+        .features-showcase {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .feature-box {
+            background: linear-gradient(135deg, rgba(0, 255, 170, 0.1), rgba(0, 212, 255, 0.1));
+            border: 2px solid rgba(0, 255, 170, 0.5);
+            border-radius: 20px;
+            padding: 30px;
+            transition: all 0.3s;
+        }
+
+        .feature-box:hover {
+            transform: scale(1.02);
+            box-shadow: 0 20px 40px rgba(0, 255, 170, 0.3);
+        }
+
+        .feature-box h3 {
+            color: #00ffaa;
+            font-size: 24px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .feature-icon {
+            font-size: 32px;
+        }
+
+        .feature-list {
+            list-style: none;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            color: #ccc;
+            font-size: 16px;
+            position: relative;
+            padding-left: 25px;
+        }
+
+        .feature-list li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #00ffaa;
+            font-weight: bold;
+        }
+
+        /* Performance Metrics */
+        .metrics-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .metric-visual {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(0, 255, 170, 0.3);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .metric-number {
+            font-size: 72px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00ffaa, #00d4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
+        }
+
+        .metric-label {
+            font-size: 24px;
+            color: #ccc;
+            margin-bottom: 20px;
+        }
+
+        .metric-details {
+            color: #888;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        /* Business Value */
+        .business-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .business-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(0, 255, 170, 0.3);
+            border-radius: 20px;
+            padding: 30px;
+            transition: all 0.3s;
+        }
+
+        .business-card:hover {
+            transform: translateY(-5px);
+            border-color: #00ffaa;
+            box-shadow: 0 20px 40px rgba(0, 255, 170, 0.2);
+        }
+
+        .business-card h3 {
+            color: #00ffaa;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        .business-card .value {
+            font-size: 48px;
+            font-weight: bold;
+            color: #00d4ff;
+            margin-bottom: 15px;
+        }
+
+        .business-card p {
+            color: #ccc;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        /* Technical Stack */
+        .tech-stack-detailed {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .tech-category {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(0, 255, 170, 0.3);
+            border-radius: 20px;
+            padding: 30px;
+        }
+
+        .tech-category h4 {
+            color: #00ffaa;
+            font-size: 22px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .tech-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .tech-item {
+            background: rgba(0, 255, 170, 0.1);
+            border: 1px solid #00ffaa;
+            border-radius: 25px;
+            padding: 8px 20px;
+            font-size: 14px;
+            color: #00ffaa;
+            transition: all 0.3s;
+        }
+
+        .tech-item:hover {
+            background: rgba(0, 255, 170, 0.3);
+            transform: scale(1.1);
+        }
+
+        .comparison-table .tyrexcad-column {
+            background: rgba(0, 255, 170, 0.1);
+            font-weight: bold;
+        }
+
+        .check {
+            color: #00ffaa;
+            font-size: 24px;
+        }
+
+        .cross {
+            color: #ff4444;
+            font-size: 24px;
+        }
+
+        /* Enhanced Engine Components Styles */
+        .operations-showcase {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .operation-category {
+            border-radius: 20px;
+            padding: 30px;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .operation-category:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .category-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        .category-icon {
+            font-size: 36px;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+        }
+
+        .category-header h3 {
+            flex: 1;
+            font-size: 24px;
+            color: #fff;
+            margin: 0;
+        }
+
+        .category-count {
+            font-size: 28px;
+            font-weight: bold;
+            color: #00ffaa;
+            background: rgba(0, 255, 170, 0.1);
+            padding: 5px 15px;
+            border-radius: 20px;
+        }
+
+        .operation-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .op-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            color: #ccc;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .op-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+            border-left-color: #00ffaa;
+            color: #fff;
+        }
+
+        .performance-badges {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 50px;
+        }
+
+        .perf-badge {
+            text-align: center;
+            padding: 20px 40px;
+            background: rgba(0, 255, 170, 0.1);
+            border: 2px solid #00ffaa;
+            border-radius: 20px;
+            transition: all 0.3s;
+        }
+
+        .perf-badge:hover {
+            transform: scale(1.1);
+            background: rgba(0, 255, 170, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 255, 170, 0.3);
+        }
+
+        .badge-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #00ffaa;
+            margin-bottom: 10px;
+        }
+
+        .badge-label {
+            font-size: 16px;
+            color: #ccc;
+        }
+
+        /* Enhanced Tools Showcase Styles */
+        .tools-showcase {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .tool-section {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 20px;
+            overflow: hidden;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .tool-section:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .section-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: #fff;
+        }
+
+        .section-icon {
+            font-size: 32px;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+        }
+
+        .section-header h3 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            padding: 20px;
+        }
+
+        .tool-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px 15px;
+            text-align: center;
+            transition: all 0.2s;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tool-card:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-3px);
+            border-color: #00ffaa;
+            box-shadow: 0 10px 20px rgba(0, 255, 170, 0.2);
+        }
+
+        .tool-icon {
+            font-size: 28px;
+            color: #00ffaa;
+            display: block;
+            font-style: normal;
+            font-weight: bold;
+        }
+
+        .tool-card span {
+            font-size: 14px;
+            color: #ccc;
+            font-weight: 500;
+        }
+
+        .tool-card:hover span {
+            color: #fff;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1200px) {
+            .operations-showcase {
+                grid-template-columns: 1fr;
+            }
+            
+            .tools-showcase {
+                grid-template-columns: 1fr;
+            }
+            
+            .tool-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .tool-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            
+            .performance-badges {
+                flex-direction: column;
+                gap: 20px;
+            }
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .comparison-table th {
+            background: rgba(0, 255, 170, 0.2);
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .comparison-table td {
+            font-size: 16px;
+        }
+
+        /* Comparison Table Enhanced */
+        .comparison-container {
+            overflow-x: auto;
+            margin-top: 40px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .comparison-table th {
+            background: rgba(0, 255, 170, 0.2);
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .comparison-table td {
+            font-size: 16px;
+        }
+
+        .comparison-table .tyrexcad-column {
+            background: rgba(0, 255, 170, 0.1);
+            font-weight: bold;
+        }
+
+        .check {
+            color: #00ffaa;
+            font-size: 24px;
+        }
+
+        .cross {
+            color: #ff4444;
+            font-size: 24px;
+        }
+
+        /* Future Roadmap */
+        .roadmap-container {
+            position: relative;
+            padding: 40px 0;
+        }
+
+        .roadmap-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(180deg, #00ffaa, #00d4ff);
+            transform: translateX(-50%);
+        }
+
+        .roadmap-item {
+            position: relative;
+            margin: 60px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .roadmap-item:nth-child(odd) {
+            flex-direction: row-reverse;
+        }
+
+        .roadmap-content {
+            width: 45%;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(0, 255, 170, 0.3);
+            border-radius: 20px;
+            transition: all 0.3s;
+        }
+
+        .roadmap-content:hover {
+            transform: scale(1.02);
+            border-color: #00ffaa;
+            box-shadow: 0 20px 40px rgba(0, 255, 170, 0.2);
+        }
+
+        .roadmap-content h3 {
+            color: #00ffaa;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        .roadmap-content p {
+            color: #ccc;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .roadmap-dot {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 30px;
+            background: #00ffaa;
+            border-radius: 50%;
+            z-index: 1;
+            box-shadow: 0 0 20px rgba(0, 255, 170, 0.5);
+        }
+
+        /* Call to Action */
+        .cta-section {
+            text-align: center;
+            padding: 80px 0;
+        }
+
+        .cta-title {
+            font-size: 48px;
+            margin-bottom: 30px;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin-top: 40px;
+        }
+
+        .cta-button {
+            padding: 20px 40px;
+            font-size: 20px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .cta-primary {
+            background: linear-gradient(45deg, #00ffaa, #00d4ff);
+            color: #000;
+            font-weight: bold;
+        }
+
+        .cta-primary:hover {
+            transform: scale(1.1);
+            box-shadow: 0 10px 30px rgba(0, 255, 170, 0.5);
+        }
+
+        .cta-secondary {
+            background: transparent;
+            color: #00ffaa;
+            border: 2px solid #00ffaa;
+        }
+
+        .cta-secondary:hover {
+            background: rgba(0, 255, 170, 0.1);
+            transform: scale(1.05);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { 
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        /* Animation for new elements */
+        .operation-category {
+            animation: fadeInScale 0.8s ease-out;
+        }
+
+        .tool-section {
+            animation: fadeInScale 0.8s ease-out;
+        }
+
+        .op-item {
+            animation: slideInRight 0.6s ease-out;
+        }
+
+        .tool-card {
+            animation: fadeInScale 0.5s ease-out;
+        }
+
+        /* Slide Counter */
+        .slide-counter {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .operations-showcase {
+                grid-template-columns: 1fr;
+            }
+            
+            .tools-showcase {
+                grid-template-columns: 1fr;
+            }
+            
+            .tool-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .hero-title { font-size: 60px; }
+            .slide-title { font-size: 40px; }
+            .architecture-container { flex-direction: column; }
+            .engine-components { grid-template-columns: repeat(2, 1fr); }
+            .features-showcase { grid-template-columns: 1fr; }
+            .business-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .hero-title { font-size: 48px; }
+            .slide-title { font-size: 32px; }
+            .engine-components { grid-template-columns: 1fr; }
+            .tech-stack-detailed { grid-template-columns: 1fr; }
+            .roadmap-content { width: 90%; }
+            .roadmap-item:nth-child(odd) { flex-direction: column; }
+            .roadmap-item { flex-direction: column; }
+            .tool-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            .performance-badges {
+                flex-direction: column;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background Animation -->
+    <div class="bg-animation"></div>
+
+    <!-- Navigation Dots -->
+    <div class="nav-dots">
+        <div class="nav-dot active" data-title="Introduction" onclick="goToSlide(0)"></div>
+        <div class="nav-dot" data-title="Overview" onclick="goToSlide(1)"></div>
+        <div class="nav-dot" data-title="Problem" onclick="goToSlide(2)"></div>
+        <div class="nav-dot" data-title="Solution" onclick="goToSlide(3)"></div>
+        <div class="nav-dot" data-title="Architecture" onclick="goToSlide(4)"></div>
+        <div class="nav-dot" data-title="Engine Core" onclick="goToSlide(5)"></div>
+        <div class="nav-dot" data-title="Engine Components" onclick="goToSlide(6)"></div>
+        <div class="nav-dot" data-title="Tools & Features" onclick="goToSlide(7)"></div>
+        <div class="nav-dot" data-title="Advanced Features" onclick="goToSlide(8)"></div>
+        <div class="nav-dot" data-title="Performance" onclick="goToSlide(9)"></div>
+        <div class="nav-dot" data-title="Business Value" onclick="goToSlide(10)"></div>
+        <div class="nav-dot" data-title="Tech Stack" onclick="goToSlide(11)"></div>
+        <div class="nav-dot" data-title="Comparison" onclick="goToSlide(12)"></div>
+        <div class="nav-dot" data-title="Future Vision" onclick="goToSlide(13)"></div>
+        <div class="nav-dot" data-title="Call to Action" onclick="goToSlide(14)"></div>
+    </div>
+
+    <!-- Slide 1: Hero -->
+    <section class="slide" id="slide-0">
+        <img src="data:image/png;base64,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" alt="ITI Logo" class="iti-logo">
+        
+        <div class="hero-content">
+            <h1 class="hero-title">TyrexCAD</h1>
+            <p class="hero-subtitle">Professional CAD System</p>
+            <p class="hero-description">Built on Revolutionary Open Source CAD Engine From Scratch</p>
+            <div class="hero-info">
+                <p>Developed by: <span class="highlight">Ibrahim Khaled Ibrahim El Desoky Mostafa</span></p>
+                <p>Team: <span class="highlight">Team 4</span></p>
+                <p>ITI - Information Technology Institute</p>
+            </div>
+        </div>
+        <div class="slide-counter">1 / 15</div>
+    </section>
+
+    <!-- Slide 2: Project Overview -->
+    <section class="slide" id="slide-1">
+        <div class="slide-content">
+            <h2 class="slide-title">Project Overview</h2>
+            <p class="slide-subtitle">A Complete CAD System Built From Zero</p>
+            
+            <div class="features-showcase">
+                <div class="feature-box">
+                    <h3><span class="feature-icon">🎯</span> What is TyrexCAD?</h3>
+                    <ul class="feature-list">
+                        <li>Professional CAD system for engineering design</li>
+                        <li>100% browser-based, no installation required</li>
+                        <li>Built entirely in JavaScript from scratch</li>
+                        <li>Open source foundation for future CAD innovation</li>
+                        <li>Enterprise-ready with advanced features</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-box">
+                    <h3><span class="feature-icon">💡</span> Key Innovations</h3>
+                    <ul class="feature-list">
+                        <li>Custom geometry engine with 110+ operations</li>
+                        <li>Web Workers for parallel processing</li>
+                        <li>Real-time collaboration capabilities</li>
+                        <li>Modular architecture for easy extension</li>
+                        <li>Cross-platform compatibility</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">2 / 15</div>
+    </section>
+
+    <!-- Slide 3: The Problem -->
+    <section class="slide" id="slide-2">
+        <div class="slide-content">
+            <h2 class="slide-title">The Problem We Solve</h2>
+            <p class="slide-subtitle">Current CAD Market Challenges</p>
+            
+            <div class="business-grid">
+                <div class="business-card">
+                    <h3>💰 Expensive Licensing</h3>
+                    <div class="value">$1,865/year</div>
+                    <p>Professional CAD software like AutoCAD requires expensive annual subscriptions, limiting access for small businesses, startups, and individuals.</p>
+                </div>
+                
+                <div class="business-card">
+                    <h3>🔒 Vendor Lock-in</h3>
+                    <div class="value">Proprietary</div>
+                    <p>Closed ecosystems, proprietary formats, and limited customization options restrict innovation and integration capabilities.</p>
+                </div>
+                
+                <div class="business-card">
+                    <h3>💻 Platform Limitations</h3>
+                    <div class="value">OS Specific</div>
+                    <p>Most CAD solutions require specific operating systems, powerful hardware, and complex installation processes.</p>
+                </div>
+                
+                <div class="business-card">
+                    <h3>🚫 Limited Innovation</h3>
+                    <div class="value">Closed Source</div>
+                    <p>Lack of community contributions and closed development models slow down feature development and innovation.</p>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">3 / 15</div>
+    </section>
+
+    <!-- Slide 4: Our Solution -->
+    <section class="slide" id="slide-3">
+        <div class="slide-content">
+            <h2 class="slide-title">TyrexCAD Solution</h2>
+            <p class="slide-subtitle">Revolutionary Approach to CAD</p>
+            
+            <div class="business-grid">
+                <div class="business-card">
+                    <h3>✅ Free Forever</h3>
+                    <div class="value">$0</div>
+                    <p>Open source with no licensing fees. Complete transparency and community-driven development ensures continuous improvement.</p>
+                </div>
+                
+                <div class="business-card">
+                    <h3>🌐 Browser-Based</h3>
+                    <div class="value">Any Device</div>
+                    <p>Works on any device with a modern web browser. No installation, no specific OS requirements, instant access.</p>
+                </div>
+                
+                <div class="business-card">
+                    <h3>🎯 Built From Scratch</h3>
+                    <div class="value">100% Custom</div>
+                    <p>Custom geometry engine developed entirely in JavaScript, optimized specifically for web performance.</p>
+                </div>
+                
+                <div class="business-card">
+                    <h3>🔧 Fully Customizable</h3>
+                    <div class="value">Modular</div>
+                    <p>Clean architecture allows easy integration, customization, and extension for specific industry needs.</p>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">4 / 15</div>
+    </section>
+
+    <!-- Slide 5: System Architecture -->
+    <section class="slide" id="slide-4">
+        <div class="slide-content">
+            <h2 class="slide-title">System Architecture</h2>
+            <p class="slide-subtitle">Modular Design for Maximum Flexibility</p>
+            
+            <div class="architecture-container">
+                <div class="architecture-diagram">
+                    <div class="arch-layer">
+                        <h4>UI Layer</h4>
+                        <p>Ribbon Interface, Properties Panel, Command Line, Dynamic Input</p>
+                    </div>
+                    <div class="arch-layer">
+                        <h4>Tools Layer</h4>
+                        <p>Drawing Tools, Modify Tools, Advanced Tools, Analysis Tools</p>
+                    </div>
+                    <div class="arch-layer">
+                        <h4>Core Systems</h4>
+                        <p>Layer Manager, Units System, Grips Controller, Snap System</p>
+                    </div>
+                    <div class="arch-layer">
+                        <h4>Geometry Engine</h4>
+                        <p>Basic Operations, Advanced Operations, Boolean Operations, Web Workers</p>
+                    </div>
+                    <div class="arch-layer">
+                        <h4>Infrastructure</h4>
+                        <p>Canvas 2D/WebGL, Three.js, File I/O, State Management</p>
+                    </div>
+                </div>
+                
+                <div class="architecture-details">
+                    <div class="detail-section">
+                        <h3>Key Design Principles</h3>
+                        <ul class="detail-list">
+                            <li>Separation of Concerns</li>
+                            <li>Module Independence</li>
+                            <li>Event-Driven Architecture</li>
+                            <li>Performance Optimization</li>
+                            <li>Extensibility First</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h3>Integration Points</h3>
+                        <ul class="detail-list">
+                            <li>Plugin System for Extensions</li>
+                            <li>API for External Applications</li>
+                            <li>Import/Export Handlers</li>
+                            <li>Custom Tool Development</li>
+                            <li>Theme Customization</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">5 / 15</div>
+    </section>
+
+    <!-- Slide 6: The Revolutionary Engine Core -->
+    <section class="slide" id="slide-5">
+        <div class="slide-content">
+            <h2 class="slide-title">The Revolutionary Geometry Engine</h2>
+            <p class="slide-subtitle">Built From Scratch - The Heart of TyrexCAD</p>
+            
+            <div class="engine-components">
+                <div class="component-card">
+                    <div class="component-icon">🧮</div>
+                    <h3>Geometry.js</h3>
+                    <p>Core mathematical operations: intersections, distances, angles, transformations. Handles all basic geometric calculations with high precision.</p>
+                </div>
+                
+                <div class="component-card">
+                    <div class="component-icon">⚡</div>
+                    <h3>GeometryAdvanced.js</h3>
+                    <p>Complex operations: Boolean operations, Delaunay triangulation, Voronoi diagrams, Bezier curves, B-Splines, path optimization.</p>
+                </div>
+                
+                <div class="component-card">
+                    <div class="component-icon">🔧</div>
+                    <h3>Web Workers</h3>
+                    <p>Parallel processing for heavy computations. Automatically handles operations with 1000+ points without blocking the UI.</p>
+                </div>
+            </div>
+            
+            <div class="architecture-diagram" style="margin-top: 40px;">
+                <h3 style="text-align: center; color: #00ffaa; margin-bottom: 30px;">Engine Processing Pipeline</h3>
+                <div class="arch-layer">
+                    <h4>Input Processing</h4>
+                    <p>Shape validation, coordinate transformation, unit conversion</p>
+                </div>
+                <div class="arch-layer">
+                    <h4>Operation Selection</h4>
+                    <p>Complexity analysis, automatic Worker delegation, cache checking</p>
+                </div>
+                <div class="arch-layer">
+                    <h4>Execution</h4>
+                    <p>Optimized algorithms, parallel processing, real-time feedback</p>
+                </div>
+                <div class="arch-layer">
+                    <h4>Output</h4>
+                    <p>Result caching, shape generation, rendering optimization</p>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">6 / 15</div>
+    </section>
+
+    <!-- Slide 7: Engine Components Detail -->
+    <section class="slide" id="slide-6">
+        <div class="slide-content">
+            <h2 class="slide-title">Engine Components & Capabilities</h2>
+            <p class="slide-subtitle">110+ Geometric Operations</p>
+            
+            <div class="operations-showcase">
+                <div class="operation-category" style="background: linear-gradient(135deg, rgba(0, 255, 170, 0.1), rgba(0, 255, 170, 0.05));">
+                    <div class="category-header">
+                        <span class="category-icon">📐</span>
+                        <h3>Basic Operations</h3>
+                        <span class="category-count">16</span>
+                    </div>
+                    <div class="operation-items">
+                        <div class="op-item">Line-Line Intersection</div>
+                        <div class="op-item">Line-Circle Intersection</div>
+                        <div class="op-item">Circle-Circle Intersection</div>
+                        <div class="op-item">Point in Polygon</div>
+                        <div class="op-item">Distance Calculations</div>
+                        <div class="op-item">Angle Measurements</div>
+                    </div>
+                </div>
+                
+                <div class="operation-category" style="background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(0, 212, 255, 0.05));">
+                    <div class="category-header">
+                        <span class="category-icon">⚡</span>
+                        <h3>Boolean Operations</h3>
+                        <span class="category-count">4</span>
+                    </div>
+                    <div class="operation-items">
+                        <div class="op-item">Union (Combine Shapes)</div>
+                        <div class="op-item">Difference (Subtract)</div>
+                        <div class="op-item">Intersection (Overlap)</div>
+                        <div class="op-item">XOR (Exclusive)</div>
+                    </div>
+                </div>
+                
+                <div class="operation-category" style="background: linear-gradient(135deg, rgba(255, 170, 0, 0.1), rgba(255, 170, 0, 0.05));">
+                    <div class="category-header">
+                        <span class="category-icon">🧮</span>
+                        <h3>Advanced Algorithms</h3>
+                        <span class="category-count">15</span>
+                    </div>
+                    <div class="operation-items">
+                        <div class="op-item">Delaunay Triangulation</div>
+                        <div class="op-item">Voronoi Diagrams</div>
+                        <div class="op-item">Convex Hull</div>
+                        <div class="op-item">Minimum Bounding Box</div>
+                        <div class="op-item">Path Simplification</div>
+                        <div class="op-item">Curve Smoothing</div>
+                    </div>
+                </div>
+                
+                <div class="operation-category" style="background: linear-gradient(135deg, rgba(255, 0, 170, 0.1), rgba(255, 0, 170, 0.05));">
+                    <div class="category-header">
+                        <span class="category-icon">〰️</span>
+                        <h3>Curve Operations</h3>
+                        <span class="category-count">12</span>
+                    </div>
+                    <div class="operation-items">
+                        <div class="op-item">Bezier Curves</div>
+                        <div class="op-item">B-Spline Curves</div>
+                        <div class="op-item">Catmull-Rom Splines</div>
+                        <div class="op-item">Arc Generation</div>
+                        <div class="op-item">Ellipse Calculations</div>
+                        <div class="op-item">Curve Fitting</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="performance-badges">
+                <div class="perf-badge">
+                    <div class="badge-value">60 FPS</div>
+                    <div class="badge-label">Smooth Performance</div>
+                </div>
+                <div class="perf-badge">
+                    <div class="badge-value">10,000+</div>
+                    <div class="badge-label">Shapes Capacity</div>
+                </div>
+                <div class="perf-badge">
+                    <div class="badge-value">1ms</div>
+                    <div class="badge-label">Response Time</div>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">7 / 15</div>
+    </section>
+
+    <!-- Slide 8: Tools & Features -->
+    <section class="slide" id="slide-7">
+        <div class="slide-content">
+            <h2 class="slide-title">Comprehensive Tool Set</h2>
+            <p class="slide-subtitle">Everything You Need for Professional CAD Work</p>
+            
+            <div class="tools-showcase">
+                <div class="tool-section">
+                    <div class="section-header" style="background: linear-gradient(135deg, #00ffaa, #00d4ff);">
+                        <i class="section-icon">✏️</i>
+                        <h3>Drawing Tools</h3>
+                    </div>
+                    <div class="tool-grid">
+                        <div class="tool-card">
+                            <i class="tool-icon">━</i>
+                            <span>Line</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⚡</i>
+                            <span>Polyline</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">▭</i>
+                            <span>Rectangle</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">○</i>
+                            <span>Circle</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⌒</i>
+                            <span>Arc</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">◯</i>
+                            <span>Ellipse</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⬟</i>
+                            <span>Polygon</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">T</i>
+                            <span>Text</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tool-section">
+                    <div class="section-header" style="background: linear-gradient(135deg, #00d4ff, #0099ff);">
+                        <i class="section-icon">🔧</i>
+                        <h3>Modify Tools</h3>
+                    </div>
+                    <div class="tool-grid">
+                        <div class="tool-card">
+                            <i class="tool-icon">↔</i>
+                            <span>Move</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⧉</i>
+                            <span>Copy</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">↻</i>
+                            <span>Rotate</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⤢</i>
+                            <span>Scale</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⥃</i>
+                            <span>Mirror</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">✂</i>
+                            <span>Trim</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">→</i>
+                            <span>Extend</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⥹</i>
+                            <span>Offset</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tool-section">
+                    <div class="section-header" style="background: linear-gradient(135deg, #ff00aa, #ff0066);">
+                        <i class="section-icon">⚡</i>
+                        <h3>Advanced Tools</h3>
+                    </div>
+                    <div class="tool-grid">
+                        <div class="tool-card">
+                            <i class="tool-icon">◜</i>
+                            <span>Fillet</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">◿</i>
+                            <span>Chamfer</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⋮⋮</i>
+                            <span>Array</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⊕</i>
+                            <span>Boolean</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⬚</i>
+                            <span>Block</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">▦</i>
+                            <span>Hatch</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">💫</i>
+                            <span>Spline</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">🔄</i>
+                            <span>Convert</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tool-section">
+                    <div class="section-header" style="background: linear-gradient(135deg, #ffaa00, #ff6600);">
+                        <i class="section-icon">📊</i>
+                        <h3>Analysis Tools</h3>
+                    </div>
+                    <div class="tool-grid">
+                        <div class="tool-card">
+                            <i class="tool-icon">📏</i>
+                            <span>Distance</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">▧</i>
+                            <span>Area</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">∠</i>
+                            <span>Angle</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">ℹ</i>
+                            <span>Properties</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">📍</i>
+                            <span>Coordinate</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">⟷</i>
+                            <span>Dimension</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">📋</i>
+                            <span>List</span>
+                        </div>
+                        <div class="tool-card">
+                            <i class="tool-icon">📈</i>
+                            <span>Statistics</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">8 / 15</div>
+    </section>
+
+    <!-- Slide 9: Advanced Features -->
+    <section class="slide" id="slide-8">
+        <div class="slide-content">
+            <h2 class="slide-title">Advanced Features</h2>
+            <p class="slide-subtitle">Professional-Grade Capabilities</p>
+            
+            <div class="features-showcase">
+                <div class="feature-box">
+                    <h3><span class="feature-icon">🎯</span> Smart Snap System</h3>
+                    <ul class="feature-list">
+                        <li>Grid Snap for precise alignment</li>
+                        <li>Object Snap (Endpoint, Midpoint, Center)</li>
+                        <li>Intersection detection</li>
+                        <li>Perpendicular and Tangent snaps</li>
+                        <li>Nearest point tracking</li>
+                        <li>Polar and Ortho modes</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-box">
+                    <h3><span class="feature-icon">📐</span> Dynamic Input System</h3>
+                    <ul class="feature-list">
+                        <li>Real-time coordinate display</li>
+                        <li>Direct dimension input</li>
+                        <li>Angle constraints</li>
+                        <li>Command line interface</li>
+                        <li>Multi-unit support</li>
+                        <li>Mathematical expressions</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-box">
+                    <h3><span class="feature-icon">🎨</span> Layer Management</h3>
+                    <ul class="feature-list">
+                        <li>Unlimited layers</li>
+                        <li>Layer properties (color, line type, width)</li>
+                        <li>Layer visibility control</li>
+                        <li>Layer locking</li>
+                        <li>Layer filters</li>
+                        <li>Layer states saving</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-box">
+                    <h3><span class="feature-icon">💾</span> File Operations</h3>
+                    <ul class="feature-list">
+                        <li>Native .tcad format</li>
+                        <li>DXF import/export</li>
+                        <li>SVG export</li>
+                        <li>PDF export</li>
+                        <li>Auto-save functionality</li>
+                        <li>Version control ready</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">9 / 15</div>
+    </section>
+
+    <!-- Slide 10: Performance Metrics -->
+    <section class="slide" id="slide-9">
+        <div class="slide-content">
+            <h2 class="slide-title">Performance & Scalability</h2>
+            <p class="slide-subtitle">Built for Real-World Engineering Projects</p>
+            
+            <div class="metrics-container">
+                <div class="metric-visual">
+                    <div class="metric-number">1ms</div>
+                    <div class="metric-label">Response Time</div>
+                    <div class="metric-details">
+                        Instant feedback for all drawing operations<br>
+                        Optimized rendering pipeline<br>
+                        Hardware-accelerated graphics
+                    </div>
+                </div>
+                
+                <div class="metric-visual">
+                    <div class="metric-number">1000+</div>
+                    <div class="metric-label">Complexity Threshold</div>
+                    <div class="metric-details">
+                        Automatic Web Worker delegation<br>
+                        Parallel processing for heavy operations<br>
+                        No UI freezing even with complex drawings
+                    </div>
+                </div>
+            </div>
+            
+            <div class="architecture-diagram" style="margin-top: 40px;">
+                <h3 style="text-align: center; color: #00ffaa; margin-bottom: 30px;">Performance Optimization Techniques</h3>
+                <div class="arch-layer">
+                    <h4>Lazy Loading</h4>
+                    <p>Libraries loaded on-demand, reducing initial load time</p>
+                </div>
+                <div class="arch-layer">
+                    <h4>Smart Caching</h4>
+                    <p>100 operation cache, intelligent result reuse</p>
+                </div>
+                <div class="arch-layer">
+                    <h4>Batch Processing</h4>
+                    <p>Group similar operations for efficiency</p>
+                </div>
+                <div class="arch-layer">
+                    <h4>GPU Acceleration</h4>
+                    <p>WebGL for complex rendering tasks</p>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">10 / 15</div>
+    </section>
+
+    <!-- Slide 11: Business Value -->
+    <section class="slide" id="slide-10">
+        <div class="slide-content">
+            <h2 class="slide-title">Business Impact</h2>
+            <p class="slide-subtitle">Transforming the CAD Industry</p>
+            
+            <div class="business-grid">
+                <div class="business-card">
+                    <h3>💰 Cost Savings</h3>
+                    <div class="value">$1,865/year</div>
+                    <p>Save on licensing fees per user. For a 10-person team, that's $18,650 annual savings. Money better invested in innovation and growth.</p>
+                </div>
+                
+                <div class="business-card">
+                    <h3>🚀 Productivity Boost</h3>
+                    <div class="value">40% Faster</div>
+                    <p>No installation, instant access, familiar interface, and smart tools reduce project completion time significantly.</p>
+                </div>
+                
+                <div class="business-card">
+                    <h3>🌍 Global Accessibility</h3>
+                    <div class="value">Any Device</div>
+                    <p>Work from office, home, or field. Collaborate in real-time across continents. No VPN or remote desktop needed.</p>
+                </div>
+                
+                <div class="business-card">
+                    <h3>🔧 Customization ROI</h3>
+                    <div class="value">∞ Possibilities</div>
+                    <p>Build industry-specific tools, automate workflows, integrate with existing systems. Your CAD, your rules.</p>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">11 / 15</div>
+    </section>
+
+    <!-- Slide 12: Technical Stack -->
+    <section class="slide" id="slide-11">
+        <div class="slide-content">
+            <h2 class="slide-title">Technology Stack</h2>
+            <p class="slide-subtitle">Modern Web Technologies</p>
+            
+            <div class="tech-stack-detailed">
+                <div class="tech-category">
+                    <h4>Core Technologies</h4>
+                    <div class="tech-items">
+                        <div class="tech-item">JavaScript ES6+</div>
+                        <div class="tech-item">HTML5 Canvas</div>
+                        <div class="tech-item">WebGL</div>
+                        <div class="tech-item">Web Workers</div>
+                        <div class="tech-item">CSS3</div>
+                    </div>
+                </div>
+                
+                <div class="tech-category">
+                    <h4>Libraries & Frameworks</h4>
+                    <div class="tech-items">
+                        <div class="tech-item">Three.js</div>
+                        <div class="tech-item">Clipper.js</div>
+                        <div class="tech-item">Earcut</div>
+                        <div class="tech-item">Martinez</div>
+                        <div class="tech-item">Custom Modules</div>
+                    </div>
+                </div>
+                
+                <div class="tech-category">
+                    <h4>Development Tools</h4>
+                    <div class="tech-items">
+                        <div class="tech-item">Vite</div>
+                        <div class="tech-item">ES Modules</div>
+                        <div class="tech-item">Git</div>
+                        <div class="tech-item">npm</div>
+                        <div class="tech-item">VSCode</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="architecture-diagram" style="margin-top: 40px;">
+                <h3 style="text-align: center; color: #00ffaa; margin-bottom: 30px;">Key Technical Advantages</h3>
+                <div class="arch-layer">
+                    <h4>No Dependencies Hell</h4>
+                    <p>Minimal external dependencies, maximum control</p>
+                </div>
+                <div class="arch-layer">
+                    <h4>Future-Proof Architecture</h4>
+                    <p>Built with latest web standards, ready for tomorrow</p>
+                </div>
+                <div class="arch-layer">
+                    <h4>Cross-Browser Compatibility</h4>
+                    <p>Works on Chrome, Firefox, Safari, Edge</p>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">12 / 15</div>
+    </section>
+
+    <!-- Slide 13: Comparison -->
+    <section class="slide" id="slide-12">
+        <div class="slide-content">
+            <h2 class="slide-title">TyrexCAD vs Competition</h2>
+            <p class="slide-subtitle">Why TyrexCAD is the Future</p>
+            
+            <div class="comparison-container">
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th class="tyrexcad-column">TyrexCAD</th>
+                            <th>AutoCAD</th>
+                            <th>FreeCAD</th>
+                            <th>LibreCAD</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Annual Cost</td>
+                            <td class="tyrexcad-column">Free Forever</td>
+                            <td>$1,865</td>
+                            <td>Free</td>
+                            <td>Free</td>
+                        </tr>
+                        <tr>
+                            <td>Browser-Based</td>
+                            <td class="tyrexcad-column"><span class="check">✓</span></td>
+                            <td><span class="cross">✗</span></td>
+                            <td><span class="cross">✗</span></td>
+                            <td><span class="cross">✗</span></td>
+                        </tr>
+                        <tr>
+                            <td>Custom Engine</td>
+                            <td class="tyrexcad-column"><span class="check">✓</span></td>
+                            <td><span class="check">✓</span></td>
+                            <td><span class="cross">✗</span></td>
+                            <td><span class="cross">✗</span></td>
+                        </tr>
+                        <tr>
+                            <td>110+ Operations</td>
+                            <td class="tyrexcad-column"><span class="check">✓</span></td>
+                            <td><span class="check">✓</span></td>
+                            <td>Limited</td>
+                            <td>Basic</td>
+                        </tr>
+                        <tr>
+                            <td>Web Workers</td>
+                            <td class="tyrexcad-column"><span class="check">✓</span></td>
+                            <td>N/A</td>
+                            <td>N/A</td>
+                            <td>N/A</td>
+                        </tr>
+                        <tr>
+                            <td>Open Source</td>
+                            <td class="tyrexcad-column"><span class="check">✓</span></td>
+                            <td><span class="cross">✗</span></td>
+                            <td><span class="check">✓</span></td>
+                            <td><span class="check">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Real-time Collab</td>
+                            <td class="tyrexcad-column">Coming Soon</td>
+                            <td>Limited</td>
+                            <td><span class="cross">✗</span></td>
+                            <td><span class="cross">✗</span></td>
+                        </tr>
+                        <tr>
+                            <td>Performance</td>
+                            <td class="tyrexcad-column">60 FPS</td>
+                            <td>Variable</td>
+                            <td>Heavy</td>
+                            <td>Good</td>
+                        </tr>
+                        <tr>
+                            <td>Learning Curve</td>
+                            <td class="tyrexcad-column">Easy</td>
+                            <td>Steep</td>
+                            <td>Moderate</td>
+                            <td>Easy</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="slide-counter">13 / 15</div>
+    </section>
+
+    <!-- Slide 14: Future Vision -->
+    <section class="slide" id="slide-13">
+        <div class="slide-content">
+            <h2 class="slide-title">Future Roadmap</h2>
+            <p class="slide-subtitle">Building the Open Source CAD Ecosystem</p>
+            
+            <div class="roadmap-container">
+                <div class="roadmap-line"></div>
+                
+                <div class="roadmap-item">
+                    <div class="roadmap-content">
+                        <h3>Phase 1: Open Source Release</h3>
+                        <p>• GitHub repository launch<br>
+                        • Developer documentation<br>
+                        • Community building<br>
+                        • Bug bounty program<br>
+                        • First contributors</p>
+                    </div>
+                    <div class="roadmap-dot"></div>
+                </div>
+                
+                <div class="roadmap-item">
+                    <div class="roadmap-content">
+                        <h3>Phase 2: Feature Expansion</h3>
+                        <p>• 3D modeling capabilities<br>
+                        • Real-time collaboration<br>
+                        • Mobile app development<br>
+                        • AI-powered design assistance<br>
+                        • Plugin marketplace</p>
+                    </div>
+                    <div class="roadmap-dot"></div>
+                </div>
+                
+                <div class="roadmap-item">
+                    <div class="roadmap-content">
+                        <h3>Phase 3: Enterprise Solutions</h3>
+                        <p>• Private cloud deployment<br>
+                        • Advanced security features<br>
+                        • Industry-specific modules<br>
+                        • Professional support<br>
+                        • Training programs</p>
+                    </div>
+                    <div class="roadmap-dot"></div>
+                </div>
+                
+                <div class="roadmap-item">
+                    <div class="roadmap-content">
+                        <h3>Phase 4: Global Standard</h3>
+                        <p>• Educational partnerships<br>
+                        • Industry certifications<br>
+                        • Government adoption<br>
+                        • 10M+ active users<br>
+                        • Sustainable ecosystem</p>
+                    </div>
+                    <div class="roadmap-dot"></div>
+                </div>
+            </div>
+        </div>
+        <div class="slide-counter">14 / 15</div>
+    </section>
+
+    <!-- Slide 15: Call to Action -->
+    <section class="slide" id="slide-14">
+        <div class="slide-content cta-section">
+            <h2 class="cta-title">Join the CAD Revolution</h2>
+            <p style="font-size: 28px; margin-bottom: 30px; color: #00ffaa;">
+                TyrexCAD: The Open Source Foundation for Next-Generation CAD
+            </p>
+            
+            <p style="font-size: 20px; color: #ccc; line-height: 1.8; max-width: 800px; margin: 0 auto;">
+                We're not just building another CAD tool. We're creating an open ecosystem where engineers, 
+                designers, and developers collaborate to democratize design tools worldwide.
+            </p>
+            
+            <div class="cta-buttons">
+                <a href="#" class="cta-button cta-primary">Try TyrexCAD Now</a>
+                <a href="#" class="cta-button cta-secondary">View on GitHub</a>
+            </div>
+            
+            <div style="margin-top: 80px;">
+                <p style="font-size: 24px; color: #00ffaa; margin-bottom: 20px;">Be Part of the Future</p>
+                <p style="font-size: 18px; color: #888;">Thank you for your attention</p>
+                <p style="font-size: 16px; color: #666; margin-top: 30px;">Questions & Discussion</p>
+            </div>
+            
+            <div style="position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);">
+                <p style="font-size: 14px; color: #666;">
+                    Ibrahim Khaled | Team 4 | ITI
+                </p>
+            </div>
+        </div>
+        <div class="slide-counter">15 / 15</div>
+    </section>
+
+    <script>
+        // Navigation
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const dots = document.querySelectorAll('.nav-dot');
+
+        function goToSlide(index) {
+            slides[currentSlide].style.display = 'none';
+            dots[currentSlide].classList.remove('active');
+            
+            currentSlide = index;
+            slides[currentSlide].style.display = 'flex';
+            dots[currentSlide].classList.add('active');
+            
+            // Trigger animations
+            const elements = slides[currentSlide].querySelectorAll(
+                '.problem-card, .business-card, .component-card, ' +
+                '.feature-box, .arch-layer, .roadmap-item, .metric-visual, ' +
+                '.operation-category, .tool-section'
+            );
+            elements.forEach((el, i) => {
+                el.style.animation = 'none';
+                setTimeout(() => {
+                    el.style.animation = '';
+                }, i * 100);
+            });
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' && currentSlide < slides.length - 1) {
+                goToSlide(currentSlide + 1);
+            } else if (e.key === 'ArrowLeft' && currentSlide > 0) {
+                goToSlide(currentSlide - 1);
+            } else if (e.key === 'Home') {
+                goToSlide(0);
+            } else if (e.key === 'End') {
+                goToSlide(slides.length - 1);
+            }
+        });
+
+        // Touch/swipe support
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        document.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        });
+
+        function handleSwipe() {
+            if (touchEndX < touchStartX - 50 && currentSlide < slides.length - 1) {
+                goToSlide(currentSlide + 1);
+            }
+            if (touchEndX > touchStartX + 50 && currentSlide > 0) {
+                goToSlide(currentSlide - 1);
+            }
+        }
+
+        // Initialize
+        slides.forEach((slide, index) => {
+            if (index !== 0) slide.style.display = 'none';
+        });
+
+        // Animated background particles
+        function createParticles() {
+            const container = document.querySelector('.bg-animation');
+            const particleCount = 30;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.style.position = 'absolute';
+                particle.style.width = '2px';
+                particle.style.height = '2px';
+                particle.style.background = '#00ffaa';
+                particle.style.borderRadius = '50%';
+                particle.style.opacity = Math.random() * 0.5 + 0.2;
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                particle.style.animation = `float ${Math.random() * 10 + 10}s infinite ease-in-out`;
+                container.appendChild(particle);
+            }
+        }
+
+        // Add floating animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes float {
+                0%, 100% { transform: translate(0, 0); }
+                25% { transform: translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px); }
+                50% { transform: translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px); }
+                75% { transform: translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        createParticles();
+
+        // Progress indicator
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'p' || e.key === 'P') {
+                alert(`Slide ${currentSlide + 1} of ${slides.length}`);
+            }
+        });
+    </script>
+</body>
+</html>

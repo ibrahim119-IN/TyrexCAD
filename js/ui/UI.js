@@ -44,6 +44,7 @@ class UI {
         this.updateLayersList();
         this.initializeAdvancedTools();
         this.createPanelContainer();
+        this.initializeLinetypeSystem();
     }
     
     /**
@@ -1076,6 +1077,8 @@ class UI {
         this.elements.set('statusGrid', document.getElementById('statusGrid'));
         this.elements.set('statusOrtho', document.getElementById('statusOrtho'));
         this.elements.set('statusPolar', document.getElementById('statusPolar'));
+        this.elements.set('statusLinetype', document.getElementById('statusLinetype'));
+        this.elements.set('statusLineWeight', document.getElementById('statusLineWeight'));
         this.elements.set('fps', document.getElementById('fps'));
         
         // Properties panel
@@ -1090,6 +1093,8 @@ class UI {
         this.elements.set('lineWidthSlider', document.getElementById('lineWidthSlider'));
         this.elements.set('lineWidthValue', document.getElementById('lineWidthValue'));
         this.elements.set('lineTypeSelect', document.getElementById('lineTypeSelect'));
+        this.elements.set('linetypeSelect', document.getElementById('linetypeSelect'));
+        this.elements.set('lineWeightSelect', document.getElementById('lineWeightSelect'));
         this.elements.set('currentColorPreview', document.getElementById('currentColorPreview'));
         this.elements.set('currentColorText', document.getElementById('currentColorText'));
         this.elements.set('colorDropdown', document.getElementById('colorDropdown'));
@@ -1311,6 +1316,14 @@ class UI {
         if (lineTypeSelect && this.cad.currentLineType) {
             lineTypeSelect.value = this.cad.currentLineType;
         }
+        
+        // تحديث عرض Linetype و Lineweight
+        if (this.cad.linetypeManager) {
+            this.updateLinetypeDisplay();
+            this.updateLineWeightDisplay();
+            this.updateLinetypeDropdowns();
+            this.updateLineWeightDropdowns();
+        }
     }
     
     /**
@@ -1371,6 +1384,33 @@ class UI {
     getShapeProperties(shape) {
         let html = '';
         
+        // خصائص عامة لجميع الأشكال
+        const commonProps = `
+            <div class="property-row">
+                <span class="property-label">Layer:</span>
+                <span class="property-value">${this.cad.getLayer(shape.layerId)?.name || 'Default'}</span>
+            </div>
+            <div class="property-row">
+                <span class="property-label">Color:</span>
+                <span class="property-value" style="display: flex; align-items: center; gap: 6px;">
+                    <span style="display: inline-block; width: 16px; height: 16px; background: ${shape.color || this.cad.currentColor}; border: 1px solid var(--border-color); border-radius: 2px;"></span>
+                    ${shape.color || this.cad.currentColor}
+                </span>
+            </div>
+            ${shape.linetype ? `
+            <div class="property-row">
+                <span class="property-label">Linetype:</span>
+                <span class="property-value">${shape.linetype}</span>
+            </div>
+            ` : ''}
+            ${shape.lineweight ? `
+            <div class="property-row">
+                <span class="property-label">Lineweight:</span>
+                <span class="property-value">${shape.lineweight}</span>
+            </div>
+            ` : ''}
+        `;
+        
         switch (shape.type) {
             case 'line':
                 const length = this.cad.distance(
@@ -1383,6 +1423,7 @@ class UI {
                 ) * 180 / Math.PI;
                 
                 html = `
+                    ${commonProps}
                     <div class="property-row">
                         <span class="property-label">Length:</span>
                         <span class="property-value">${this.cad.formatValue(length)}</span>
@@ -1404,6 +1445,7 @@ class UI {
                 
             case 'circle':
                 html = `
+                    ${commonProps}
                     <div class="property-row">
                         <span class="property-label">Center:</span>
                         <span class="property-value">${this.cad.formatValue(shape.center.x)}, ${this.cad.formatValue(shape.center.y)}</span>
@@ -1427,6 +1469,7 @@ class UI {
                 const width = Math.abs(shape.end.x - shape.start.x);
                 const height = Math.abs(shape.end.y - shape.start.y);
                 html = `
+                    ${commonProps}
                     <div class="property-row">
                         <span class="property-label">Width:</span>
                         <span class="property-value">${this.cad.formatValue(width)}</span>
@@ -1455,6 +1498,7 @@ class UI {
                     );
                 }
                 html = `
+                    ${commonProps}
                     <div class="property-row">
                         <span class="property-label">Points:</span>
                         <span class="property-value">${shape.points.length}</span>
@@ -1585,6 +1629,155 @@ class UI {
     }
 
     /**
+     * إصلاح showContextMenu - نسخة نهائية تعمل مع جميع الحالات
+     * @param {number} x - موقع X
+     * @param {number} y - موقع Y  
+     * @param {Array} items - قائمة العناصر
+     */
+    showContextMenu(x, y, items) {
+        // التحقق من الـ parameters
+        if (arguments.length === 2 && Array.isArray(y)) {
+            // إذا تم تمرير parameters بترتيب خاطئ (items, x, y)
+            items = x;
+            x = y;
+            y = arguments[2] || 0;
+        }
+        
+        // إذا كان x array، فهذا يعني أن الترتيب خاطئ تماماً
+        if (Array.isArray(x) && typeof y === 'number' && typeof items === 'number') {
+            const temp = x;
+            x = y;
+            y = items;
+            items = temp;
+        }
+        
+        // التحقق النهائي
+        if (!items || !Array.isArray(items)) {
+            console.error('showContextMenu: invalid items parameter', { x, y, items });
+            return;
+        }
+        
+        // تصفية العناصر الفارغة
+        items = items.filter(item => item !== null && item !== undefined);
+        
+        if (items.length === 0) {
+            console.warn('showContextMenu: no valid items to display');
+            return;
+        }
+        
+        // إخفاء أي قائمة سابقة
+        this.hideContextMenu();
+        
+        const menu = document.createElement('div');
+        menu.className = 'context-menu grips-context-menu';
+        menu.style.cssText = `
+            position: fixed;
+            left: ${x}px;
+            top: ${y}px;
+            z-index: 10000;
+            background: var(--bg-panel);
+            border: 1px solid var(--accent-primary);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 212, 170, 0.15);
+            min-width: 180px;
+            padding: 4px 0;
+            font-size: 14px;
+        `;
+        
+        // إنشاء عناصر القائمة
+        items.forEach(item => {
+            if (!item) return;
+            
+            if (item.separator) {
+                const separator = document.createElement('div');
+                separator.className = 'context-menu-separator';
+                separator.style.cssText = `
+                    height: 1px;
+                    background: rgba(255, 255, 255, 0.1);
+                    margin: 4px 0;
+                `;
+                menu.appendChild(separator);
+            } else {
+                const menuItem = document.createElement('div');
+                menuItem.className = 'context-menu-item';
+                menuItem.style.cssText = `
+                    padding: 8px 16px;
+                    cursor: pointer;
+                    color: var(--text-primary);
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    transition: all 0.2s ease;
+                `;
+                
+                if (item.enabled === false) {
+                    menuItem.classList.add('disabled');
+                    menuItem.style.opacity = '0.5';
+                    menuItem.style.cursor = 'not-allowed';
+                }
+                
+                // إضافة المحتوى
+                const icon = item.icon ? `<i class="${item.icon}"></i>` : '';
+                const label = item.label || '';
+                menuItem.innerHTML = `${icon}<span>${label}</span>`;
+                
+                // إضافة hover effect
+                if (item.enabled !== false) {
+                    menuItem.onmouseenter = () => {
+                        menuItem.style.background = 'rgba(0, 212, 170, 0.1)';
+                        menuItem.style.color = 'var(--accent-primary)';
+                    };
+                    menuItem.onmouseleave = () => {
+                        menuItem.style.background = '';
+                        menuItem.style.color = 'var(--text-primary)';
+                    };
+                    
+                    menuItem.onclick = (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        this.hideContextMenu();
+                        
+                        try {
+                            if (typeof item.action === 'function') {
+                                item.action();
+                            }
+                        } catch (error) {
+                            console.error('Error executing context menu action:', error);
+                        }
+                    };
+                }
+                
+                menu.appendChild(menuItem);
+            }
+        });
+        
+        // إضافة القائمة للصفحة
+        document.body.appendChild(menu);
+        
+        // ضبط الموقع لتجنب الخروج من الشاشة
+        const rect = menu.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+            menu.style.left = (window.innerWidth - rect.width - 10) + 'px';
+        }
+        if (rect.bottom > window.innerHeight) {
+            menu.style.top = (window.innerHeight - rect.height - 10) + 'px';
+        }
+        
+        this.currentContextMenu = menu;
+        
+        // إخفاء عند النقر خارج القائمة
+        setTimeout(() => {
+            this.hideContextMenuHandler = (e) => {
+                if (!menu.contains(e.target)) {
+                    this.hideContextMenu();
+                }
+            };
+            document.addEventListener('click', this.hideContextMenuHandler);
+            document.addEventListener('contextmenu', this.hideContextMenuHandler);
+        }, 0);
+    }
+
+    /**
      * إصلاح showLayerOptionsMenu
      */
     showLayerOptionsMenu(event, layerId) {
@@ -1593,46 +1786,39 @@ class UI {
         const layer = this.cad.getLayer(layerId);
         if (!layer) return;
         
-        // إنشاء array من العناصر مباشرة
-        const items = [];
-        
-        items.push({ 
-            icon: 'fas fa-adjust', 
-            label: 'Set Transparency...', 
-            action: () => this.showTransparencyDialog(layerId) 
-        });
-        
-        items.push({ 
-            icon: 'fas fa-eye', 
-            label: 'Isolate Layer', 
-            action: () => {
-                if (this.cad.layerManager) {
-                    this.cad.layerManager.isolateLayer(layerId);
+        const items = [
+            { 
+                icon: 'fas fa-adjust', 
+                label: 'Set Transparency...', 
+                action: () => this.showTransparencyDialog(layerId) 
+            },
+            { 
+                icon: 'fas fa-eye', 
+                label: 'Isolate Layer', 
+                action: () => {
+                    if (this.cad.layerManager) {
+                        this.cad.layerManager.isolateLayer(layerId);
+                    }
                 }
+            },
+            { separator: true },
+            { 
+                icon: 'fas fa-clone', 
+                label: 'Duplicate Layer', 
+                action: () => this.duplicateLayer(layerId) 
+            },
+            { 
+                icon: 'fas fa-compress-arrows-alt', 
+                label: 'Merge Down', 
+                action: () => this.mergeLayerDown(layerId) 
+            },
+            { separator: true },
+            { 
+                icon: 'fas fa-info-circle', 
+                label: 'Layer Properties...', 
+                action: () => this.showLayerPropertiesDialog(layerId) 
             }
-        });
-        
-        items.push({ separator: true });
-        
-        items.push({ 
-            icon: 'fas fa-clone', 
-            label: 'Duplicate Layer', 
-            action: () => this.duplicateLayer(layerId) 
-        });
-        
-        items.push({ 
-            icon: 'fas fa-compress-arrows-alt', 
-            label: 'Merge Down', 
-            action: () => this.mergeLayerDown(layerId) 
-        });
-        
-        items.push({ separator: true });
-        
-        items.push({ 
-            icon: 'fas fa-info-circle', 
-            label: 'Layer Properties...', 
-            action: () => this.showLayerPropertiesDialog(layerId) 
-        });
+        ];
         
         // إذا كانت ليست الطبقة 0، أضف خيار الحذف
         if (layerId !== 0) {
@@ -1645,7 +1831,24 @@ class UI {
         }
         
         const rect = event.target.getBoundingClientRect();
+        // تمرير الـ parameters بالترتيب الصحيح: x, y, items
         this.showContextMenu(rect.left, rect.bottom + 5, items);
+    }
+
+    /**
+     * إخفاء قائمة السياق
+     */
+    hideContextMenu() {
+        if (this.currentContextMenu) {
+            this.currentContextMenu.remove();
+            this.currentContextMenu = null;
+            
+            if (this.hideContextMenuHandler) {
+                document.removeEventListener('click', this.hideContextMenuHandler);
+                document.removeEventListener('contextmenu', this.hideContextMenuHandler);
+                this.hideContextMenuHandler = null;
+            }
+        }
     }
 
     /**
@@ -1931,87 +2134,800 @@ class UI {
         this.cad.render();
     }
 
-
-    
     /**
-     * إصلاح showContextMenu - نسخة محدثة
+     * عرض Layer Manager الجديد
      */
-    showContextMenu(x, y, items) {
-        // إضافة فحص أقوى للمعاملات
-        if (!items) {
-            console.error('showContextMenu: items is undefined');
+    showLayerManager() {
+        // إزالة أي panel قديم
+        const existingPanel = document.getElementById('layerManagerPanel');
+        if (existingPanel) {
+            existingPanel.remove();
+        }
+        
+        // إنشاء Panel جديد
+        const panel = document.createElement('div');
+        panel.id = 'layerManagerPanel';
+        panel.className = 'layer-manager-panel';
+        
+        // CSS محسّن
+        panel.style.cssText = `
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 900px;
+            max-width: 95vw;
+            max-height: 80vh;
+            background: var(--bg-panel);
+            border: 1px solid var(--accent-primary);
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease;
+            backdrop-filter: blur(10px);
+        `;
+        
+        // HTML محسّن مع جميع الميزات
+        panel.innerHTML = `
+            <!-- Header -->
+            <div class="modal-header" style="
+                padding: 16px 20px; 
+                border-bottom: 1px solid var(--border-color); 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center; 
+                cursor: move;
+                background: linear-gradient(to bottom, var(--bg-secondary), var(--bg-tertiary));
+            ">
+                <h2 style="margin: 0; font-size: 18px; color: var(--text-primary); font-weight: 600;">
+                    <i class="fas fa-layer-group" style="margin-right: 8px; color: var(--accent-primary);"></i>
+                    Layer Manager
+                </h2>
+                <button class="modal-close" onclick="window.cad.ui.closeLayerManager()" style="
+                    background: none; 
+                    border: none; 
+                    color: var(--text-secondary); 
+                    font-size: 20px; 
+                    cursor: pointer; 
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    transition: all 0.2s ease;
+                " onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.color='var(--accent-primary)';" 
+                   onmouseout="this.style.background='none'; this.style.color='var(--text-secondary)';">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Body -->
+            <div class="modal-body" style="padding: 20px; overflow-y: auto; flex: 1;">
+                <!-- Toolbar -->
+                <div class="layer-manager-toolbar" style="
+                    display: flex; 
+                    gap: 8px; 
+                    margin-bottom: 16px; 
+                    padding: 12px; 
+                    background: var(--bg-tertiary); 
+                    border-radius: 6px;
+                    flex-wrap: wrap;
+                ">
+                    <!-- Layer Actions -->
+                    <button class="btn" onclick="window.cad.addLayer(); window.cad.ui.updateLayerTable();" style="
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                    ">
+                        <i class="fas fa-plus"></i> New Layer
+                    </button>
+                    
+                    <button class="btn" onclick="window.cad.ui.deleteSelectedLayers()">
+                        <i class="fas fa-trash"></i> Delete Selected
+                    </button>
+                    
+                    <button class="btn" onclick="window.cad.ui.duplicateSelectedLayers()">
+                        <i class="fas fa-clone"></i> Duplicate
+                    </button>
+                    
+                    <button class="btn" onclick="window.cad.ui.mergeSelectedLayers()">
+                        <i class="fas fa-compress-arrows-alt"></i> Merge
+                    </button>
+                    
+                    <!-- Separator -->
+                    <div style="width: 1px; background: var(--border-color); margin: 0 8px;"></div>
+                    
+                    <!-- Visibility Actions -->
+                    <button class="btn" onclick="window.cad.ui.toggleAllLayers(true); window.cad.ui.updateLayerTable();">
+                        <i class="fas fa-eye"></i> Show All
+                    </button>
+                    
+                    <button class="btn" onclick="window.cad.ui.toggleAllLayers(false); window.cad.ui.updateLayerTable();">
+                        <i class="fas fa-eye-slash"></i> Hide All
+                    </button>
+                    
+                    <button class="btn" onclick="window.cad.ui.isolateSelectedLayers()">
+                        <i class="fas fa-eye"></i> Isolate
+                    </button>
+                    
+                    <!-- Separator -->
+                    <div style="width: 1px; background: var(--border-color); margin: 0 8px;"></div>
+                    
+                    <!-- States -->
+                    <button class="btn" onclick="window.cad.ui.showLayerStatesDialog()">
+                        <i class="fas fa-save"></i> States
+                    </button>
+                    
+                    <button class="btn" onclick="window.cad.ui.matchLayerProperties()">
+                        <i class="fas fa-eyedropper"></i> Match
+                    </button>
+                    
+                    <!-- Search -->
+                    <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+                        <input type="text" id="layerSearchInput" placeholder="Search layers..." 
+                               onkeyup="window.cad.ui.filterLayers(this.value)"
+                               style="
+                                   background: var(--bg-primary);
+                                   border: 1px solid var(--border-color);
+                                   color: var(--text-primary);
+                                   padding: 6px 12px;
+                                   border-radius: 4px;
+                                   width: 200px;
+                               ">
+                    </div>
+                </div>
+                
+                <!-- Info Bar -->
+                <div style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 8px;
+                    padding: 8px 12px;
+                    background: var(--bg-secondary);
+                    border-radius: 4px;
+                    font-size: 12px;
+                    color: var(--text-secondary);
+                ">
+                    <span id="layerInfoText">0 layers selected</span>
+                    <span id="totalLayersText">0 total layers</span>
+                </div>
+                
+                <!-- Table Container -->
+                <div class="layer-manager-content" style="
+                    max-height: 400px; 
+                    overflow-y: auto; 
+                    background: var(--bg-tertiary); 
+                    border-radius: 6px; 
+                    padding: 8px;
+                    border: 1px solid var(--border-color);
+                ">
+                    <table class="layer-table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="position: sticky; top: -8px; background: var(--bg-secondary); z-index: 10;">
+                                <th width="30" style="padding: 8px; text-align: center;">
+                                    <input type="checkbox" id="selectAllLayers" 
+                                           onchange="window.cad.ui.toggleAllLayerCheckboxes(this)"
+                                           title="Select All">
+                                </th>
+                                <th width="30" title="Visibility">
+                                    <i class="fas fa-eye"></i>
+                                </th>
+                                <th width="30" title="Freeze/Thaw">
+                                    <i class="fas fa-snowflake"></i>
+                                </th>
+                                <th width="30" title="Lock/Unlock">
+                                    <i class="fas fa-lock"></i>
+                                </th>
+                                <th width="30" title="Plot/Print">
+                                    <i class="fas fa-print"></i>
+                                </th>
+                                <th width="40">Color</th>
+                                <th>Name</th>
+                                <th width="60">Objects</th>
+                                <th width="80">Transparency</th>
+                                <th width="30"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="layerTableBody">
+                            <!-- سيتم ملؤها ديناميكياً -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="modal-footer" style="
+                padding: 16px 20px; 
+                border-top: 1px solid var(--border-color); 
+                display: flex; 
+                justify-content: flex-end; 
+                gap: 8px;
+            ">
+                <button class="btn btn-primary" onclick="window.cad.render(); window.cad.updateStatus('Layer changes applied');">Apply</button>
+                <button class="btn" onclick="window.cad.ui.closeLayerManager()">Close</button>
+            </div>
+        `;
+        
+        document.body.appendChild(panel);
+        
+        // جعل الـ panel قابل للسحب
+        this.makeDraggable(panel);
+        
+        // تحديث الجدول
+        this.updateLayerTable();
+    }
+
+    /**
+     * إغلاق Layer Manager
+     */
+    closeLayerManager() {
+        const panel = document.getElementById('layerManagerPanel');
+        if (panel) {
+            panel.remove();
+        }
+    }
+
+    /**
+     * جعل العنصر قابل للسحب
+     */
+    makeDraggable(element) {
+        let isDragging = false;
+        let offsetX, offsetY;
+        
+        const header = element.querySelector('.modal-header');
+        if (!header) return;
+        
+        header.onmousedown = function(e) {
+            isDragging = true;
+            offsetX = e.clientX - element.offsetLeft;
+            offsetY = e.clientY - element.offsetTop;
+            
+            document.onmousemove = function(e) {
+                if (!isDragging) return;
+                
+                let newX = e.clientX - offsetX;
+                let newY = e.clientY - offsetY;
+                
+                // التأكد من عدم خروج النافذة من الشاشة
+                newX = Math.max(0, Math.min(newX, window.innerWidth - element.offsetWidth));
+                newY = Math.max(0, Math.min(newY, window.innerHeight - element.offsetHeight));
+                
+                element.style.left = newX + 'px';
+                element.style.top = newY + 'px';
+                element.style.transform = 'none';
+            };
+            
+            document.onmouseup = function() {
+                isDragging = false;
+                document.onmousemove = null;
+                document.onmouseup = null;
+            };
+        };
+    }
+
+    /**
+     * تحديث جدول الطبقات في Layer Manager Modal
+     */
+    updateLayerTable() {
+        const tbody = document.getElementById('layerTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        const layers = this.cad.layerManager ? 
+            Array.from(this.cad.layerManager.layers.values()) : 
+            Array.from(this.cad.layers.values());
+        
+        layers.sort((a, b) => b.id - a.id);
+        
+        const currentLayerId = this.cad.getCurrentLayerId();
+        
+        layers.forEach(layer => {
+            const shapeCount = this.cad.shapes.filter(s => s.layerId === layer.id).length;
+            const row = document.createElement('tr');
+            
+            if (layer.id === currentLayerId) {
+                row.classList.add('current-layer');
+                row.style.background = 'rgba(0, 212, 170, 0.1)';
+                row.style.borderLeft = '3px solid var(--accent-primary)';
+            }
+            
+            // إنشاء Color Input مخفي
+            const colorInputId = `colorInput_${layer.id}`;
+            
+            row.innerHTML = `
+                <td><input type="checkbox" class="layer-checkbox" data-layer-id="${layer.id}"></td>
+                <td style="text-align: center;">
+                    <input type="checkbox" ${layer.visible ? 'checked' : ''} 
+                           onchange="window.cad.toggleLayerVisibility(${layer.id}); window.cad.ui.updateLayerTable();"
+                           style="cursor: pointer;">
+                </td>
+                <td style="text-align: center;">
+                    <input type="checkbox" ${layer.frozen ? 'checked' : ''} 
+                           onchange="window.cad.toggleLayerFreeze(${layer.id}); window.cad.ui.updateLayerTable();"
+                           ${layer.id === currentLayerId ? 'disabled' : ''}
+                           style="cursor: ${layer.id === currentLayerId ? 'not-allowed' : 'pointer'};">
+                </td>
+                <td style="text-align: center;">
+                    <input type="checkbox" ${layer.locked ? 'checked' : ''} 
+                           onchange="window.cad.toggleLayerLock(${layer.id}); window.cad.ui.updateLayerTable();"
+                           style="cursor: pointer;">
+                </td>
+                <td style="text-align: center;">
+                    <input type="checkbox" ${layer.plot !== false ? 'checked' : ''} 
+                           onchange="window.cad.layerManager && window.cad.layerManager.togglePlot(${layer.id}); window.cad.ui.updateLayerTable();"
+                           style="cursor: pointer;">
+                </td>
+                <td style="text-align: center;">
+                    <input type="color" id="${colorInputId}" value="${layer.color}" style="display: none;"
+                           onchange="window.cad.changeLayerColor(${layer.id}, this.value); window.cad.ui.updateLayerTable();">
+                    <div class="color-swatch" style="background: ${layer.color}; width: 24px; height: 24px; border-radius: 4px; border: 2px solid var(--border-color); cursor: pointer; margin: 0 auto; transition: all 0.2s ease;"
+                         onclick="document.getElementById('${colorInputId}').click();"
+                         onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 0 0 2px rgba(0, 212, 170, 0.3)';"
+                         onmouseout="this.style.transform=''; this.style.boxShadow='';"
+                         title="Click to change color"></div>
+                </td>
+                <td>
+                    <input type="text" value="${layer.name}" 
+                           onchange="window.cad.renameLayer(${layer.id}, this.value); window.cad.ui.updateLayerTable();"
+                           ${layer.id === 0 ? 'readonly' : ''}
+                           style="background: transparent; border: 1px solid transparent; color: var(--text-primary); padding: 4px 8px; width: 100%; cursor: ${layer.id === 0 ? 'not-allowed' : 'text'};"
+                           onmouseover="if(${layer.id} !== 0) this.style.background='var(--bg-tertiary)';"
+                           onmouseout="this.style.background='transparent';"
+                           onfocus="this.style.background='var(--bg-primary)'; this.style.borderColor='var(--accent-primary)';"
+                           onblur="this.style.background='transparent'; this.style.borderColor='transparent';">
+                </td>
+                <td style="text-align: center; color: var(--text-secondary);">${shapeCount}</td>
+                <td style="text-align: center;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <input type="number" class="transparency-input" 
+                               value="${layer.transparency || 0}" min="0" max="100"
+                               onchange="window.cad.layerManager && window.cad.layerManager.setLayerTransparency(${layer.id}, this.value); window.cad.ui.updateLayerTable();"
+                               style="width: 50px; text-align: center; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 2px 4px; border-radius: 3px;">
+                        <span style="color: var(--text-secondary);">%</span>
+                    </div>
+                </td>
+                <td style="text-align: center;">
+                    ${layer.id !== 0 ? `<button class="btn-mini" onclick="if(confirm('Delete layer \\'${layer.name}\\'?')) { window.cad.deleteLayer(${layer.id}); window.cad.ui.updateLayerTable(); }"
+                                               style="padding: 2px 6px; font-size: 10px; background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 3px; cursor: pointer; transition: all 0.2s;"
+                                               onmouseover="this.style.background='var(--bg-hover)'; this.style.borderColor='var(--accent-primary)'; this.style.color='var(--accent-primary)';"
+                                               onmouseout="this.style.background='transparent'; this.style.borderColor='var(--border-color)'; this.style.color='var(--text-secondary)';">
+                        <i class="fas fa-trash"></i>
+                    </button>` : ''}
+                </td>
+            `;
+            
+            tbody.appendChild(row);
+        });
+        
+        // تحديث عدد الطبقات في status
+        const layerCount = layers.length;
+        const totalObjects = this.cad.shapes.length;
+        const selectedCount = tbody.querySelectorAll('.layer-checkbox:checked').length;
+        
+        // تحديث Info Bar
+        const infoText = document.getElementById('layerInfoText');
+        const totalText = document.getElementById('totalLayersText');
+        if (infoText) infoText.textContent = `${selectedCount} layers selected`;
+        if (totalText) totalText.textContent = `${layerCount} total layers`;
+        
+        // إضافة status row
+        const statusRow = document.createElement('tr');
+        statusRow.innerHTML = `
+            <td colspan="10" style="text-align: center; padding: 8px; background: var(--bg-secondary); color: var(--text-secondary); font-size: 12px;">
+                ${layerCount} layers, ${totalObjects} objects
+            </td>
+        `;
+        tbody.appendChild(statusRow);
+    }
+
+    /**
+     * تبديل جميع checkboxes الطبقات
+     */
+    toggleAllLayerCheckboxes(checkbox) {
+        const checkboxes = document.querySelectorAll('.layer-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = checkbox.checked;
+        });
+        
+        // تحديث info bar
+        this.updateLayerTable();
+    }
+
+    /**
+     * حذف الطبقات المحددة
+     */
+    deleteSelectedLayers() {
+        const checkboxes = document.querySelectorAll('.layer-checkbox:checked');
+        const layerIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.layerId));
+        
+        if (layerIds.length === 0) {
+            this.cad.updateStatus('No layers selected');
             return;
         }
         
-        // تحويل items إلى array إذا لم يكن كذلك
-        if (!Array.isArray(items)) {
-            console.error('showContextMenu expects an array of items, got:', typeof items);
-            // محاولة تحويل إلى array
-            if (items && typeof items === 'object') {
-                items = Object.values(items);
-            } else {
-                return;
-            }
+        const invalidLayers = layerIds.filter(id => id === 0);
+        if (invalidLayers.length > 0) {
+            this.cad.updateStatus('Cannot delete layer 0');
+            return;
         }
         
-        // إخفاء أي قائمة سابقة
-        this.hideContextMenu();
+        if (confirm(`Delete ${layerIds.length} selected layer(s)?`)) {
+            layerIds.forEach(id => {
+                this.cad.deleteLayer(id);
+            });
+            this.updateLayerTable();
+            this.cad.updateStatus(`${layerIds.length} layer(s) deleted`);
+        }
+    }
+
+    /**
+     * تكرار الطبقات المحددة
+     */
+    duplicateSelectedLayers() {
+        const checkboxes = document.querySelectorAll('.layer-checkbox:checked');
+        const layerIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.layerId));
         
-        const menu = document.createElement('div');
-        menu.className = 'context-menu grips-context-menu';
-        menu.style.position = 'fixed';
-        menu.style.left = x + 'px';
-        menu.style.top = y + 'px';
-        menu.style.zIndex = '1000';
+        if (layerIds.length === 0) {
+            this.cad.updateStatus('No layers selected');
+            return;
+        }
         
-        // التعامل مع العناصر
-        items.forEach(item => {
-            if (!item) return; // تجاهل العناصر الفارغة
-            
-            if (item.separator) {
-                const separator = document.createElement('div');
-                separator.className = 'context-menu-separator';
-                menu.appendChild(separator);
-            } else {
-                const menuItem = document.createElement('div');
-                menuItem.className = 'context-menu-item';
+        layerIds.forEach(id => {
+            this.duplicateLayer(id);
+        });
+        
+        this.updateLayerTable();
+    }
+
+    /**
+     * دمج الطبقات المحددة
+     */
+    mergeSelectedLayers() {
+        const checkboxes = document.querySelectorAll('.layer-checkbox:checked');
+        const layerIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.layerId));
+        
+        if (layerIds.length < 2) {
+            this.cad.updateStatus('Select at least 2 layers to merge');
+            return;
+        }
+        
+        // استخدم أول طبقة محددة كهدف
+        const targetId = layerIds[0];
+        const sourceIds = layerIds.slice(1);
+        
+        if (confirm(`Merge ${sourceIds.length} layer(s) into layer ${this.cad.getLayer(targetId).name}?`)) {
+            if (this.cad.layerManager) {
+                this.cad.layerManager.mergeLayers(sourceIds, targetId);
+            }
+            this.updateLayerTable();
+        }
+    }
+
+    /**
+     * عزل الطبقات المحددة
+     */
+    isolateSelectedLayers() {
+        const checkboxes = document.querySelectorAll('.layer-checkbox:checked');
+        const layerIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.layerId));
+        
+        if (layerIds.length === 0) {
+            this.cad.updateStatus('No layers selected');
+            return;
+        }
+        
+        // إخفاء جميع الطبقات
+        this.cad.layerManager.layers.forEach((layer, id) => {
+            layer.visible = layerIds.includes(id);
+        });
+        
+        this.cad.render();
+        this.updateLayerTable();
+    }
+
+    /**
+     * تصفية الطبقات
+     */
+    filterLayers(searchText) {
+        const rows = document.querySelectorAll('#layerTableBody tr:not(:last-child)');
+        
+        rows.forEach(row => {
+            const nameInput = row.querySelector('input[type="text"]');
+            if (nameInput) {
+                const layerName = nameInput.value.toLowerCase();
+                const searchLower = searchText.toLowerCase();
                 
-                if (item.enabled === false) {
-                    menuItem.classList.add('disabled');
+                if (layerName.includes(searchLower)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
                 }
-                
-                // إنشاء المحتوى
-                const icon = item.icon ? `<i class="${item.icon}"></i>` : '';
-                const label = item.label || '';
-                
-                menuItem.innerHTML = `${icon}<span>${label}</span>`;
-                
-                if (item.enabled !== false && item.action) {
-                    menuItem.onclick = (e) => {
-                        e.stopPropagation();
-                        this.hideContextMenu();
-                        if (typeof item.action === 'function') {
-                            item.action();
-                        }
+            }
+        });
+    }
+
+    /**
+     * مطابقة خصائص الطبقة
+     */
+    matchLayerProperties() {
+        this.cad.updateStatus('Select source layer to match properties');
+        
+        this.cad.pickingPointMode = 'matchLayer';
+        this.cad.pickingPointCallback = (point) => {
+            const shape = this.cad.getShapeAtPoint(point);
+            if (shape) {
+                const sourceLayer = this.cad.getLayer(shape.layerId);
+                if (sourceLayer) {
+                    // نسخ خصائص الطبقة
+                    const props = {
+                        color: sourceLayer.color,
+                        lineType: sourceLayer.lineType,
+                        lineWidth: sourceLayer.lineWidth,
+                        transparency: sourceLayer.transparency
                     };
+                    
+                    this.cad.updateStatus('Select target layers');
+                    
+                    // تطبيق على الطبقات المحددة
+                    const checkboxes = document.querySelectorAll('.layer-checkbox:checked');
+                    const layerIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.layerId));
+                    
+                    if (layerIds.length > 0) {
+                        layerIds.forEach(id => {
+                            const layer = this.cad.getLayer(id);
+                            if (layer && id !== 0) {
+                                Object.assign(layer, props);
+                            }
+                        });
+                        
+                        this.cad.render();
+                        this.updateLayerTable();
+                        this.cad.updateStatus(`Properties matched to ${layerIds.length} layers`);
+                    }
                 }
+            }
+            
+            this.cad.pickingPointMode = null;
+            this.cad.pickingPointCallback = null;
+        };
+    }
+    /**
+     * تهيئة نظام Linetype
+     */
+    initializeLinetypeSystem() {
+        console.log('🎨 Initializing Linetype System...');
+        
+        // تهيئة قوائم أنواع الخطوط
+        this.updateLinetypeDropdowns();
+        
+        // تهيئة قوائم أوزان الخطوط
+        this.updateLineWeightDropdowns();
+        
+        // تحديث العرض الأولي
+        this.updateLinetypeDisplay();
+        this.updateLineWeightDisplay();
+        
+        console.log('✅ Linetype System initialized');
+    }
+
+    /**
+     * تحديث قوائم أنواع الخطوط
+     */
+    updateLinetypeDropdowns() {
+        const selects = document.querySelectorAll('#linetypeSelect');
+        
+        selects.forEach(select => {
+            if (!select) return;
+            
+            select.innerHTML = '';
+            
+            if (this.cad.linetypeManager) {
+                const linetypes = this.cad.linetypeManager.linetypes;
                 
-                menu.appendChild(menuItem);
+                linetypes.forEach((type, id) => {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = type.name;
+                    
+                    if (id === this.cad.linetypeManager.currentLinetype) {
+                        option.selected = true;
+                    }
+                    
+                    select.appendChild(option);
+                });
+            }
+        });
+    }
+
+    /**
+     * تحديث قوائم أوزان الخطوط
+     */
+    updateLineWeightDropdowns() {
+        const selects = document.querySelectorAll('#lineWeightSelect');
+        
+        selects.forEach(select => {
+            if (!select) return;
+            
+            select.innerHTML = '';
+            
+            if (this.cad.linetypeManager) {
+                const weights = this.cad.linetypeManager.lineWeights;
+                
+                weights.forEach(weight => {
+                    const option = document.createElement('option');
+                    option.value = weight.value;
+                    option.textContent = weight.label;
+                    
+                    if (weight.value === this.cad.linetypeManager.currentLineWeight) {
+                        option.selected = true;
+                    }
+                    
+                    select.appendChild(option);
+                });
+            }
+        });
+    }
+
+    /**
+     * تحديث عرض نوع الخط
+     */
+    updateLinetypeDisplay() {
+        // تحديث عرض نوع الخط الحالي
+        const displays = document.querySelectorAll('#statusLinetype, #propLinetype, #currentLinetypeDisplay');
+        
+        displays.forEach(display => {
+            if (!display) return;
+            
+            if (this.cad.linetypeManager) {
+                const currentType = this.cad.linetypeManager.getCurrentLinetype();
+                
+                if (display.tagName === 'LINE') {
+                    // تحديث SVG line
+                    const pattern = currentType.pattern || [];
+                    if (pattern.length > 0) {
+                        display.setAttribute('stroke-dasharray', pattern.join(','));
+                    } else {
+                        display.removeAttribute('stroke-dasharray');
+                    }
+                } else {
+                    // تحديث النص
+                    display.textContent = currentType.name || 'Continuous';
+                }
             }
         });
         
-        document.body.appendChild(menu);
-        this.currentContextMenu = menu;
+        // تحديث معاينة نوع الخط
+        this.updateLinetypePreview();
+    }
+
+    /**
+     * تحديث عرض وزن الخط
+     */
+    updateLineWeightDisplay() {
+        // تحديث عرض وزن الخط الحالي
+        const displays = document.querySelectorAll('#statusLineWeight, #propLineweight, #currentLineWeightDisplay');
         
-        // إخفاء عند النقر خارج القائمة
-        setTimeout(() => {
-            this.hideContextMenuHandler = (e) => {
-                if (!menu.contains(e.target)) {
-                    this.hideContextMenu();
+        displays.forEach(display => {
+            if (!display) return;
+            
+            if (this.cad.linetypeManager) {
+                const currentWeight = this.cad.linetypeManager.currentLineWeight;
+                const weightInfo = this.cad.linetypeManager.lineWeights.find(w => w.value === currentWeight);
+                
+                if (display) {
+                    display.textContent = weightInfo ? weightInfo.label : '0.25 mm';
                 }
-            };
-            document.addEventListener('click', this.hideContextMenuHandler);
-        }, 0);
+            }
+        });
+    }
+
+    /**
+     * تحديث معاينة نوع الخط
+     */
+    updateLinetypePreview() {
+        const preview = document.getElementById('linetypePreview');
+        if (!preview || !this.cad.linetypeManager) return;
+        
+        const currentType = this.cad.linetypeManager.getCurrentLinetype();
+        
+        preview.innerHTML = `
+            <svg width="100%" height="30" style="background: var(--bg-tertiary); border-radius: 4px; margin: 8px 0;">
+                <line x1="10" y1="15" x2="90%" y2="15" 
+                      stroke="var(--accent-primary)" 
+                      stroke-width="2"
+                      ${currentType.pattern ? `stroke-dasharray="${currentType.pattern.join(',')}"` : ''}>
+                </line>
+            </svg>
+        `;
+    }
+
+    /**
+     * عرض حوار أنواع الخطوط المخصصة
+     */
+    showCustomLinetypeDialog() {
+        const dialog = document.createElement('div');
+        dialog.className = 'layer-dialog';
+        
+        dialog.innerHTML = `
+            <div class="dialog-overlay" onclick="this.parentElement.remove()"></div>
+            <div class="dialog-content" style="max-width: 500px;">
+                <h3>Create Custom Linetype</h3>
+                <div class="dialog-body">
+                    <div class="form-group">
+                        <label>Name:</label>
+                        <input type="text" id="customLinetypeName" placeholder="e.g., Custom Dash">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Description:</label>
+                        <input type="text" id="customLinetypeDesc" placeholder="e.g., Long dash short dash">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Pattern (comma separated, positive=dash, negative=gap):</label>
+                        <input type="text" id="customLinetypePattern" placeholder="e.g., 10,-5,2,-5">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Preview:</label>
+                        <svg id="customLinetypePreview" width="100%" height="40" style="background: var(--bg-tertiary); border-radius: 4px;">
+                            <line x1="20" y1="20" x2="95%" y2="20" stroke="white" stroke-width="2"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="dialog-buttons">
+                    <button class="btn-cancel" onclick="this.closest('.layer-dialog').remove()">Cancel</button>
+                    <button class="btn-primary" onclick="window.cad.ui.createCustomLinetype()">Create</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        // معاينة مباشرة
+        const patternInput = dialog.querySelector('#customLinetypePattern');
+        const previewLine = dialog.querySelector('#customLinetypePreview line');
+        
+        patternInput.oninput = () => {
+            try {
+                const pattern = patternInput.value.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+                if (pattern.length > 0) {
+                    previewLine.setAttribute('stroke-dasharray', pattern.map(v => Math.abs(v) * 2).join(','));
+                }
+            } catch (e) {
+                // ignore
+            }
+        };
+    }
+
+    /**
+     * إنشاء نوع خط مخصص
+     */
+    createCustomLinetype() {
+        const name = document.getElementById('customLinetypeName').value.trim();
+        const desc = document.getElementById('customLinetypeDesc').value.trim();
+        const patternStr = document.getElementById('customLinetypePattern').value.trim();
+        
+        if (!name || !patternStr) {
+            alert('Please enter name and pattern');
+            return;
+        }
+        
+        try {
+            const pattern = patternStr.split(',').map(v => parseFloat(v.trim()));
+            
+            if (this.cad.linetypeManager) {
+                const id = this.cad.linetypeManager.addCustomLinetype(name, desc, pattern);
+                this.cad.setLinetype(id);
+                this.updateLinetypeDisplay();
+                this.updateLinetypeDropdowns();
+            }
+            
+            document.querySelector('.layer-dialog').remove();
+            this.cad.updateStatus(`Custom linetype "${name}" created`);
+        } catch (e) {
+            alert('Invalid pattern format');
+        }
     }
     
     /**
@@ -2129,13 +3045,22 @@ class UI {
         });
         
         // Update toolbar buttons
-        this.elements.get('orthoButton').classList.toggle('active', this.cad.orthoEnabled);
-        this.elements.get('polarButton').classList.toggle('active', this.cad.polarEnabled);
-        this.elements.get('gridButton').classList.toggle('active', this.cad.gridEnabled);
+        this.elements.get('orthoButton')?.classList.toggle('active', this.cad.orthoEnabled);
+        this.elements.get('polarButton')?.classList.toggle('active', this.cad.polarEnabled);
+        this.elements.get('gridButton')?.classList.toggle('active', this.cad.gridEnabled);
         
         // Snap button active if any snap is enabled
         const anySnapActive = Object.values(this.cad.snapSettings).some(v => v);
-        this.elements.get('snapButton').classList.toggle('active', anySnapActive);
+        const snapButton = this.elements.get('snapButton');
+        if (snapButton) {
+            snapButton.classList.toggle('active', anySnapActive);
+        }
+        
+        // Initialize linetype and lineweight status
+        if (this.cad.linetypeManager) {
+            this.updateLinetypeDisplay();
+            this.updateLineWeightDisplay();
+        }
     }
     
     /**
@@ -2383,6 +3308,21 @@ class UI {
         // Update snap button
         const anySnapActive = Object.values(this.cad.snapSettings).some(v => v);
         this.elements.get('snapButton').classList.toggle('active', anySnapActive);
+        
+        // Update linetype status
+        const linetypeStatus = this.elements.get('statusLinetype');
+        if (linetypeStatus && this.cad.linetypeManager) {
+            const currentType = this.cad.linetypeManager.getCurrentLinetype();
+            linetypeStatus.textContent = currentType.name || 'Continuous';
+        }
+        
+        // Update lineweight status
+        const lineweightStatus = this.elements.get('statusLineWeight');
+        if (lineweightStatus && this.cad.linetypeManager) {
+            const currentWeight = this.cad.linetypeManager.currentLineWeight;
+            const weightInfo = this.cad.linetypeManager.lineWeights.find(w => w.value === currentWeight);
+            lineweightStatus.textContent = weightInfo ? weightInfo.label : '0.25 mm';
+        }
     }
     
     /**
@@ -2434,454 +3374,606 @@ class UI {
         setTimeout(() => loadingScreen.style.display = 'none', 500);
     }
 
-// ==================== إضافات للتوافق مع الأدوات ====================
+    // ==================== إضافات للتوافق مع الأدوات ====================
 
-/**
- * عرض حوار إدخال عدد أضلاع المضلع
- */
-showPolygonDialog(callback) {
-    const sides = parseInt(prompt('Enter number of sides (3-20):', '6'));
-    if (sides && sides >= 3 && sides <= 20) {
-        if (callback) callback(sides);
-    }
-}
-
-/**
- * تحديث معاينة Chamfer
- */
-updateChamferPreview() {
-    // Placeholder - سيتم تطويرها لاحقاً
-    if (this.cad.tempShapes && this.cad.tempShapes.length > 0) {
-        this.cad.render();
-    }
-}
-
-/**
- * عرض نتائج التحليل
- */
-showAnalysisResult(result) {
-    let message = '';
-    
-    switch(result.type) {
-        case 'distance':
-            message = `Distance: ${result.distance.toFixed(2)} ${this.cad.currentUnit}`;
-            break;
-            
-        case 'area':
-            message = `Total Area: ${result.totalArea.toFixed(2)} ${this.cad.currentUnit}²`;
-            if (result.details && result.details.length > 0) {
-                message += '\n\nDetails:';
-                result.details.forEach((detail, index) => {
-                    message += `\n${index + 1}. ${detail.type}: ${detail.area.toFixed(2)} ${this.cad.currentUnit}²`;
-                });
-            }
-            break;
-            
-        case 'properties':
-            message = 'Shape Properties:\n';
-            if (result.properties) {
-                Object.entries(result.properties).forEach(([key, value]) => {
-                    if (typeof value === 'number') {
-                        message += `\n${key}: ${value.toFixed(2)}`;
-                    } else {
-                        message += `\n${key}: ${value}`;
-                    }
-                });
-            }
-            break;
-            
-        default:
-            message = 'Analysis completed';
-    }
-    
-    // عرض النتيجة في حوار أو في panel
-    alert(message);
-    
-    // يمكن تطوير هذا لعرض النتائج في panel مخصص
-    this.updateStatus(message.split('\n')[0]);
-}
-
-/**
- * عرض قائمة سياق مخصصة
- * @param {Array} items - عناصر القائمة
- * @param {number} x - موقع X على الشاشة
- * @param {number} y - موقع Y على الشاشة
- */
-showContextMenu(items, x, y) {
-    // إخفاء أي قائمة سابقة
-    this.hideContextMenu();
-    
-    const menu = document.createElement('div');
-    menu.className = 'grips-context-menu';
-    menu.style.position = 'absolute';
-    menu.style.left = x + 'px';
-    menu.style.top = y + 'px';
-    menu.style.zIndex = '1000';
-    
-    items.forEach(item => {
-        if (item.separator) {
-            const separator = document.createElement('div');
-            separator.className = 'context-menu-separator';
-            menu.appendChild(separator);
-        } else {
-            const menuItem = document.createElement('div');
-            menuItem.className = 'context-menu-item';
-            
-            if (item.enabled === false) {
-                menuItem.classList.add('disabled');
-            }
-            
-            menuItem.innerHTML = `
-                <i class="fas ${item.icon}"></i>
-                <span>${item.label}</span>
-            `;
-            
-            if (item.enabled !== false) {
-                menuItem.onclick = () => {
-                    this.hideContextMenu();
-                    item.action();
-                };
-            }
-            
-            menu.appendChild(menuItem);
+    /**
+     * عرض حوار إدخال عدد أضلاع المضلع
+     */
+    showPolygonDialog(callback) {
+        const sides = parseInt(prompt('Enter number of sides (3-20):', '6'));
+        if (sides && sides >= 3 && sides <= 20) {
+            if (callback) callback(sides);
         }
-    });
-    
-    document.body.appendChild(menu);
-    this.currentContextMenu = menu;
-    
-    // إخفاء عند النقر خارج القائمة
-    setTimeout(() => {
-        document.addEventListener('click', this.hideContextMenuHandler);
-    }, 0);
-}
-
-/**
- * إخفاء قائمة السياق
- */
-hideContextMenu() {
-    if (this.currentContextMenu) {
-        this.currentContextMenu.remove();
-        this.currentContextMenu = null;
-        document.removeEventListener('click', this.hideContextMenuHandler);
     }
-}
 
-/**
- * معالج إخفاء القائمة
- */
-hideContextMenuHandler = (e) => {
-    if (this.currentContextMenu && !this.currentContextMenu.contains(e.target)) {
-        this.hideContextMenu();
+    /**
+     * تحديث معاينة Chamfer
+     */
+    updateChamferPreview() {
+        // Placeholder - سيتم تطويرها لاحقاً
+        if (this.cad.tempShapes && this.cad.tempShapes.length > 0) {
+            this.cad.render();
+        }
     }
-}
 
-/**
- * عرض dialog خصائص Grips المتقدمة
- */
-showGripPropertiesDialog(content, callback) {
-    // إنشاء dialog إذا لم يكن موجود
-    let dialog = document.getElementById('gripPropertiesDialog');
-    if (!dialog) {
-        dialog = document.createElement('div');
-        dialog.id = 'gripPropertiesDialog';
-        dialog.className = 'grip-properties-dialog';
-        dialog.innerHTML = `
-            <div class="dialog-content">
-                <div class="dialog-header">
-                    <h3>Properties</h3>
-                    <button class="close-btn" onclick="this.closest('.grip-properties-dialog').style.display='none'">×</button>
+    /**
+     * عرض نتائج التحليل
+     */
+    showAnalysisResult(result) {
+        let message = '';
+        
+        switch(result.type) {
+            case 'distance':
+                message = `Distance: ${result.distance.toFixed(2)} ${this.cad.currentUnit}`;
+                break;
+                
+            case 'area':
+                message = `Total Area: ${result.totalArea.toFixed(2)} ${this.cad.currentUnit}²`;
+                if (result.details && result.details.length > 0) {
+                    message += '\n\nDetails:';
+                    result.details.forEach((detail, index) => {
+                        message += `\n${index + 1}. ${detail.type}: ${detail.area.toFixed(2)} ${this.cad.currentUnit}²`;
+                    });
+                }
+                break;
+                
+            case 'properties':
+                message = 'Shape Properties:\n';
+                if (result.properties) {
+                    Object.entries(result.properties).forEach(([key, value]) => {
+                        if (typeof value === 'number') {
+                            message += `\n${key}: ${value.toFixed(2)}`;
+                        } else {
+                            message += `\n${key}: ${value}`;
+                        }
+                    });
+                }
+                break;
+                
+            default:
+                message = 'Analysis completed';
+        }
+        
+        // عرض النتيجة في حوار أو في panel
+        alert(message);
+        
+        // يمكن تطوير هذا لعرض النتائج في panel مخصص
+        this.updateStatus(message.split('\n')[0]);
+    }
+
+    /**
+     * معالج إخفاء القائمة
+     */
+    hideContextMenuHandler = (e) => {
+        if (this.currentContextMenu && !this.currentContextMenu.contains(e.target)) {
+            this.hideContextMenu();
+        }
+    }
+
+    /**
+     * عرض dialog خصائص Grips المتقدمة
+     */
+    showGripPropertiesDialog(content, callback) {
+        // إنشاء dialog إذا لم يكن موجود
+        let dialog = document.getElementById('gripPropertiesDialog');
+        if (!dialog) {
+            dialog = document.createElement('div');
+            dialog.id = 'gripPropertiesDialog';
+            dialog.className = 'grip-properties-dialog';
+            dialog.innerHTML = `
+                <div class="dialog-content">
+                    <div class="dialog-header">
+                        <h3>Properties</h3>
+                        <button class="close-btn" onclick="this.closest('.grip-properties-dialog').style.display='none'">×</button>
+                    </div>
+                    <div class="dialog-body"></div>
+                    <div class="dialog-footer">
+                        <button class="btn btn-primary" id="gripDialogOk">OK</button>
+                        <button class="btn btn-cancel" id="gripDialogCancel">Cancel</button>
+                    </div>
                 </div>
-                <div class="dialog-body"></div>
-                <div class="dialog-footer">
-                    <button class="btn btn-primary" id="gripDialogOk">OK</button>
-                    <button class="btn btn-cancel" id="gripDialogCancel">Cancel</button>
+            `;
+            document.body.appendChild(dialog);
+        }
+        
+        // تحديث المحتوى
+        dialog.querySelector('.dialog-body').innerHTML = content;
+        
+        // إظهار dialog
+        dialog.style.display = 'block';
+        
+        // معالجات الأحداث
+        const okBtn = dialog.querySelector('#gripDialogOk');
+        const cancelBtn = dialog.querySelector('#gripDialogCancel');
+        
+        // إزالة معالجات قديمة
+        okBtn.replaceWith(okBtn.cloneNode(true));
+        cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+        
+        // إضافة معالجات جديدة
+        dialog.querySelector('#gripDialogOk').onclick = () => {
+            dialog.style.display = 'none';
+            if (callback) callback(true);
+        };
+        
+        dialog.querySelector('#gripDialogCancel').onclick = () => {
+            dialog.style.display = 'none';
+            if (callback) callback(false);
+        };
+    }
+
+    /**
+     * عرض شريط معلومات Grip
+     */
+    showGripInfo(message) {
+        let infoBar = document.querySelector('.grip-info-bar');
+        if (!infoBar) {
+            infoBar = document.createElement('div');
+            infoBar.className = 'grip-info-bar';
+            document.body.appendChild(infoBar);
+        }
+        
+        infoBar.textContent = message;
+        infoBar.classList.add('active');
+        
+        clearTimeout(this.gripInfoTimeout);
+        this.gripInfoTimeout = setTimeout(() => {
+            infoBar.classList.remove('active');
+        }, 3000);
+    }
+
+    /**
+     * عرض معلومات التحديد المحسنة
+     */
+    updateSelectionInfo() {
+        const count = this.cad.selectedShapes.size;
+        const shapes = Array.from(this.cad.selectedShapes);
+        
+        // حساب الإحصائيات
+        const types = {};
+        let totalLength = 0;
+        let totalArea = 0;
+        
+        shapes.forEach(shape => {
+            types[shape.type] = (types[shape.type] || 0) + 1;
+            
+            // حساب الطول
+            switch (shape.type) {
+                case 'line':
+                    totalLength += this.cad.distance(
+                        shape.start.x, shape.start.y,
+                        shape.end.x, shape.end.y
+                    );
+                    break;
+                case 'circle':
+                    totalLength += 2 * Math.PI * shape.radius;
+                    totalArea += Math.PI * shape.radius * shape.radius;
+                    break;
+                case 'rectangle':
+                    const width = Math.abs(shape.end.x - shape.start.x);
+                    const height = Math.abs(shape.end.y - shape.start.y);
+                    totalLength += 2 * (width + height);
+                    totalArea += width * height;
+                    break;
+                case 'polyline':
+                    for (let i = 1; i < shape.points.length; i++) {
+                        totalLength += this.cad.distance(
+                            shape.points[i-1].x, shape.points[i-1].y,
+                            shape.points[i].x, shape.points[i].y
+                        );
+                    }
+                    if (shape.closed && shape.points.length > 2) {
+                        totalLength += this.cad.distance(
+                            shape.points[shape.points.length-1].x,
+                            shape.points[shape.points.length-1].y,
+                            shape.points[0].x,
+                            shape.points[0].y
+                        );
+                    }
+                    break;
+                case 'arc':
+                    const arcLength = shape.radius * Math.abs(shape.endAngle - shape.startAngle);
+                    totalLength += arcLength;
+                    break;
+                case 'ellipse':
+                    // تقريب محيط القطع الناقص
+                    const h = Math.pow((shape.radiusX - shape.radiusY), 2) / 
+                             Math.pow((shape.radiusX + shape.radiusY), 2);
+                    const perimeter = Math.PI * (shape.radiusX + shape.radiusY) * 
+                                     (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+                    totalLength += perimeter;
+                    totalArea += Math.PI * shape.radiusX * shape.radiusY;
+                    break;
+            }
+        });
+        
+        // تحديث العرض
+        this.showSelectionInfoPanel({
+            count,
+            types,
+            totalLength,
+            totalArea
+        });
+    }
+
+    /**
+     * عرض لوحة معلومات التحديد
+     */
+    showSelectionInfoPanel(info) {
+        let panel = document.getElementById('selectionInfoPanel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'selectionInfoPanel';
+            panel.className = 'selection-info-panel';
+            document.getElementById('canvasContainer').appendChild(panel);
+        }
+        
+        // تكوين أنواع الأشكال
+        const typesText = Object.entries(info.types)
+            .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
+            .join(', ');
+        
+        panel.innerHTML = `
+            <div class="info-header">Selection Info</div>
+            <div class="info-row">
+                <span class="label">Objects:</span>
+                <span class="value">${info.count}</span>
+            </div>
+            ${typesText ? `
+            <div class="info-row">
+                <span class="label">Types:</span>
+                <span class="value">${typesText}</span>
+            </div>
+            ` : ''}
+            ${info.totalLength > 0 ? `
+            <div class="info-row">
+                <span class="label">Total Length:</span>
+                <span class="value">${info.totalLength.toFixed(2)} units</span>
+            </div>
+            ` : ''}
+            ${info.totalArea > 0 ? `
+            <div class="info-row">
+                <span class="label">Total Area:</span>
+                <span class="value">${info.totalArea.toFixed(2)} units²</span>
+            </div>
+            ` : ''}
+        `;
+        
+        // إظهار/إخفاء اللوحة
+        panel.style.display = info.count > 0 ? 'block' : 'none';
+    }
+
+    /**
+     * عرض شريط الإجراءات السريعة
+     */
+    showQuickActionBar(selectedShapes) {
+        if (selectedShapes.size === 0) {
+            this.hideQuickActionBar();
+            return;
+        }
+        
+        let bar = document.getElementById('quickActionBar');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'quickActionBar';
+            bar.className = 'quick-action-bar';
+            document.getElementById('canvasContainer').appendChild(bar);
+        }
+        
+        bar.innerHTML = `
+            <button class="quick-action" title="Copy (Ctrl+C)" onclick="cad.copySelected()">
+                <i class="fas fa-copy"></i>
+            </button>
+            <button class="quick-action" title="Delete (Del)" onclick="cad.deleteSelected()">
+                <i class="fas fa-trash"></i>
+            </button>
+            <button class="quick-action" title="Move" onclick="cad.setTool('move')">
+                <i class="fas fa-arrows-alt"></i>
+            </button>
+            <button class="quick-action" title="Rotate" onclick="cad.setTool('rotate')">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            <button class="quick-action" title="Scale" onclick="cad.setTool('scale')">
+                <i class="fas fa-expand-arrows-alt"></i>
+            </button>
+            <div class="separator"></div>
+            <button class="quick-action" title="Group" onclick="cad.groupSelected()">
+                <i class="fas fa-object-group"></i>
+            </button>
+            <button class="quick-action" title="Align" onclick="cad.showAlignMenu()">
+                <i class="fas fa-align-center"></i>
+            </button>
+            <button class="quick-action" title="Properties" onclick="cad.showProperties()">
+                <i class="fas fa-cog"></i>
+            </button>
+        `;
+        
+        // تحديد موقع الشريط
+        const bounds = this.cad.getSelectionBounds();
+        if (bounds) {
+            const screenPos = this.cad.worldToScreen(
+                (bounds.minX + bounds.maxX) / 2,
+                bounds.minY - 20
+            );
+            
+            // التأكد من أن الشريط داخل حدود الشاشة
+            const rect = bar.getBoundingClientRect();
+            let left = screenPos.x - rect.width / 2;
+            let top = screenPos.y - rect.height - 10;
+            
+            // تعديل الموقع إذا كان خارج الشاشة
+            if (left < 10) left = 10;
+            if (left + rect.width > window.innerWidth - 10) {
+                left = window.innerWidth - rect.width - 10;
+            }
+            if (top < 10) {
+                top = screenPos.y + 30; // عرض أسفل التحديد بدلاً من أعلى
+            }
+            
+            bar.style.left = left + 'px';
+            bar.style.top = top + 'px';
+        }
+        
+        bar.style.display = 'flex';
+    }
+
+    /**
+     * إخفاء شريط الإجراءات السريعة
+     */
+    hideQuickActionBar() {
+        const bar = document.getElementById('quickActionBar');
+        if (bar) {
+            bar.style.display = 'none';
+        }
+    }
+
+    /**
+     * عرض مؤشر وضع التحديد
+     */
+    showSelectionModeIndicator() {
+        let indicator = document.getElementById('selectionModeIndicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'selectionModeIndicator';
+            indicator.className = 'selection-mode-indicator';
+            document.getElementById('canvasContainer').appendChild(indicator);
+        }
+        
+        const mode = this.cad.cumulativeSelection ? 'Cumulative' : 'Replace';
+        const modeClass = this.cad.cumulativeSelection ? 'cumulative' : 'replace';
+        
+        indicator.innerHTML = `
+            <i class="fas fa-mouse-pointer"></i>
+            <span class="${modeClass}">${mode} Selection</span>
+        `;
+        
+        indicator.style.display = 'block';
+        
+        // إخفاء تلقائي بعد 2 ثانية
+        clearTimeout(this.modeIndicatorTimeout);
+        this.modeIndicatorTimeout = setTimeout(() => {
+            indicator.style.display = 'none';
+        }, 2000);
+    }
+
+    /**
+     * عرض لوحة أنواع الخطوط
+     */
+    showLinetypePanel() {
+        if (!this.cad.linetypeManager) {
+            console.error('LinetypeManager not available');
+            return;
+        }
+        
+        const dialog = document.createElement('div');
+        dialog.className = 'layer-dialog';
+        dialog.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        
+        const linetypes = Array.from(this.cad.linetypeManager.linetypes.entries());
+        const currentLinetype = this.cad.linetypeManager.currentLinetype;
+        
+        dialog.innerHTML = `
+            <div class="dialog-overlay" onclick="this.parentElement.remove()"></div>
+            <div class="dialog-content" style="max-width: 500px; width: 90%;">
+                <h3>Line Type Manager</h3>
+                <div class="dialog-body">
+                    <div class="linetype-list" style="max-height: 400px; overflow-y: auto;">
+                        ${linetypes.map(([id, type]) => `
+                            <div class="linetype-item ${id === currentLinetype ? 'selected' : ''}" 
+                                 onclick="window.cad.setLinetype('${id}'); window.cad.ui.updateLinetypeDisplay(); this.closest('.layer-dialog').remove();"
+                                 style="
+                                     display: flex;
+                                     align-items: center;
+                                     gap: 16px;
+                                     padding: 12px;
+                                     margin-bottom: 8px;
+                                     background: var(--bg-tertiary);
+                                     border-radius: 4px;
+                                     cursor: pointer;
+                                     transition: all 0.2s ease;
+                                     border: 2px solid ${id === currentLinetype ? 'var(--accent-primary)' : 'transparent'};
+                                 "
+                                 onmouseover="if('${id}' !== '${currentLinetype}') this.style.background='var(--bg-hover)'; this.style.borderColor='rgba(0,212,170,0.3)';"
+                                 onmouseout="if('${id}' !== '${currentLinetype}') this.style.background='var(--bg-tertiary)'; this.style.borderColor='transparent';">
+                                <svg width="120" height="20">
+                                    <line x1="10" y1="10" x2="110" y2="10" 
+                                          stroke="${id === currentLinetype ? 'var(--accent-primary)' : 'white'}" 
+                                          stroke-width="2"
+                                          ${type.pattern ? `stroke-dasharray="${type.pattern.map(v => v * 2).join(',')}"` : ''}>
+                                    </line>
+                                </svg>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500; color: var(--text-primary);">${type.name}</div>
+                                    <div style="font-size: 11px; color: var(--text-secondary);">${type.description}</div>
+                                </div>
+                                ${id === currentLinetype ? '<i class="fas fa-check" style="color: var(--accent-primary);"></i>' : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <!-- Linetype Scale Control -->
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 13px;">
+                            Global Linetype Scale:
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <input type="range" id="globalLinetypeScale" 
+                                   min="0.1" max="5" step="0.1" 
+                                   value="${this.cad.linetypeManager.globalLinetypeScale}"
+                                   oninput="window.cad.linetypeManager.setGlobalLinetypeScale(this.value); document.getElementById('scaleValue').textContent = this.value;"
+                                   style="flex: 1;">
+                            <span id="scaleValue" style="min-width: 40px; text-align: right; font-family: monospace;">
+                                ${this.cad.linetypeManager.globalLinetypeScale}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Custom Linetype Button -->
+                    <div style="margin-top: 16px;">
+                        <button class="btn" onclick="window.cad.ui.showCustomLinetypeDialog()">
+                            <i class="fas fa-plus"></i> Create Custom Linetype
+                        </button>
+                    </div>
+                </div>
+                <div class="dialog-buttons">
+                    <button class="btn-cancel" onclick="this.closest('.layer-dialog').remove()">Close</button>
                 </div>
             </div>
         `;
+        
         document.body.appendChild(dialog);
     }
-    
-    // تحديث المحتوى
-    dialog.querySelector('.dialog-body').innerHTML = content;
-    
-    // إظهار dialog
-    dialog.style.display = 'block';
-    
-    // معالجات الأحداث
-    const okBtn = dialog.querySelector('#gripDialogOk');
-    const cancelBtn = dialog.querySelector('#gripDialogCancel');
-    
-    // إزالة معالجات قديمة
-    okBtn.replaceWith(okBtn.cloneNode(true));
-    cancelBtn.replaceWith(cancelBtn.cloneNode(true));
-    
-    // إضافة معالجات جديدة
-    dialog.querySelector('#gripDialogOk').onclick = () => {
-        dialog.style.display = 'none';
-        if (callback) callback(true);
-    };
-    
-    dialog.querySelector('#gripDialogCancel').onclick = () => {
-        dialog.style.display = 'none';
-        if (callback) callback(false);
-    };
-}
 
-/**
- * عرض شريط معلومات Grip
- */
-showGripInfo(message) {
-    let infoBar = document.querySelector('.grip-info-bar');
-    if (!infoBar) {
-        infoBar = document.createElement('div');
-        infoBar.className = 'grip-info-bar';
-        document.body.appendChild(infoBar);
-    }
-    
-    infoBar.textContent = message;
-    infoBar.classList.add('active');
-    
-    clearTimeout(this.gripInfoTimeout);
-    this.gripInfoTimeout = setTimeout(() => {
-        infoBar.classList.remove('active');
-    }, 3000);
-}
-
-/**
- * عرض معلومات التحديد المحسنة
- */
-updateSelectionInfo() {
-    const count = this.cad.selectedShapes.size;
-    const shapes = Array.from(this.cad.selectedShapes);
-    
-    // حساب الإحصائيات
-    const types = {};
-    let totalLength = 0;
-    let totalArea = 0;
-    
-    shapes.forEach(shape => {
-        types[shape.type] = (types[shape.type] || 0) + 1;
-        
-        // حساب الطول
-        switch (shape.type) {
-            case 'line':
-                totalLength += this.cad.distance(
-                    shape.start.x, shape.start.y,
-                    shape.end.x, shape.end.y
-                );
-                break;
-            case 'circle':
-                totalLength += 2 * Math.PI * shape.radius;
-                totalArea += Math.PI * shape.radius * shape.radius;
-                break;
-            case 'rectangle':
-                const width = Math.abs(shape.end.x - shape.start.x);
-                const height = Math.abs(shape.end.y - shape.start.y);
-                totalLength += 2 * (width + height);
-                totalArea += width * height;
-                break;
-            case 'polyline':
-                for (let i = 1; i < shape.points.length; i++) {
-                    totalLength += this.cad.distance(
-                        shape.points[i-1].x, shape.points[i-1].y,
-                        shape.points[i].x, shape.points[i].y
-                    );
-                }
-                if (shape.closed && shape.points.length > 2) {
-                    totalLength += this.cad.distance(
-                        shape.points[shape.points.length-1].x,
-                        shape.points[shape.points.length-1].y,
-                        shape.points[0].x,
-                        shape.points[0].y
-                    );
-                }
-                break;
-            case 'arc':
-                const arcLength = shape.radius * Math.abs(shape.endAngle - shape.startAngle);
-                totalLength += arcLength;
-                break;
-            case 'ellipse':
-                // تقريب محيط القطع الناقص
-                const h = Math.pow((shape.radiusX - shape.radiusY), 2) / 
-                         Math.pow((shape.radiusX + shape.radiusY), 2);
-                const perimeter = Math.PI * (shape.radiusX + shape.radiusY) * 
-                                 (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
-                totalLength += perimeter;
-                totalArea += Math.PI * shape.radiusX * shape.radiusY;
-                break;
-        }
-    });
-    
-    // تحديث العرض
-    this.showSelectionInfoPanel({
-        count,
-        types,
-        totalLength,
-        totalArea
-    });
-}
-
-/**
- * عرض لوحة معلومات التحديد
- */
-showSelectionInfoPanel(info) {
-    let panel = document.getElementById('selectionInfoPanel');
-    if (!panel) {
-        panel = document.createElement('div');
-        panel.id = 'selectionInfoPanel';
-        panel.className = 'selection-info-panel';
-        document.getElementById('canvasContainer').appendChild(panel);
-    }
-    
-    // تكوين أنواع الأشكال
-    const typesText = Object.entries(info.types)
-        .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
-        .join(', ');
-    
-    panel.innerHTML = `
-        <div class="info-header">Selection Info</div>
-        <div class="info-row">
-            <span class="label">Objects:</span>
-            <span class="value">${info.count}</span>
-        </div>
-        ${typesText ? `
-        <div class="info-row">
-            <span class="label">Types:</span>
-            <span class="value">${typesText}</span>
-        </div>
-        ` : ''}
-        ${info.totalLength > 0 ? `
-        <div class="info-row">
-            <span class="label">Total Length:</span>
-            <span class="value">${info.totalLength.toFixed(2)} units</span>
-        </div>
-        ` : ''}
-        ${info.totalArea > 0 ? `
-        <div class="info-row">
-            <span class="label">Total Area:</span>
-            <span class="value">${info.totalArea.toFixed(2)} units²</span>
-        </div>
-        ` : ''}
-    `;
-    
-    // إظهار/إخفاء اللوحة
-    panel.style.display = info.count > 0 ? 'block' : 'none';
-}
-
-/**
- * عرض شريط الإجراءات السريعة
- */
-showQuickActionBar(selectedShapes) {
-    if (selectedShapes.size === 0) {
-        this.hideQuickActionBar();
-        return;
-    }
-    
-    let bar = document.getElementById('quickActionBar');
-    if (!bar) {
-        bar = document.createElement('div');
-        bar.id = 'quickActionBar';
-        bar.className = 'quick-action-bar';
-        document.getElementById('canvasContainer').appendChild(bar);
-    }
-    
-    bar.innerHTML = `
-        <button class="quick-action" title="Copy (Ctrl+C)" onclick="cad.copySelected()">
-            <i class="fas fa-copy"></i>
-        </button>
-        <button class="quick-action" title="Delete (Del)" onclick="cad.deleteSelected()">
-            <i class="fas fa-trash"></i>
-        </button>
-        <button class="quick-action" title="Move" onclick="cad.setTool('move')">
-            <i class="fas fa-arrows-alt"></i>
-        </button>
-        <button class="quick-action" title="Rotate" onclick="cad.setTool('rotate')">
-            <i class="fas fa-sync-alt"></i>
-        </button>
-        <button class="quick-action" title="Scale" onclick="cad.setTool('scale')">
-            <i class="fas fa-expand-arrows-alt"></i>
-        </button>
-        <div class="separator"></div>
-        <button class="quick-action" title="Group" onclick="cad.groupSelected()">
-            <i class="fas fa-object-group"></i>
-        </button>
-        <button class="quick-action" title="Align" onclick="cad.showAlignMenu()">
-            <i class="fas fa-align-center"></i>
-        </button>
-        <button class="quick-action" title="Properties" onclick="cad.showProperties()">
-            <i class="fas fa-cog"></i>
-        </button>
-    `;
-    
-    // تحديد موقع الشريط
-    const bounds = this.cad.getSelectionBounds();
-    if (bounds) {
-        const screenPos = this.cad.worldToScreen(
-            (bounds.minX + bounds.maxX) / 2,
-            bounds.minY - 20
-        );
-        
-        // التأكد من أن الشريط داخل حدود الشاشة
-        const rect = bar.getBoundingClientRect();
-        let left = screenPos.x - rect.width / 2;
-        let top = screenPos.y - rect.height - 10;
-        
-        // تعديل الموقع إذا كان خارج الشاشة
-        if (left < 10) left = 10;
-        if (left + rect.width > window.innerWidth - 10) {
-            left = window.innerWidth - rect.width - 10;
-        }
-        if (top < 10) {
-            top = screenPos.y + 30; // عرض أسفل التحديد بدلاً من أعلى
+    /**
+     * عرض لوحة أوزان الخطوط
+     */
+    showLineWeightPanel() {
+        if (!this.cad.linetypeManager) {
+            console.error('LinetypeManager not available');
+            return;
         }
         
-        bar.style.left = left + 'px';
-        bar.style.top = top + 'px';
+        const dialog = document.createElement('div');
+        dialog.className = 'layer-dialog';
+        dialog.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        
+        const weights = this.cad.linetypeManager.lineWeights;
+        const currentWeight = this.cad.linetypeManager.currentLineWeight;
+        
+        dialog.innerHTML = `
+            <div class="dialog-overlay" onclick="this.parentElement.remove()"></div>
+            <div class="dialog-content" style="max-width: 400px; width: 90%;">
+                <h3>Line Weight Settings</h3>
+                <div class="dialog-body">
+                    <div class="lineweight-list" style="max-height: 400px; overflow-y: auto;">
+                        ${weights.map(weight => {
+                            const lineHeight = weight.mm === 0 ? 0.5 : 
+                                             weight.mm < 0 ? 1 : 
+                                             Math.min(weight.mm * 3, 10);
+                            
+                            return `
+                                <div class="lineweight-item ${weight.value === currentWeight ? 'selected' : ''}" 
+                                     onclick="window.cad.setLineWeight('${weight.value}'); window.cad.ui.updateLineWeightDisplay(); this.closest('.layer-dialog').remove();"
+                                     style="
+                                         display: flex;
+                                         align-items: center;
+                                         gap: 16px;
+                                         padding: 8px 12px;
+                                         margin-bottom: 4px;
+                                         background: var(--bg-tertiary);
+                                         border-radius: 4px;
+                                         cursor: pointer;
+                                         transition: all 0.2s ease;
+                                         border: 2px solid ${weight.value === currentWeight ? 'var(--accent-primary)' : 'transparent'};
+                                     "
+                                     onmouseover="if('${weight.value}' !== '${currentWeight}') this.style.background='var(--bg-hover)'; this.style.borderColor='rgba(0,212,170,0.3)';"
+                                     onmouseout="if('${weight.value}' !== '${currentWeight}') this.style.background='var(--bg-tertiary)'; this.style.borderColor='transparent';">
+                                    <div style="width: 100px;">
+                                        <div style="
+                                            height: ${lineHeight}px;
+                                            background: ${weight.value === currentWeight ? 'var(--accent-primary)' : 'white'};
+                                            border-radius: ${lineHeight/2}px;
+                                        "></div>
+                                    </div>
+                                    <div style="flex: 1; font-size: 13px; color: var(--text-primary);">
+                                        ${weight.label}
+                                    </div>
+                                    ${weight.value === currentWeight ? '<i class="fas fa-check" style="color: var(--accent-primary);"></i>' : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    
+                    <!-- Display Options -->
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                        <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer;">
+                            <input type="checkbox" id="displayLineWeights" 
+                                   ${this.cad.linetypeManager.displayLineWeights ? 'checked' : ''}
+                                   onchange="window.cad.linetypeManager.displayLineWeights = this.checked; window.cad.render();">
+                            <span style="color: var(--text-secondary); font-size: 13px;">Display line weights in drawing</span>
+                        </label>
+                        
+                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 13px;">
+                            Display Scale:
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <input type="range" id="weightDisplayScale" 
+                                   min="0.5" max="3" step="0.1" 
+                                   value="${this.cad.linetypeManager.weightDisplayScale}"
+                                   oninput="window.cad.linetypeManager.weightDisplayScale = parseFloat(this.value); document.getElementById('weightScaleValue').textContent = this.value; window.cad.render();"
+                                   style="flex: 1;">
+                            <span id="weightScaleValue" style="min-width: 40px; text-align: right; font-family: monospace;">
+                                ${this.cad.linetypeManager.weightDisplayScale}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-buttons">
+                    <button class="btn btn-primary" onclick="this.closest('.layer-dialog').remove()">OK</button>
+                    <button class="btn" onclick="this.closest('.layer-dialog').remove()">Cancel</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
     }
-    
-    bar.style.display = 'flex';
-}
 
-/**
- * إخفاء شريط الإجراءات السريعة
- */
-hideQuickActionBar() {
-    const bar = document.getElementById('quickActionBar');
-    if (bar) {
-        bar.style.display = 'none';
+    /**
+     * تغيير لون الطبقة من Modal
+     */
+    changeLayerColorModal(layerId) {
+        const layer = this.cad.getLayer(layerId);
+        if (!layer) return;
+        
+        const input = document.createElement('input');
+        input.type = 'color';
+        input.value = layer.color;
+        input.onchange = () => {
+            this.cad.changeLayerColor(layerId, input.value);
+            this.updateLayerTable();
+        };
+        input.click();
     }
-}
-
-/**
- * عرض مؤشر وضع التحديد
- */
-showSelectionModeIndicator() {
-    let indicator = document.getElementById('selectionModeIndicator');
-    if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'selectionModeIndicator';
-        indicator.className = 'selection-mode-indicator';
-        document.getElementById('canvasContainer').appendChild(indicator);
-    }
-    
-    const mode = this.cad.cumulativeSelection ? 'Cumulative' : 'Replace';
-    const modeClass = this.cad.cumulativeSelection ? 'cumulative' : 'replace';
-    
-    indicator.innerHTML = `
-        <i class="fas fa-mouse-pointer"></i>
-        <span class="${modeClass}">${mode} Selection</span>
-    `;
-    
-    indicator.style.display = 'block';
-    
-    // إخفاء تلقائي بعد 2 ثانية
-    clearTimeout(this.modeIndicatorTimeout);
-    this.modeIndicatorTimeout = setTimeout(() => {
-        indicator.style.display = 'none';
-    }, 2000);
-}
-
 }
 
 // دالة إغلاق Layer Manager

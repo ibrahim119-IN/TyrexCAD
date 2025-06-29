@@ -496,40 +496,40 @@ class TyrexCAD {
     }
     
     showContextMenu(x, y) {
-        // تعريف عناصر القائمة السياقية
-        const items = [];
-        
-        // إذا كان هناك أشكال محددة
-        if (this.selectedShapes.size > 0) {
-            items.push(
-                { icon: 'fas fa-copy', label: 'Copy', action: () => this.copySelected() },
-                { icon: 'fas fa-paste', label: 'Paste', action: () => this.pasteClipboard() },
-                { icon: 'fas fa-trash', label: 'Delete', action: () => this.deleteSelected() },
-                { separator: true },
-                { icon: 'fas fa-clone', label: 'Duplicate', action: () => { this.copySelected(); this.pasteClipboard(); } },
-                { icon: 'fas fa-arrows-alt', label: 'Move', action: () => this.setTool('move') },
-                { icon: 'fas fa-sync-alt', label: 'Rotate', action: () => this.setTool('rotate') },
-                { icon: 'fas fa-expand-arrows-alt', label: 'Scale', action: () => this.setTool('scale') },
-                { separator: true },
-                { icon: 'fas fa-info-circle', label: 'Properties', action: () => this.showProperties() }
-            );
-        } else {
-            // قائمة عامة
-            items.push(
-                { icon: 'fas fa-mouse-pointer', label: 'Select All', action: () => this.selectAll() },
-                { separator: true },
-                { icon: 'fas fa-undo', label: 'Undo', action: () => this.undo() },
-                { icon: 'fas fa-redo', label: 'Redo', action: () => this.redo() },
-                { separator: true },
-                { icon: 'fas fa-search-plus', label: 'Zoom In', action: () => this.zoomIn() },
-                { icon: 'fas fa-search-minus', label: 'Zoom Out', action: () => this.zoomOut() },
-                { icon: 'fas fa-expand', label: 'Zoom Extents', action: () => this.zoomExtents() }
-            );
-        }
-        
-        // استدعاء UI.showContextMenu مع array من items
-        this.ui.showContextMenu(x, y, items);
+    const items = [];
+    
+    if (this.selectedShapes.size > 0) {
+        // قائمة للأشكال المحددة
+        items.push(
+            { icon: 'fas fa-copy', label: 'Copy', action: () => this.copySelected() },
+            { icon: 'fas fa-cut', label: 'Cut', action: () => this.cutSelected() },
+            { icon: 'fas fa-paste', label: 'Paste', action: () => this.pasteClipboard() },
+            { icon: 'fas fa-trash', label: 'Delete', action: () => this.deleteSelected() },
+            { separator: true },
+            { icon: 'fas fa-clone', label: 'Duplicate', action: () => { this.copySelected(); this.pasteClipboard(); } },
+            { icon: 'fas fa-arrows-alt', label: 'Move', action: () => this.setTool('move') },
+            { icon: 'fas fa-sync-alt', label: 'Rotate', action: () => this.setTool('rotate') },
+            { icon: 'fas fa-expand-arrows-alt', label: 'Scale', action: () => this.setTool('scale') },
+            { separator: true },
+            { icon: 'fas fa-info-circle', label: 'Properties', action: () => this.showProperties() }
+        );
+    } else {
+        // قائمة عامة
+        items.push(
+            { icon: 'fas fa-mouse-pointer', label: 'Select All', action: () => this.selectAll() },
+            { separator: true },
+            { icon: 'fas fa-undo', label: 'Undo', action: () => this.undo() },
+            { icon: 'fas fa-redo', label: 'Redo', action: () => this.redo() },
+            { separator: true },
+            { icon: 'fas fa-search-plus', label: 'Zoom In', action: () => this.zoomIn() },
+            { icon: 'fas fa-search-minus', label: 'Zoom Out', action: () => this.zoomOut() },
+            { icon: 'fas fa-expand', label: 'Zoom Extents', action: () => this.zoomExtents() }
+        );
     }
+    
+    // استدعاء UI.showContextMenu بالترتيب الصحيح: x, y, items
+    this.ui.showContextMenu(x, y, items);
+}
     
     showProperties() {
         this.ui.showProperties();
@@ -2573,6 +2573,8 @@ class TyrexCAD {
             this.drawGrid();
         }
         
+        this.drawShape(this.ctx, shape);
+
         // ترتيب رسم الأشكال حسب الطبقات
         const layerGroups = new Map();
         
@@ -2790,112 +2792,486 @@ class TyrexCAD {
         this.ctx.restore();
     }
     
-    drawShape(shape) {
-        // تطبيق نوع الخط
-        if (this.linetypeManager && shape.lineType) {
-            const scale = shape.linetypeScale || 1;
-            this.linetypeManager.applyLinetype(this.ctx, shape.lineType, scale, this.zoom);
-        } else if (shape.lineType === 'dashed') {
-            // Fallback للنظام القديم
-            this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
-        } else if (shape.lineType === 'dotted') {
-            this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
-        } else {
-            this.ctx.setLineDash([]);
+   /**
+ * رسم شكل على Canvas مع دعم كامل لـ LinetypeManager
+ * @param {CanvasRenderingContext2D} ctx - سياق الرسم
+ * @param {Object} shape - الشكل المراد رسمه
+ */
+drawShape(ctx, shape) {
+    // حفظ حالة السياق
+    ctx.save();
+    
+    try {
+        // تطبيق خصائص الطبقة إذا لم تكن محددة على الشكل
+        if (this.layerManager) {
+            const layer = this.layerManager.getLayer(shape.layerId || this.getCurrentLayerId());
+            if (layer) {
+                // استخدام خصائص الطبقة كقيم افتراضية
+                shape = {
+                    color: shape.color || layer.color,
+                    lineType: shape.lineType || layer.lineType,
+                    lineWeight: shape.lineWeight !== undefined ? shape.lineWeight : layer.lineWidth,
+                    transparency: shape.transparency || layer.transparency,
+                    ...shape
+                };
+            }
         }
         
-        // تطبيق وزن الخط
-        if (this.linetypeManager && shape.lineWeight !== undefined) {
-            const pixels = this.linetypeManager.getLineWeightInPixels(shape.lineWeight, this.zoom);
-            this.ctx.lineWidth = pixels;
+        // تطبيق اللون
+        const color = shape.color || this.currentColor;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        
+        // تطبيق الشفافية
+        if (shape.transparency && shape.transparency > 0) {
+            ctx.globalAlpha = 1 - (shape.transparency / 100);
+        }
+        
+        // تطبيق نوع الخط (Linetype)
+        if (this.linetypeManager && shape.type !== 'text') {
+            const lineType = shape.lineType || this.currentLineType || 'continuous';
+            const scale = shape.linetypeScale || 1;
+            this.linetypeManager.applyLinetype(ctx, lineType, this.zoom, scale);
         } else {
             // Fallback للنظام القديم
-            this.ctx.lineWidth = (shape.lineWidth || this.currentLineWidth) / this.zoom;
+            switch (shape.lineType) {
+                case 'dashed':
+                    ctx.setLineDash([10 * this.zoom, 5 * this.zoom]);
+                    break;
+                case 'dotted':
+                    ctx.setLineDash([2 * this.zoom, 3 * this.zoom]);
+                    break;
+                case 'dashdot':
+                    ctx.setLineDash([10 * this.zoom, 5 * this.zoom, 2 * this.zoom, 5 * this.zoom]);
+                    break;
+                default:
+                    ctx.setLineDash([]);
+            }
         }
+        
+        // تطبيق وزن الخط (Line Weight)
+        if (this.linetypeManager && this.linetypeManager.displayLineWeights) {
+            // استخدام نظام أوزان الخطوط
+            const lineWeight = shape.lineWeight !== undefined ? shape.lineWeight : this.currentLineWeight;
+            const actualWeight = this.linetypeManager.getActualLineWeight(lineWeight);
+            ctx.lineWidth = actualWeight * this.zoom * this.linetypeManager.weightDisplayScale;
+        } else {
+            // النظام القديم أو عند إيقاف عرض الأوزان
+            const width = shape.lineWidth || shape.lineWeight || this.currentLineWidth || 2;
+            ctx.lineWidth = width * this.zoom;
+        }
+        
+        // إعدادات إضافية للرسم
+        ctx.lineCap = shape.lineCap || 'round';
+        ctx.lineJoin = shape.lineJoin || 'round';
         
         // رسم الشكل حسب نوعه
         switch (shape.type) {
             case 'line':
-                this.ctx.beginPath();
-                this.ctx.moveTo(shape.start.x, shape.start.y);
-                this.ctx.lineTo(shape.end.x, shape.end.y);
-                this.ctx.stroke();
+                this.drawLine(ctx, shape);
                 break;
                 
             case 'rectangle':
-                const x = Math.min(shape.start.x, shape.end.x);
-                const y = Math.min(shape.start.y, shape.end.y);
-                const width = Math.abs(shape.end.x - shape.start.x);
-                const height = Math.abs(shape.end.y - shape.start.y);
-                this.ctx.strokeRect(x, y, width, height);
+                this.drawRectangle(ctx, shape);
                 break;
                 
             case 'circle':
-                this.ctx.beginPath();
-                this.ctx.arc(shape.center.x, shape.center.y, shape.radius, 0, Math.PI * 2);
-                this.ctx.stroke();
+                this.drawCircle(ctx, shape);
                 break;
                 
             case 'arc':
-                this.ctx.beginPath();
-                this.ctx.arc(shape.center.x, shape.center.y, shape.radius,
-                             shape.startAngle, shape.endAngle);
-                this.ctx.stroke();
+                this.drawArc(ctx, shape);
                 break;
                 
             case 'ellipse':
-                this.ctx.beginPath();
-                this.ctx.ellipse(shape.center.x, shape.center.y,
-                                 shape.radiusX, shape.radiusY, 0, 0, Math.PI * 2);
-                this.ctx.stroke();
+                this.drawEllipse(ctx, shape);
                 break;
                 
             case 'polyline':
-                this.ctx.beginPath();
-                this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
-                for (let i = 1; i < shape.points.length; i++) {
-                    this.ctx.lineTo(shape.points[i].x, shape.points[i].y);
-                }
-                this.ctx.stroke();
+                this.drawPolyline(ctx, shape);
                 break;
                 
             case 'polygon':
-                this.ctx.beginPath();
-                this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
-                for (let i = 1; i < shape.points.length; i++) {
-                    this.ctx.lineTo(shape.points[i].x, shape.points[i].y);
-                }
-                this.ctx.closePath();
-                this.ctx.stroke();
-                if (shape.fillColor && shape.fillColor !== 'transparent') {
-                    this.ctx.fillStyle = shape.fillColor;
-                    this.ctx.fill();
-                }
+                this.drawPolygon(ctx, shape);
                 break;
                 
             case 'text':
-                this.ctx.font = `${shape.fontSize}px Arial`;
-                this.ctx.fillStyle = shape.color || this.currentColor;
-                this.ctx.fillText(shape.text, shape.position.x, shape.position.y);
+                this.drawText(ctx, shape);
                 break;
                 
-            case 'dimension-linear':
-                this.drawLinearDimensionShape(shape);
+            case 'dimension':
+                // الأبعاد المركبة
+                if (shape.draw && typeof shape.draw === 'function') {
+                    shape.draw(ctx, this);
+                } else {
+                    this.drawDimension(ctx, shape);
+                }
                 break;
                 
-            case 'dimension-angular':
-                this.drawAngularDimensionShape(shape);
+            case 'spline':
+                this.drawSpline(ctx, shape);
                 break;
                 
-            case 'dimension-radius':
-                this.drawRadiusDimensionShape(shape);
+            case 'hatch':
+                this.drawHatch(ctx, shape);
                 break;
                 
-            case 'dimension-diameter':
-                this.drawDiameterDimensionShape(shape);
+            default:
+                // للأشكال المخصصة
+                if (shape.draw && typeof shape.draw === 'function') {
+                    shape.draw(ctx, this);
+                }
                 break;
         }
+        
+    } catch (error) {
+        console.error('Error drawing shape:', error, shape);
+    } finally {
+        // استعادة حالة السياق
+        ctx.restore();
     }
+}
+
+// دوال مساعدة لرسم الأشكال المختلفة
+
+drawLine(ctx, shape) {
+    const start = shape.start || shape.point1;
+    const end = shape.end || shape.point2;
+    
+    if (!start || !end) return;
+    
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+}
+
+drawRectangle(ctx, shape) {
+    const start = shape.start || shape.point1;
+    const end = shape.end || shape.point2;
+    
+    if (!start || !end) return;
+    
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    const width = Math.abs(end.x - start.x);
+    const height = Math.abs(end.y - start.y);
+    
+    if (shape.filled || shape.fillColor) {
+        ctx.fillStyle = shape.fillColor || shape.color || this.currentColor;
+        ctx.fillRect(x, y, width, height);
+    }
+    
+    ctx.strokeRect(x, y, width, height);
+}
+
+drawCircle(ctx, shape) {
+    const center = shape.center || shape.position;
+    const radius = shape.radius;
+    
+    if (!center || !radius) return;
+    
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+    
+    if (shape.filled || shape.fillColor) {
+        ctx.fillStyle = shape.fillColor || shape.color || this.currentColor;
+        ctx.fill();
+    }
+    
+    ctx.stroke();
+}
+
+drawArc(ctx, shape) {
+    const center = shape.center || shape.position;
+    const radius = shape.radius;
+    const startAngle = shape.startAngle || 0;
+    const endAngle = shape.endAngle || Math.PI * 2;
+    const counterclockwise = shape.counterclockwise || false;
+    
+    if (!center || !radius) return;
+    
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius, startAngle, endAngle, counterclockwise);
+    ctx.stroke();
+}
+
+drawEllipse(ctx, shape) {
+    const center = shape.center || shape.position;
+    const radiusX = shape.radiusX || shape.rx;
+    const radiusY = shape.radiusY || shape.ry;
+    const rotation = shape.rotation || 0;
+    
+    if (!center || !radiusX || !radiusY) return;
+    
+    ctx.beginPath();
+    ctx.ellipse(center.x, center.y, radiusX, radiusY, rotation, 0, Math.PI * 2);
+    
+    if (shape.filled || shape.fillColor) {
+        ctx.fillStyle = shape.fillColor || shape.color || this.currentColor;
+        ctx.fill();
+    }
+    
+    ctx.stroke();
+}
+
+drawPolyline(ctx, shape) {
+    const points = shape.points;
+    if (!points || points.length < 2) return;
+    
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    
+    for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+    }
+    
+    if (shape.closed) {
+        ctx.closePath();
+    }
+    
+    if ((shape.closed && shape.filled) || shape.fillColor) {
+        ctx.fillStyle = shape.fillColor || shape.color || this.currentColor;
+        ctx.fill();
+    }
+    
+    ctx.stroke();
+}
+
+drawPolygon(ctx, shape) {
+    const points = shape.points;
+    if (!points || points.length < 3) return;
+    
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    
+    for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+    }
+    
+    ctx.closePath();
+    
+    if (shape.filled !== false || shape.fillColor) {
+        ctx.fillStyle = shape.fillColor || shape.color || this.currentColor;
+        ctx.fill();
+    }
+    
+    ctx.stroke();
+}
+
+drawText(ctx, shape) {
+    const position = shape.position || shape.point;
+    const text = shape.text || '';
+    const fontSize = (shape.fontSize || 14) * this.zoom;
+    const fontFamily = shape.fontFamily || 'Arial';
+    const align = shape.align || 'left';
+    const baseline = shape.baseline || 'alphabetic';
+    
+    if (!position) return;
+    
+    // لا نطبق linetype على النص
+    ctx.setLineDash([]);
+    
+    ctx.font = `${fontSize}px ${fontFamily}`;
+    ctx.textAlign = align;
+    ctx.textBaseline = baseline;
+    
+    // النص له fillStyle وليس strokeStyle
+    ctx.fillStyle = shape.color || this.currentColor;
+    
+    // دعم النص متعدد الأسطر
+    const lines = text.split('\n');
+    const lineHeight = fontSize * 1.2;
+    
+    lines.forEach((line, index) => {
+        const y = position.y + (index * lineHeight);
+        
+        if (shape.background) {
+            // رسم خلفية للنص
+            const metrics = ctx.measureText(line);
+            const padding = 4 * this.zoom;
+            
+            ctx.save();
+            ctx.fillStyle = shape.background;
+            ctx.fillRect(
+                position.x - padding,
+                y - fontSize - padding,
+                metrics.width + (padding * 2),
+                fontSize + (padding * 2)
+            );
+            ctx.restore();
+        }
+        
+        ctx.fillText(line, position.x, y);
+        
+        if (shape.underline) {
+            const metrics = ctx.measureText(line);
+            ctx.beginPath();
+            ctx.moveTo(position.x, y + 2 * this.zoom);
+            ctx.lineTo(position.x + metrics.width, y + 2 * this.zoom);
+            ctx.stroke();
+        }
+    });
+}
+
+drawDimension(ctx, shape) {
+    // رسم الأبعاد (يمكن توسيعها حسب الحاجة)
+    const type = shape.subtype || shape.dimensionType || 'linear';
+    
+    switch (type) {
+        case 'linear':
+            this.drawLinearDimension(ctx, shape);
+            break;
+        case 'angular':
+            this.drawAngularDimension(ctx, shape);
+            break;
+        case 'radius':
+            this.drawRadiusDimension(ctx, shape);
+            break;
+        case 'diameter':
+            this.drawDiameterDimension(ctx, shape);
+            break;
+        default:
+            console.warn('Unknown dimension type:', type);
+    }
+}
+
+drawSpline(ctx, shape) {
+    const points = shape.points;
+    if (!points || points.length < 2) return;
+    
+    ctx.beginPath();
+    
+    if (points.length === 2) {
+        // خط مستقيم
+        ctx.moveTo(points[0].x, points[0].y);
+        ctx.lineTo(points[1].x, points[1].y);
+    } else {
+        // منحنى Bezier
+        ctx.moveTo(points[0].x, points[0].y);
+        
+        for (let i = 1; i < points.length - 2; i++) {
+            const xc = (points[i].x + points[i + 1].x) / 2;
+            const yc = (points[i].y + points[i + 1].y) / 2;
+            ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+        }
+        
+        // آخر نقطتين
+        ctx.quadraticCurveTo(
+            points[points.length - 2].x,
+            points[points.length - 2].y,
+            points[points.length - 1].x,
+            points[points.length - 1].y
+        );
+    }
+    
+    ctx.stroke();
+}
+
+drawHatch(ctx, shape) {
+    // رسم التظليل (Hatch)
+    if (!shape.boundary || shape.boundary.length === 0) return;
+    
+    // رسم الحدود
+    ctx.beginPath();
+    ctx.moveTo(shape.boundary[0].x, shape.boundary[0].y);
+    
+    for (let i = 1; i < shape.boundary.length; i++) {
+        ctx.lineTo(shape.boundary[i].x, shape.boundary[i].y);
+    }
+    
+    ctx.closePath();
+    
+    // حفظ منطقة القص
+    ctx.save();
+    ctx.clip();
+    
+    // رسم خطوط التظليل
+    const pattern = shape.pattern || 'horizontal';
+    const spacing = (shape.spacing || 5) * this.zoom;
+    const angle = shape.angle || 0;
+    
+    // حساب حدود المنطقة
+    const bounds = this.getBounds(shape.boundary);
+    
+    ctx.strokeStyle = shape.color || this.currentColor;
+    ctx.lineWidth = this.zoom;
+    
+    // رسم الخطوط حسب النمط
+    this.drawHatchPattern(ctx, pattern, bounds, spacing, angle);
+    
+    ctx.restore();
+    
+    // رسم الحدود
+    ctx.stroke();
+}
+
+// دالة مساعدة لحساب حدود مجموعة نقاط
+getBounds(points) {
+    let minX = Infinity, minY = Infinity;
+    let maxX = -Infinity, maxY = -Infinity;
+    
+    points.forEach(point => {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+    });
+    
+    return { minX, minY, maxX, maxY };
+}
+
+// دالة مساعدة لرسم أنماط التظليل
+drawHatchPattern(ctx, pattern, bounds, spacing, angle) {
+    const { minX, minY, maxX, maxY } = bounds;
+    const width = maxX - minX;
+    const height = maxY - minY;
+    
+    ctx.save();
+    ctx.translate((minX + maxX) / 2, (minY + maxY) / 2);
+    ctx.rotate(angle * Math.PI / 180);
+    
+    switch (pattern) {
+        case 'horizontal':
+        case 'vertical':
+            const isVertical = pattern === 'vertical';
+            const count = Math.ceil((isVertical ? width : height) / spacing);
+            
+            for (let i = -count; i <= count; i++) {
+                ctx.beginPath();
+                if (isVertical) {
+                    ctx.moveTo(i * spacing, -height);
+                    ctx.lineTo(i * spacing, height);
+                } else {
+                    ctx.moveTo(-width, i * spacing);
+                    ctx.lineTo(width, i * spacing);
+                }
+                ctx.stroke();
+            }
+            break;
+            
+        case 'cross':
+            // خطوط أفقية وعمودية
+            this.drawHatchPattern(ctx, 'horizontal', bounds, spacing, 0);
+            this.drawHatchPattern(ctx, 'vertical', bounds, spacing, 0);
+            break;
+            
+        case 'diagonal':
+            // خطوط مائلة
+            const diagonal = Math.sqrt(width * width + height * height);
+            const dCount = Math.ceil(diagonal / spacing);
+            
+            for (let i = -dCount; i <= dCount; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-diagonal, i * spacing);
+                ctx.lineTo(diagonal, i * spacing);
+                ctx.stroke();
+            }
+            break;
+    }
+    
+    ctx.restore();
+}
     
     // رسم صندوق التحديد
     drawSelectionBox() {
@@ -3127,21 +3503,101 @@ class TyrexCAD {
         this.render();
     }
     
-    // دالة تعيين وزن الخط
-    setLineWeight(weight) {
-        if (this.linetypeManager) {
-            this.linetypeManager.setCurrentLineWeight(weight);
-        } else {
-            // Fallback - تحويل بسيط
-            if (weight === 'default' || weight === 'bylayer') {
-                this.currentLineWidth = 2;
-            } else {
-                this.currentLineWidth = parseFloat(weight) * 3.78; // تقريبي
-            }
+    /**
+ * تعيين وزن الخط (Line Weight)
+ * @param {string|number} weight - قيمة الوزن أو معرف خاص
+ */
+setLineWeight(weight) {
+    // التحقق من صحة المعطيات
+    if (weight === undefined || weight === null) {
+        console.warn('Invalid line weight');
+        return;
+    }
+    
+    // معالجة القيم الخاصة
+    let actualWeight = weight;
+    let pixelWidth = 2; // القيمة الافتراضية
+    
+    if (this.linetypeManager) {
+        // استخدام LinetypeManager
+        this.linetypeManager.setCurrentLineWeight(weight);
+        
+        // الحصول على القيمة الفعلية بالبكسل
+        pixelWidth = this.linetypeManager.getActualLineWeight(weight);
+        
+        // الحصول على معلومات الوزن
+        const weightInfo = this.linetypeManager.lineWeights.find(w => w.value === weight);
+        if (weightInfo) {
+            this.updateStatus(`Line weight: ${weightInfo.label}`);
         }
         
-        this.render();
+        // تحديث القيمة الداخلية
+        this.currentLineWeight = weight;
+        this.currentLineWidth = pixelWidth;
+    } else {
+        // Fallback - معالجة يدوية
+        switch (weight) {
+            case 'default':
+                actualWeight = -3;
+                pixelWidth = 2;
+                break;
+            case 'bylayer':
+                actualWeight = -2;
+                pixelWidth = 2;
+                break;
+            case 'byblock':
+                actualWeight = -1;
+                pixelWidth = 2;
+                break;
+            default:
+                // تحويل من مم إلى بكسل (تقريبي)
+                const mm = parseFloat(weight);
+                if (!isNaN(mm)) {
+                    actualWeight = mm;
+                    // 1mm ≈ 3.78 pixels at 96 DPI
+                    pixelWidth = Math.max(1, mm * 3.78);
+                }
+                break;
+        }
+        
+        this.currentLineWeight = actualWeight;
+        this.currentLineWidth = pixelWidth;
+        this.updateStatus(`Line weight: ${weight}`);
     }
+    
+    // تحديث الطبقة الحالية
+    if (this.layerManager) {
+        const layer = this.layerManager.getCurrentLayer();
+        if (layer) {
+            layer.lineWeight = actualWeight;
+            layer.lineWidth = pixelWidth;
+        }
+    } else {
+        // Fallback للنظام القديم
+        const layer = this.getLayer(this.currentLayerId);
+        if (layer) {
+            layer.lineWidth = pixelWidth;
+        }
+    }
+    
+    // تحديث UI
+    if (this.ui) {
+        this.ui.updateLineWeightDisplay();
+        this.ui.updateLineWeightDropdowns();
+    }
+    
+    // تحديث الأشكال المحددة
+    if (this.selectedShapes.size > 0) {
+        this.selectedShapes.forEach(shape => {
+            shape.lineWeight = actualWeight;
+            shape.lineWidth = pixelWidth;
+        });
+        this.recordState();
+    }
+    
+    // إعادة الرسم
+    this.render();
+}
     
     // History
     recordState() {
@@ -3378,27 +3834,205 @@ class TyrexCAD {
         this.render();
     }
     
-    setLineWidth(width) {
-        this.currentLineWidth = parseInt(width);
-        const layer = this.getLayer(this.currentLayerId);
-        if (layer) {
-            layer.lineWidth = this.currentLineWidth;
-        }
-        
-        // Update display
-        this.ui.updateLineWidthDisplay(width);
-        
-        this.render();
+   /**
+ * تعيين عرض الخط بالبكسل (للتوافق مع الكود القديم)
+ * @param {number} width - العرض بالبكسل
+ */
+setLineWidth(width) {
+    // التحقق من صحة المعطيات
+    const pixelWidth = parseFloat(width);
+    if (isNaN(pixelWidth) || pixelWidth <= 0) {
+        console.warn('Invalid line width:', width);
+        return;
     }
     
-    setLineType(type) {
-        this.currentLineType = type;
+    // تحديث القيمة الداخلية
+    this.currentLineWidth = pixelWidth;
+    
+    if (this.linetypeManager) {
+        // البحث عن أقرب وزن خط مطابق
+        const weights = this.linetypeManager.lineWeights;
+        let closestWeight = weights[0];
+        let minDiff = Infinity;
+        
+        weights.forEach(w => {
+            if (w.mm >= 0) { // تجاهل القيم الخاصة
+                const weightPixels = w.mm * 3.78;
+                const diff = Math.abs(weightPixels - pixelWidth);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestWeight = w;
+                }
+            }
+        });
+        
+        // تعيين الوزن الأقرب
+        this.setLineWeight(closestWeight.value);
+        
+        // تحديث UI مع القيمة الفعلية
+        if (this.ui) {
+            this.ui.updateLineWeightDisplay();
+        }
+    } else {
+        // النظام القديم
+        this.currentLineWidth = pixelWidth;
+        
+        // تحديث الطبقة الحالية
+        const layer = this.getLayer(this.currentLayerId);
+        if (layer) {
+            layer.lineWidth = pixelWidth;
+        }
+        
+        // تحديث UI
+        if (this.ui && this.ui.updateLineWidthDisplay) {
+            this.ui.updateLineWidthDisplay(pixelWidth);
+        }
+        
+        // تحديث الأشكال المحددة
+        if (this.selectedShapes.size > 0) {
+            this.selectedShapes.forEach(shape => {
+                shape.lineWidth = pixelWidth;
+            });
+            this.recordState();
+        }
+        
+        this.updateStatus(`Line width: ${pixelWidth.toFixed(1)}px`);
+        this.render();
+    }
+}
+    
+
+   /**
+ * دالة مساعدة: تعيين نوع الخط من Preset
+ * @param {string} preset - اسم النمط المحدد مسبقاً
+ */
+setLineTypePreset(preset) {
+    const presets = {
+        'continuous': 'continuous',
+        'hidden': 'hidden',
+        'center': 'center',
+        'phantom': 'phantom',
+        'dashed': 'dashed',
+        'dotted': 'dotted',
+        'dashdot': 'dashdot'
+    };
+    
+    const type = presets[preset] || 'continuous';
+    this.setLineType(type);
+}
+
+/**
+ * دالة مساعدة: تعيين وزن الخط من قائمة سريعة
+ * @param {string} quickWeight - وزن سريع (thin, normal, bold, heavy)
+ */
+setQuickLineWeight(quickWeight) {
+    const quickWeights = {
+        'thin': 0.13,
+        'normal': 0.25,
+        'bold': 0.50,
+        'heavy': 1.00
+    };
+    
+    const weight = quickWeights[quickWeight] || 0.25;
+    this.setLineWeight(weight);
+} 
+
+
+    /**
+ * دالة مساعدة: مطابقة خصائص الخط من شكل موجود
+ * @param {Object} sourceShape - الشكل المصدر
+ */
+matchLineProperties(sourceShape) {
+    if (!sourceShape) return;
+    
+    // مطابقة نوع الخط
+    if (sourceShape.lineType) {
+        this.setLineType(sourceShape.lineType);
+    }
+    
+    // مطابقة وزن الخط
+    if (sourceShape.lineWeight !== undefined) {
+        this.setLineWeight(sourceShape.lineWeight);
+    } else if (sourceShape.lineWidth !== undefined) {
+        this.setLineWidth(sourceShape.lineWidth);
+    }
+    
+    // مطابقة اللون
+    if (sourceShape.color) {
+        this.setColor(sourceShape.color);
+    }
+    
+    this.updateStatus('Line properties matched');
+}
+
+/**
+ * دالة مساعدة: إعادة تعيين خصائص الخط للقيم الافتراضية
+ */
+resetLineProperties() {
+    this.setLineType('continuous');
+    this.setLineWeight(0.25);
+    this.setColor('#00d4aa');
+    
+    this.updateStatus('Line properties reset to defaults');
+}
+
+
+   /**
+ * تعيين نوع الخط (Linetype)
+ * @param {string} type - معرف نوع الخط
+ */
+setLineType(type) {
+    // التحقق من صحة المعطيات
+    if (!type) {
+        console.warn('Invalid line type');
+        return;
+    }
+    
+    // تحديث نوع الخط الحالي
+    this.currentLineType = type;
+    
+    // التحديث عبر LinetypeManager إن وجد
+    if (this.linetypeManager) {
+        this.linetypeManager.setCurrentLinetype(type);
+        
+        // الحصول على معلومات نوع الخط
+        const linetypeInfo = this.linetypeManager.getCurrentLinetype();
+        if (linetypeInfo) {
+            this.updateStatus(`Line type: ${linetypeInfo.name}`);
+        }
+    }
+    
+    // تحديث الطبقة الحالية
+    if (this.layerManager) {
+        const layer = this.layerManager.getCurrentLayer();
+        if (layer) {
+            layer.lineType = type;
+        }
+    } else {
+        // Fallback للنظام القديم
         const layer = this.getLayer(this.currentLayerId);
         if (layer) {
             layer.lineType = type;
         }
-        this.render();
     }
+    
+    // تحديث UI
+    if (this.ui) {
+        this.ui.updateLinetypeDisplay();
+        this.ui.updateLinetypeDropdowns();
+    }
+    
+    // تحديث الأشكال المحددة
+    if (this.selectedShapes.size > 0) {
+        this.selectedShapes.forEach(shape => {
+            shape.lineType = type;
+        });
+        this.recordState();
+    }
+    
+    // إعادة الرسم
+    this.render();
+}
     
     toggleGrid() {
         this.gridEnabled = !this.gridEnabled;
