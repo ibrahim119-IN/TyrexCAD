@@ -2819,7 +2819,9 @@ class UI {
             if (!display) return;
             
             if (this.cad.linetypeManager) {
-                const currentType = this.cad.linetypeManager.getCurrentLinetype();
+                const currentType = this.cad.linetypeManager ? 
+            this.cad.linetypeManager.getCurrentLinetype() : 
+            { name: 'Continuous', pattern: [] };
                 
                 if (display.tagName === 'LINE') {
                     // تحديث SVG line
@@ -3024,7 +3026,16 @@ class UI {
             input.style.display = 'none';
         }
     }
-    
+    /**
+ * تحديث قيمة حقل الإدخال الديناميكي
+ * @param {string} value - القيمة المراد عرضها
+ */
+updateDynamicInput(value) {
+    const field = this.elements.get('dynamicField') || document.getElementById('dynamicField');
+    if (field) {
+        field.value = value;
+    }
+}
     /**
      * تحديث مؤشر الالتقاط
      */

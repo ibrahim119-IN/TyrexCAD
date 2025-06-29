@@ -2643,7 +2643,7 @@ render() {
             }
             
             // Draw the shape - معامل واحد فقط
-            this.drawShape(shape);
+           this.drawShape(this.ctx, shape);
             
             this.ctx.restore();
             
@@ -2682,7 +2682,7 @@ render() {
             }
             
             this.ctx.globalAlpha = 0.6;
-            this.drawShape(shape);
+           this.drawShape(this.ctx, shape);
             this.ctx.restore();
         });
     }
@@ -2802,7 +2802,7 @@ drawShape(ctx, shape) {
     try {
         // تطبيق خصائص الطبقة إذا لم تكن محددة على الشكل
         if (this.layerManager) {
-            const layer = this.layerManager.getLayer(shape.layerId || this.getCurrentLayerId());
+            const layer = this.layerManager.layers.get(shape.layerId);
             if (layer) {
                 // استخدام خصائص الطبقة كقيم افتراضية
                 shape = {

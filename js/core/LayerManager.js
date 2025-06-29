@@ -528,6 +528,16 @@ class LayerManager {
         this.cad.updateStatus(`Merged ${mergedCount} objects into layer`);
         return true;
     }
+
+    /**
+ * الحصول على طبقة بواسطة ID
+ * @param {number} id - معرف الطبقة
+ * @returns {Object} الطبقة أو null
+ */
+getLayer(id) {
+    return this.layers.get(id);
+}
+
 }
 
 // تصدير للاستخدام

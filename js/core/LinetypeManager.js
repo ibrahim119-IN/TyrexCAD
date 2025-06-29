@@ -177,31 +177,68 @@ class LinetypeManager {
         this.currentLinetype = 'continuous';
         this.currentLineWeight = 0.25; // الوزن الافتراضي
         this.globalLinetypeScale = 1.0; // مقياس عام لجميع الأنواع
+        this.weightDisplayScale = 1.0; // مقياس عرض الأوزان
         
         // خصائص مخصصة لكل نوع
         this.customLinetypes = new Map();
     }
     
     /**
-     * الحصول على وزن الخط الفعلي بالبكسل
+     * الحصول على نوع الخط الحالي
+     * @returns {Object} معلومات نوع الخط الحالي
      */
-    getLineWeightInPixels(weight, zoom = 1) {
+    getCurrentLinetype() {
+        const linetypeInfo = this.linetypes.get(this.currentLinetype);
+        if (!linetypeInfo) {
+            // إذا لم يوجد، ارجع للنوع الافتراضي
+            return {
+                id: 'continuous',
+                name: 'Continuous',
+                description: 'Solid line',
+                pattern: []
+            };
+        }
+        
+        return {
+            id: this.currentLinetype,
+            name: linetypeInfo.name,
+            description: linetypeInfo.description,
+            pattern: linetypeInfo.pattern || []
+        };
+    }
+    
+    /**
+     * الحصول على وزن الخط الفعلي
+     * @param {number|string} weight - وزن الخط
+     * @returns {number} الوزن الفعلي بالمليمتر
+     */
+    getActualLineWeight(weight) {
         // معالجة القيم الخاصة
         if (weight === 'default' || weight === -3) {
-            weight = 0.25; // الوزن الافتراضي
+            return 0.25; // الوزن الافتراضي
         } else if (weight === 'bylayer' || weight === -2) {
             // استخدم وزن الطبقة
             const layer = this.cad.layerManager?.getCurrentLayer();
-            weight = layer?.lineWeight || 0.25;
+            return layer?.lineWeight || 0.25;
         } else if (weight === 'byblock' || weight === -1) {
             // للكتل (Blocks) - غير مدعوم حالياً
-            weight = 0.25;
+            return 0.25;
         }
+        
+        return parseFloat(weight) || 0.25;
+    }
+    
+    /**
+     * الحصول على وزن الخط الفعلي بالبكسل
+     */
+    getLineWeightInPixels(weight, zoom = 1) {
+        // الحصول على الوزن الفعلي بالمليمتر
+        const actualWeight = this.getActualLineWeight(weight);
         
         // تحويل من مليمتر إلى بكسل
         // افتراض: 1mm = 3.78 pixels (96 DPI)
         const mmToPixels = 3.78;
-        let pixels = weight * mmToPixels;
+        let pixels = actualWeight * mmToPixels * this.weightDisplayScale;
         
         // تطبيق حد أدنى للرؤية
         pixels = Math.max(pixels, 0.5);
@@ -254,7 +291,7 @@ class LinetypeManager {
             this.cad.ui.updateLinetypesList();
         }
         
-        return true;
+        return id;
     }
     
     /**
@@ -337,6 +374,14 @@ class LinetypeManager {
      */
     setGlobalLinetypeScale(scale) {
         this.globalLinetypeScale = Math.max(0.01, scale);
+        this.cad.render();
+    }
+    
+    /**
+     * تعيين مقياس عرض الأوزان
+     */
+    setWeightDisplayScale(scale) {
+        this.weightDisplayScale = Math.max(0.1, scale);
         this.cad.render();
     }
     
@@ -504,111 +549,6 @@ class LinetypeManager {
             this.cad.ui.updateLineWeightDisplay();
         }
     }
-
-
-    togglePlot(id) {
-    const layer = this.layers.get(id);
-    if (layer) {
-        layer.plot = !layer.plot;
-        this.cad.render();
-        if (this.cad.ui) {
-            this.cad.ui.updateLayersList();
-        }
-    }
-}
-
-/**
- * تعيين شفافية الطبقة
- */
-setLayerTransparency(id, transparency) {
-    const layer = this.layers.get(id);
-    if (!layer) return false;
-    
-    // التحقق من صحة القيمة
-    transparency = parseInt(transparency);
-    if (isNaN(transparency)) transparency = 0;
-    transparency = Math.max(0, Math.min(100, transparency));
-    
-    layer.transparency = transparency;
-    
-    this.cad.render();
-    if (this.cad.ui) {
-        this.cad.ui.updateLayersList();
-    }
-    
-    return true;
-}
-
-/**
- * الحصول على حالات الطبقات المحفوظة
- */
-getLayerStates() {
-    if (!this.layerStates) {
-        this.layerStates = new Map();
-    }
-    return Array.from(this.layerStates.keys());
-}
-
-/**
- * حفظ حالة الطبقات
- */
-saveLayerState(stateName) {
-    if (!this.layerStates) {
-        this.layerStates = new Map();
-    }
-    
-    const state = {
-        layers: {},
-        currentLayerId: this.currentLayerId
-    };
-    
-    this.layers.forEach((layer, id) => {
-        state.layers[id] = {
-            visible: layer.visible,
-            frozen: layer.frozen,
-            locked: layer.locked,
-            color: layer.color,
-            lineType: layer.lineType,
-            lineWidth: layer.lineWidth,
-            transparency: layer.transparency,
-            plot: layer.plot
-        };
-    });
-    
-    this.layerStates.set(stateName, state);
-    return true;
-}
-
-/**
- * استعادة حالة الطبقات
- */
-restoreLayerState(stateName) {
-    if (!this.layerStates || !this.layerStates.has(stateName)) {
-        return false;
-    }
-    
-    const state = this.layerStates.get(stateName);
-    
-    // استعادة خصائص الطبقات
-    Object.entries(state.layers).forEach(([id, props]) => {
-        const layer = this.layers.get(parseInt(id));
-        if (layer) {
-            Object.assign(layer, props);
-        }
-    });
-    
-    // استعادة الطبقة الحالية
-    if (this.layers.has(state.currentLayerId)) {
-        this.setCurrentLayer(state.currentLayerId);
-    }
-    
-    this.cad.render();
-    if (this.cad.ui) {
-        this.cad.ui.updateLayersList();
-    }
-    
-    return true;
-}
 }
 
 // تصدير للاستخدام

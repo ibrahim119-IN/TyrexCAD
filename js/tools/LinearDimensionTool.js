@@ -1,5 +1,7 @@
-// أضف هذا في ملف جديد js/tools/LinearDimensionTool.js
-// أو أضفه في نهاية ملف js/tools/ToolsManager.js
+/**
+ * Linear Dimension Tool for TyrexCAD
+ * أداة الأبعاد الخطية
+ */
 
 class LinearDimensionTool {
     constructor(toolsManager, name) {
@@ -30,6 +32,7 @@ class LinearDimensionTool {
         this.secondPoint = null;
         this.state = 'pickFirst';
         this.tempDimension = null;
+        this.cad.clearTempShapes();
     }
     
     onMouseDown(point) {
@@ -312,7 +315,14 @@ class LinearDimensionTool {
             
             // دالة الرسم المخصصة
             draw: function(ctx, cad) {
-                const shapes = cad.toolsManager.tools.get('dimension').createDimensionShapes(
+                // إنشاء instance مؤقت من الأداة للوصول لدالة createDimensionShapes
+                const tool = cad.toolsManager?.tools?.get('dimension');
+                if (!tool) {
+                    console.warn('Dimension tool not found');
+                    return;
+                }
+                
+                const shapes = tool.createDimensionShapes(
                     {
                         x1: this.point1.x + this.dimLineOffset.x,
                         y1: this.point1.y + this.dimLineOffset.y,
@@ -342,7 +352,7 @@ class LinearDimensionTool {
                 // رسم كل جزء
                 shapes.forEach(shape => {
                     shape.color = this.color;
-                    cad.drawShape(ctx, shape);
+                    cad.drawShape(shape);
                 });
             }
         };
@@ -363,6 +373,9 @@ class LinearDimensionTool {
     }
 }
 
-// إضافة الأداة للـ tools في ToolsManager
-// في دالة loadBuiltInTools في ToolsManager.js، أضف:
-this.registerTool('dimension', new LinearDimensionTool(this, 'dimension'));
+// تصدير الأداة
+window.LinearDimensionTool = LinearDimensionTool;
+
+// ملاحظة: تسجيل الأداة يجب أن يتم في ToolsManager.js
+// في دالة loadBuiltInTools أضف:
+// this.registerTool('dimension', new LinearDimensionTool(this, 'dimension'));

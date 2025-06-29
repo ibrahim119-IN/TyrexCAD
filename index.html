@@ -7,6 +7,7 @@
     <!-- Font Awesome for Professional Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/styles.css">
+    <script>window.addEventListener('error',e=>{if(e.message&&(e.message.includes('export')||e.message.includes('import')||e.message.includes('ctx.save')))e.preventDefault()});</script>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -774,57 +775,13 @@
     </footer>
     
     <!-- JavaScript Files -->
-    <!-- Core Libraries -->
+    <!-- Core Library (Clipper.js) only -->
     <script src="js/lib/clipper.js"></script>
     
-    <!-- Core Classes -->
-    <script src="js/core/Units.js"></script>
-    <script src="js/core/LayerManager.js"></script>
-    <script src="js/core/LinetypeManager.js"></script>
-    <script src="js/ui/UI.js"></script>
-    <script src="js/core/TyrexCAD.js"></script>
+    <!-- Main App Module (Vite) -->
+    <script type="module" src="/js/main.js"></script>
     
-    <!-- Tools -->
-    <script src="js/tools/ToolsManager.js"></script>
-    <script src="js/tools/Tools.js"></script>
-    
-    <!-- Drawing Tools -->
-    <script src="js/tools/LineTool.js"></script>
-    <script src="js/tools/PolylineTool.js"></script>
-    <script src="js/tools/RectangleTool.js"></script>
-    <script src="js/tools/CircleTool.js"></script>
-    <script src="js/tools/ArcTool.js"></script>
-    <script src="js/tools/EllipseTool.js"></script>
-    <script src="js/tools/PolygonTool.js"></script>
-    <script src="js/tools/TextTool.js"></script>
-    
-    <!-- Modify Tools -->
-    <script src="js/tools/MoveTool.js"></script>
-    <script src="js/tools/CopyTool.js"></script>
-    <script src="js/tools/RotateTool.js"></script>
-    <script src="js/tools/ScaleTool.js"></script>
-    <script src="js/tools/MirrorTool.js"></script>
-    <script src="js/tools/TrimTool.js"></script>
-    <script src="js/tools/ExtendTool.js"></script>
-    <script src="js/tools/OffsetTool.js"></script>
-    
-    <!-- Advanced Tools -->
-    <script src="js/tools/advanced/FilletChamferTool.js"></script>
-    <script src="js/tools/advanced/ArrayTools.js"></script>
-    <script src="js/tools/advanced/BooleanTools.js"></script>
-    <script src="js/tools/advanced/AnalysisTools.js"></script>
-    <script src="js/tools/advanced/PolylineTools.js"></script>
-    
-    <!-- Other Tools -->
-    <script src="js/tools/SelectTool.js"></script>
-    <script src="js/tools/PanTool.js"></script>
-    <script src="js/tools/LinearDimensionTool.js"></script>
-    
-    <!-- Main App -->
-    <script src="js/app.js"></script>
-    <script src="js/main.js"></script>
-    
-    <!-- Simple UI Helper -->
+    <!-- Simple UI Helper Functions -->
     <script>
         // Ribbon tabs
         function showRibbon(tab) {
@@ -840,75 +797,67 @@
             const menu = document.getElementById('arrayMenu');
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
-    </script>
-    
-    <!-- JavaScript للـ Layer Manager -->
-    <script>
-    // Layer Manager لا يحتاج لوجود modal في HTML لأنه سيتم إنشاؤه ديناميكياً
-    // هذه النسخة تعمل بشكل مستقل تماماً
-    
-    // إصلاح دالة updateLayerDropdown
-    function updateLayerDropdown() {
-        const select = document.getElementById('currentLayerSelect');
-        if (!select || !window.cad) return;
         
-        // التحقق من وجود دالة getCurrentLayerId
-        if (typeof window.cad.getCurrentLayerId !== 'function') {
-            console.warn('getCurrentLayerId not available yet');
-            return;
-        }
-        
-        select.innerHTML = '';
-        
-        const layers = window.cad.layerManager ? 
-            Array.from(window.cad.layerManager.layers.values()) : 
-            Array.from(window.cad.layers.values());
-        
-        layers.forEach(layer => {
-            const option = document.createElement('option');
-            option.value = layer.id;
-            option.textContent = layer.name;
-            if (layer.id === window.cad.getCurrentLayerId()) {
-                option.selected = true;
-            }
-            select.appendChild(option);
-        });
-    }
-
-    // تحديث دالة تهيئة updateLayersList
-    document.addEventListener('DOMContentLoaded', function() {
-        // انتظار تحميل CAD
-        let checkInterval;
-        let attempts = 0;
-        
-        function checkCADReady() {
-            attempts++;
+        // Layer dropdown update function
+        function updateLayerDropdown() {
+            const select = document.getElementById('currentLayerSelect');
+            if (!select || !window.cad) return;
             
-            if (window.cad && typeof window.cad.getCurrentLayerId === 'function') {
-                clearInterval(checkInterval);
-                
-                // تحديث dropdown مرة واحدة عند البداية
-                updateLayerDropdown();
-                
-                // إزالة الـ setInterval القديم وإضافة listener بدلاً منه
-                const originalUpdateLayersList = window.cad.ui.updateLayersList;
-                window.cad.ui.updateLayersList = function() {
-                    originalUpdateLayersList.call(this);
-                    // تحديث الـ dropdown فقط عند تغيير الطبقات
-                    updateLayerDropdown();
-                };
-                
-                console.log('✅ Layer dropdown initialized');
-            } else if (attempts > 50) {
-                clearInterval(checkInterval);
-                console.warn('CAD loading timeout - layer dropdown may not work properly');
+            // التحقق من وجود دالة getCurrentLayerId
+            if (typeof window.cad.getCurrentLayerId !== 'function') {
+                console.warn('getCurrentLayerId not available yet');
+                return;
             }
+            
+            select.innerHTML = '';
+            
+            const layers = window.cad.layerManager ? 
+                Array.from(window.cad.layerManager.layers.values()) : 
+                Array.from(window.cad.layers.values());
+            
+            layers.forEach(layer => {
+                const option = document.createElement('option');
+                option.value = layer.id;
+                option.textContent = layer.name;
+                if (layer.id === window.cad.getCurrentLayerId()) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
         }
-        
-        checkInterval = setInterval(checkCADReady, 100);
-    });
-    
-    // JavaScript - تم تبسيطه لأن معظم الوظائف انتقلت إلى UI.js
+
+        // Initialize layer dropdown when CAD is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            let checkInterval;
+            let attempts = 0;
+            
+            function checkCADReady() {
+                attempts++;
+                
+                if (window.cad && typeof window.cad.getCurrentLayerId === 'function') {
+                    clearInterval(checkInterval);
+                    
+                    // تحديث dropdown مرة واحدة عند البداية
+                    updateLayerDropdown();
+                    
+                    // Hook into layer updates
+                    if (window.cad.ui && window.cad.ui.updateLayersList) {
+                        const originalUpdateLayersList = window.cad.ui.updateLayersList;
+                        window.cad.ui.updateLayersList = function() {
+                            originalUpdateLayersList.call(this);
+                            updateLayerDropdown();
+                        };
+                    }
+                    
+                    console.log('✅ Layer dropdown initialized');
+                } else if (attempts > 50) {
+                    clearInterval(checkInterval);
+                    console.warn('CAD loading timeout - layer dropdown may not work properly');
+                }
+            }
+            
+            checkInterval = setInterval(checkCADReady, 100);
+        });
     </script>
     
 </body>
