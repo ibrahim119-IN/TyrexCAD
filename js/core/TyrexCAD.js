@@ -206,7 +206,23 @@ class TyrexCAD {
             
             // Initialize UI
             this.ui.init();
+
+            // تهيئة نظام الإدخال الديناميكي
+        if (window.DynamicInputManager) {
+    this.dynamicInputManager = new DynamicInputManager(this);
+    console.log('✅ Dynamic Input Manager initialized');
+}
+
+        // إنشاء Command Prompt
+        this.createCommandPrompt();
+
+        // 4. في دالة destroy() أو cleanup أضف:
+        if (this.dynamicInputManager) {
+            this.dynamicInputManager.destroy();
+        }
             
+
+        
             // تهيئة Canvas والأحداث
             this.resizeCanvas();
             this.setupEventListeners();
@@ -6216,6 +6232,43 @@ Perimeter: ${perimeter.toFixed(2)} units
         
         return { x: mirroredX, y: mirroredY };
     }
+
+
+
+    getMousePosition() {
+    return {
+        x: this.mouseX,
+        y: this.mouseY
+    };
+}
+
+
+    // إنشاء Command Prompt
+createCommandPrompt() {
+    const existing = document.getElementById('commandPrompt');
+    if (existing) return;
+    
+    const prompt = document.createElement('div');
+    prompt.className = 'command-prompt';
+    prompt.id = 'commandPrompt';
+    document.body.appendChild(prompt);
+}
+
+updateCommandPrompt(text, value = null) {
+    const prompt = document.getElementById('commandPrompt');
+    if (prompt) {
+        if (text) {
+            prompt.innerHTML = value ? 
+                `<span class="prompt-text">${text}:</span><span class="prompt-value">${value}</span>` :
+                `<span class="prompt-text">${text}</span>`;
+            prompt.classList.add('visible');
+        } else {
+            prompt.classList.remove('visible');
+        }
+    }
+}
+
+
 }
 
 

@@ -9,6 +9,7 @@ import './core/Geometry.js';
 import './core/Units.js';
 import './core/LayerManager.js';
 import './core/LinetypeManager.js';
+import './core/DynamicInputManager.js'; 
 import './core/GripsController.js';
 import './ui/UI.js'; // Updated path for UI
 import './core/TyrexCAD.js';

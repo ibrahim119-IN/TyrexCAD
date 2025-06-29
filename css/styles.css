@@ -3966,3 +3966,220 @@ option:disabled {
     border-color: var(--accent-primary);
     background: var(--bg-primary);
 }
+
+/* ==================== Dynamic Input System Styles ==================== */
+
+/* حاوية الإدخال الديناميكي */
+.dynamic-input-container {
+    position: fixed;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(26, 26, 26, 0.95);
+    border: 2px solid var(--accent-primary);
+    border-radius: 6px;
+    padding: 8px 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 212, 170, 0.3);
+    backdrop-filter: blur(10px);
+    z-index: 10000; /* زيادة z-index */
+    pointer-events: all;
+    user-select: none;
+    
+    /* تأثير ظهور سلس */
+    animation: dynamicInputFadeIn 0.2s ease-out;
+}
+
+@keyframes dynamicInputFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* تسمية الإدخال */
+.dynamic-input-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    margin-right: 4px;
+}
+
+/* حقل الإدخال */
+.dynamic-input-field {
+    width: 80px;
+    padding: 6px 10px;
+    background: rgba(10, 10, 10, 0.8);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: #ffffff;
+    font-size: 14px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    text-align: right;
+    outline: none;
+    transition: all var(--transition-fast);
+    pointer-events: all; /* مهم للسماح بالكتابة */
+    user-select: text; /* مهم للسماح بتحديد النص */
+}
+
+.dynamic-input-field:focus {
+    border-color: var(--accent-primary);
+    background: var(--bg-primary);
+    box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.2);
+}
+
+.dynamic-input-field::placeholder {
+    color: var(--text-dim);
+    opacity: 0.7;
+}
+
+/* وحدة القياس */
+.dynamic-input-unit {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-left: 2px;
+}
+
+/* تأثير الاهتزاز للخطأ */
+.dynamic-input-field.shake {
+    animation: inputShake 0.3s ease-out;
+    border-color: var(--accent-error) !important;
+}
+
+@keyframes inputShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+/* مؤشر الإدخال النشط */
+.dynamic-input-container.active {
+    border-color: var(--accent-secondary);
+    box-shadow: 0 4px 16px rgba(0, 153, 255, 0.3);
+}
+
+/* دعم الأنواع المختلفة */
+.dynamic-input-container[data-type="angle"] .dynamic-input-field {
+    width: 60px;
+}
+
+.dynamic-input-container[data-type="text"] .dynamic-input-field {
+    width: 150px;
+    text-align: left;
+}
+
+/* Command Prompt Enhancement */
+.command-prompt {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--text-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+    display: none;
+    max-width: 500px;
+    text-align: center;
+}
+
+.command-prompt.visible {
+    display: block;
+    animation: commandPromptSlideUp 0.3s ease-out;
+}
+
+@keyframes commandPromptSlideUp {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 20px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+.command-prompt .prompt-text {
+    color: var(--text-secondary);
+}
+
+.command-prompt .prompt-value {
+    color: var(--accent-primary);
+    font-weight: 600;
+    margin: 0 4px;
+}
+
+/* تكامل مع نظام المعاينة */
+.preview-mode .dynamic-input-container {
+    border-color: var(--accent-warning);
+}
+
+.preview-mode .dynamic-input-field {
+    background: rgba(255, 170, 0, 0.1);
+}
+
+/* دعم الوضع المظلم */
+@media (prefers-color-scheme: dark) {
+    .dynamic-input-container {
+        background: rgba(26, 26, 26, 0.95);
+    }
+}
+
+/* دعم الشاشات الصغيرة */
+@media (max-width: 768px) {
+    .dynamic-input-container {
+        padding: 4px 8px;
+    }
+    
+    .dynamic-input-field {
+        width: 60px;
+        font-size: 12px;
+    }
+    
+    .dynamic-input-label {
+        font-size: 11px;
+    }
+}
+
+/* تأثيرات إضافية */
+.dynamic-input-container::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    background: linear-gradient(45deg, var(--accent-primary), var(--accent-secondary));
+    border-radius: 6px;
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.3s ease;
+}
+
+.dynamic-input-container:hover::before {
+    opacity: 0.3;
+}
+
+/* Dynamic Input System - Fixed Positioning */
+.dynamic-input-container {
+    position: fixed !important;
+    z-index: 10000 !important;
+    background: rgba(26, 26, 26, 0.95) !important;
+    border: 2px solid #00d4aa !important;
+    pointer-events: all !important;
+}
+
+.dynamic-input-field {
+    pointer-events: all !important;
+    user-select: text !important;
+    background: rgba(10, 10, 10, 0.9) !important;
+    color: white !important;
+}

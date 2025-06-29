@@ -1,8 +1,8 @@
 // ==================== js/tools/BaseTool.js ====================
 
 /**
- * TyrexCAD Base Tool Classes
- * الفئات الأساسية لجميع الأدوات
+ * Base Tool Classes with Dynamic Input Support
+ * الفئات الأساسية للأدوات مع دعم الإدخال الديناميكي
  */
 
 /**
@@ -14,25 +14,31 @@ export class BaseTool {
         this.cad = toolsManager.cad;
         this.name = name;
         this.active = false;
+        this.icon = '';
+        this.cursor = 'crosshair';
+        
+        // حالة الأداة
         this.state = {};
-        this.options = {};
         this.errors = [];
         
-        // خصائص UI
-        this.icon = 'fa-mouse-pointer';
-        this.cursor = 'default';
+        // دعم الإدخال الديناميكي
+        this.dynamicInput = null;
+        this.waitingForInput = false;
+        this.inputCallback = null;
     }
     
     /**
      * تفعيل الأداة
      */
-    activate(options = {}) {
+    activate() {
         this.active = true;
-        this.options = { ...this.getDefaultOptions(), ...options };
-        this.state = {};
-        this.errors = [];
-        this.cad.canvas.style.cursor = this.cursor;
         this.onActivate();
+        this.updateCursor();
+        
+        // تهيئة الإدخال الديناميكي
+        if (this.cad.dynamicInputManager) {
+            this.dynamicInput = this.cad.dynamicInputManager;
+        }
     }
     
     /**
@@ -40,117 +46,78 @@ export class BaseTool {
      */
     deactivate() {
         this.active = false;
+        
+        // إلغاء أي إدخال ديناميكي نشط
+        if (this.dynamicInput && this.dynamicInput.isActive()) {
+            this.dynamicInput.hide();
+        }
+        
         this.onDeactivate();
         this.cleanup();
     }
     
     /**
-     * الخيارات الافتراضية (للتعديل في الفئات الفرعية)
+     * تحديث شكل المؤشر
      */
-    getDefaultOptions() {
-        return {};
-    }
-    
-    /**
-     * معالجة النقر
-     */
-    handleClick(point) {
-        try {
-            if (!this.active) return;
-            this.onClick(point);
-        } catch (error) {
-            this.handleError(error);
+    updateCursor() {
+        if (this.cad.canvas) {
+            this.cad.canvas.style.cursor = this.cursor;
         }
     }
     
     /**
-     * معالجة حركة الماوس
+     * تحديث رسالة الحالة
      */
-    handleMouseMove(point) {
-        try {
-            if (!this.active) return;
-            this.onMouseMove(point);
-        } catch (error) {
-            this.handleError(error);
+    updateStatus(message) {
+        if (this.cad.updateStatus) {
+            this.cad.updateStatus(`${this.name.toUpperCase()}: ${message}`);
         }
     }
     
     /**
-     * معالجة ضغط المفاتيح
+     * طلب إدخال ديناميكي من المستخدم
+     * @param {Object} options - خيارات الإدخال
+     * @param {Function} callback - دالة معالجة القيمة
      */
-    handleKeyPress(key) {
-        try {
-            if (!this.active) return;
-            this.onKeyPress(key);
-        } catch (error) {
-            this.handleError(error);
+    requestDynamicInput(options, callback) {
+        if (!this.dynamicInput) {
+            console.warn('Dynamic input not available');
+            return;
         }
+        
+        this.waitingForInput = true;
+        this.inputCallback = callback;
+        
+        this.dynamicInput.show(options, (value, confirmed) => {
+            this.waitingForInput = false;
+            
+            if (callback) {
+                callback(value, confirmed);
+            }
+            
+            // إذا كان preview فقط، لا تغلق الإدخال
+            if (!confirmed && value !== null) {
+                // تحديث المعاينة
+                this.updatePreview(value);
+            }
+        });
+    }
+    
+    /**
+     * تحديث المعاينة (يمكن للأدوات الفرعية تخصيصها)
+     */
+    updatePreview(value) {
+        // تطبيق افتراضي فارغ
+        // الأدوات الفرعية ستعيد تعريف هذه الدالة
     }
     
     /**
      * معالجة الأخطاء
      */
     handleError(error) {
-        console.error(`[${this.name}] Error:`, error);
+        console.error(`Tool error (${this.name}):`, error);
         this.errors.push(error);
-        
-        if (this.cad.ui) {
-            let message = error.message || 'An error occurred';
-            this.cad.ui.showError(message);
-        }
-        
-        this.deactivate();
-    }
-    
-    /**
-     * تحديث الحالة
-     */
-    updateStatus(message) {
-        this.cad.updateStatus(`${this.name.toUpperCase()}: ${message}`);
-    }
-    
-    /**
-     * تنظيف
-     */
-    cleanup() {
-        this.state = {};
-        this.errors = [];
-        this.cad.canvas.style.cursor = 'default';
-    }
-    
-    // Methods to override in subclasses
-    onActivate() {}
-    onDeactivate() {}
-    onClick(point) {}
-    onMouseMove(point) {}
-    onKeyPress(key) {}
-}
-
-/**
- * الفئة الأساسية لأدوات الرسم
- */
-export class DrawingToolBase extends BaseTool {
-    constructor(toolsManager, name) {
-        super(toolsManager, name);
-        this.drawingPoints = [];
-        this.tempShape = null;
-        this.cursor = 'crosshair';
-    }
-    
-    onActivate() {
-        // التحقق من إمكانية الرسم على الطبقة الحالية
-        if (!this.canDrawOnCurrentLayer()) {
-            this.cad.updateStatus('Cannot draw on frozen layer');
-            this.toolsManager.activateTool('select');
-            return false;
-        }
-        
-        this.drawingPoints = [];
-        this.tempShape = null;
-    }
-    
-    onDeactivate() {
-        this.finishDrawing();
+        this.updateStatus(`Error: ${error.message || error}`);
     }
     
     /**
@@ -159,70 +126,47 @@ export class DrawingToolBase extends BaseTool {
     canDrawOnCurrentLayer() {
         if (this.cad.layerManager) {
             const currentLayer = this.cad.layerManager.getCurrentLayer();
-            if (!currentLayer) return false;
-            
-            // لا يمكن الرسم على طبقة مجمدة
-            if (currentLayer.frozen) {
-                this.cad.updateStatus('Cannot draw on frozen layer');
+            if (!currentLayer || currentLayer.locked || !currentLayer.visible) {
+                this.updateStatus('Cannot draw on locked or hidden layer');
+                this.deactivate();
                 return false;
             }
-            
-            // لا يمكن الرسم على طبقة غير مرئية (تحذير فقط)
-            if (!currentLayer.visible) {
-                this.cad.updateStatus('Warning: Drawing on hidden layer');
-            }
-            
-            return true;
         }
-        
-        // Fallback للنظام القديم
-        const layer = this.cad.layers?.get(this.cad.currentLayerId);
-        return layer && !layer.frozen;
-    }
-    
-    finishDrawing() {
-        this.cad.isDrawing = false;
-        this.drawingPoints = [];
-        this.tempShape = null;
-        this.cad.tempShape = null;
-    }
-    
-    addPoint(point) {
-        this.drawingPoints.push(point);
-        this.cad.drawingPoints = this.drawingPoints;
+        return true;
     }
     
     /**
-     * إنشاء شكل جديد مع خصائص الطبقة
+     * إنشاء شكل بخصائص الطبقة الحالية
      */
     createShape(shapeData) {
-        // الخصائص الأساسية
-        const shape = {
-            ...shapeData,
-            id: this.cad.generateId()
-        };
+        const shape = Object.assign({}, shapeData);
         
-        // تطبيق layerId
+        // تعيين معرف فريد
+        shape.id = this.cad.generateId();
+        
+        // تطبيق خصائص الطبقة الحالية
         if (this.cad.layerManager) {
-            shape.layerId = this.cad.layerManager.currentLayerId;
-            
-            // تطبيق خصائص الطبقة إذا لم تكن محددة مسبقاً
             const layer = this.cad.layerManager.getCurrentLayer();
-            if (layer) {
-                // اللون - أولوية للون المحدد مباشرة
-                if (!shape.color || shape.color === this.cad.currentColor) {
-                    shape.color = layer.color || this.cad.currentColor;
+            shape.layerId = layer.id;
+            
+            // الألوان والخصائص
+            if (!shape.color) {
+                shape.color = layer.color || this.cad.currentColor;
+            }
+            
+            // سمك الخط
+            if (!shape.lineWidth) {
+                if (layer.lineWeight !== undefined && layer.lineWeight !== 'bylayer') {
+                    shape.lineWidth = layer.lineWeight === 'default' ? 
+                        this.cad.currentLineWidth : layer.lineWeight;
+                } else {
+                    shape.lineWidth = this.cad.currentLineWidth;
                 }
-                
-                // عرض الخط
-                if (!shape.lineWidth) {
-                    shape.lineWidth = layer.lineWidth || this.cad.currentLineWidth;
-                }
-                
-                // نوع الخط
-                if (!shape.lineType) {
-                    shape.lineType = layer.lineType || this.cad.currentLineType;
-                }
+            }
+            
+            // نوع الخط
+            if (!shape.lineType) {
+                shape.lineType = layer.lineType || this.cad.currentLineType;
             }
         } else {
             // Fallback للنظام القديم
@@ -234,21 +178,95 @@ export class DrawingToolBase extends BaseTool {
         
         return shape;
     }
+    
+    /**
+     * تنظيف
+     */
+    cleanup() {
+        this.state = {};
+        this.errors = [];
+        this.waitingForInput = false;
+        this.inputCallback = null;
+    }
+    
+    // Methods to override in subclasses
+    onActivate() {}
+    onDeactivate() {}
+    onClick(point) {}
+    onMouseMove(point) {}
+    onKeyPress(key) {}
 }
 
 /**
- * الفئة الأساسية لأدوات التعديل
+ * الفئة الأساسية لأدوات الرسم مع دعم الإدخال الديناميكي
+ */
+export class DrawingToolBase extends BaseTool {
+    constructor(toolsManager, name) {
+        super(toolsManager, name);
+        this.drawingPoints = [];
+        this.tempShape = null;
+        this.constrainedValue = null; // للقيم المقيدة من الإدخال الديناميكي
+    }
+    
+    onActivate() {
+        this.drawingPoints = [];
+        this.tempShape = null;
+        this.constrainedValue = null;
+    }
+    
+    onDeactivate() {
+        this.finishDrawing();
+    }
+    
+    finishDrawing() {
+        this.cad.isDrawing = false;
+        this.drawingPoints = [];
+        this.tempShape = null;
+        this.cad.tempShape = null;
+        this.constrainedValue = null;
+    }
+    
+    addPoint(point) {
+        this.drawingPoints.push(point);
+        this.cad.drawingPoints = this.drawingPoints;
+    }
+    
+    /**
+     * الحصول على نقطة مقيدة بناءً على الإدخال الديناميكي
+     */
+    getConstrainedPoint(basePoint, currentPoint) {
+        if (this.constrainedValue !== null) {
+            // حساب النقطة بناءً على القيمة المقيدة
+            const angle = Math.atan2(
+                currentPoint.y - basePoint.y,
+                currentPoint.x - basePoint.x
+            );
+            
+            return {
+                x: basePoint.x + this.constrainedValue * Math.cos(angle),
+                y: basePoint.y + this.constrainedValue * Math.sin(angle)
+            };
+        }
+        
+        return currentPoint;
+    }
+}
+
+/**
+ * الفئة الأساسية لأدوات التعديل مع دعم الإدخال الديناميكي
  */
 export class ModifyToolBase extends BaseTool {
     constructor(toolsManager, name) {
         super(toolsManager, name);
         this.selection = [];
         this.originalShapes = [];
+        this.previewShapes = [];
     }
     
     onActivate() {
         this.selection = [];
         this.originalShapes = [];
+        this.previewShapes = [];
         
         // التحقق من وجود عناصر محددة قابلة للتعديل
         const modifiableShapes = this.getModifiableSelection();
@@ -285,45 +303,66 @@ export class ModifyToolBase extends BaseTool {
      * التحقق من إمكانية تعديل شكل
      */
     canModifyShape(shape) {
+        // التحقق من القفل
+        if (shape.locked) return false;
+        
+        // التحقق من الطبقة
         if (this.cad.layerManager) {
-            const layer = this.cad.layerManager.layers.get(shape.layerId);
-            if (!layer) return false;
-            
-            // لا يمكن تعديل أشكال في طبقة مقفولة أو مجمدة
-            if (layer.locked || layer.frozen) {
+            const layer = this.cad.layerManager.getLayer(shape.layerId);
+            if (layer && (layer.locked || !layer.visible)) {
                 return false;
             }
-            
-            // تحذير إذا كانت الطبقة غير مرئية
-            if (!layer.visible) {
-                console.warn(`Modifying shape on hidden layer: ${layer.name}`);
-            }
-            
-            return true;
         }
         
-        // Fallback للنظام القديم
-        const layer = this.cad.layers?.get(shape.layerId);
-        return layer && !layer.locked;
+        return true;
     }
     
+    /**
+     * تطبيق التعديل
+     */
     applyModification() {
         this.cad.recordState();
+    }
+    
+    /**
+     * عرض معاينة التعديل
+     */
+    showPreview(shapes) {
+        this.previewShapes = shapes;
+        this.cad.tempShapes = shapes;
+        this.cad.render();
+    }
+    
+    /**
+     * مسح المعاينة
+     */
+    clearPreview() {
+        this.previewShapes = [];
+        this.cad.tempShapes = null;
+        this.cad.render();
     }
 }
 
 /**
- * الفئة الأساسية للأدوات المتقدمة
+ * الفئة الأساسية للأدوات المتقدمة مع دعم الإدخال الديناميكي
  */
 export class AdvancedToolBase extends BaseTool {
     constructor(toolsManager, name) {
         super(toolsManager, name);
         this.ui = null;
         this.preview = null;
+        this.options = this.getDefaultOptions();
+    }
+    
+    /**
+     * الحصول على الخيارات الافتراضية
+     */
+    getDefaultOptions() {
+        return {};
     }
     
     onActivate() {
-        // إنشاء UI panel
+        // إنشاء UI panel إذا لزم الأمر
         this.createUI();
     }
     
@@ -334,7 +373,8 @@ export class AdvancedToolBase extends BaseTool {
     }
     
     createUI() {
-        if (this.cad.ui) {
+        if (this.cad.ui && this.cad.ui.tools) {
+            // استخدام النظام الجديد للـ panels
             this.cad.ui.showToolPanel(this.name, {
                 x: 350,
                 y: 200
@@ -343,7 +383,7 @@ export class AdvancedToolBase extends BaseTool {
     }
     
     destroyUI() {
-        if (this.cad.ui) {
+        if (this.cad.ui && this.cad.ui.tools) {
             this.cad.ui.hideToolPanel();
         }
     }
@@ -360,7 +400,28 @@ export class AdvancedToolBase extends BaseTool {
         this.cad.render();
     }
     
+    /**
+     * الحصول على خيارات UI (للأدوات الفرعية)
+     */
     getUIOptions() {
         return [];
+    }
+    
+    /**
+     * تحديث الخيارات من UI
+     */
+    updateOptions(newOptions) {
+        this.options = Object.assign({}, this.options, newOptions);
+        this.onOptionsChanged();
+    }
+    
+    /**
+     * معالج تغيير الخيارات
+     */
+    onOptionsChanged() {
+        // يمكن للأدوات الفرعية تخصيص هذا
+        if (this.preview) {
+            this.updatePreview();
+        }
     }
 }
