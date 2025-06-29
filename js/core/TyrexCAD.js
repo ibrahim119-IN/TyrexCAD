@@ -2642,8 +2642,8 @@ render() {
                 this.ctx.strokeStyle = this.previewColor || '#ffaa00';
             }
             
-            // Draw the shape - معامل واحد فقط
-           this.drawShape(this.ctx, shape);
+            // Draw the shape
+            this.drawShape(this.ctx, shape);
             
             this.ctx.restore();
             
@@ -2666,7 +2666,7 @@ render() {
         }
         
         this.ctx.globalAlpha = 0.7;
-        this.drawShape(this.tempShape);
+        this.drawShape(this.ctx, this.tempShape);  
         this.ctx.restore();
     }
     
@@ -2682,7 +2682,7 @@ render() {
             }
             
             this.ctx.globalAlpha = 0.6;
-           this.drawShape(this.ctx, shape);
+            this.drawShape(this.ctx, shape);
             this.ctx.restore();
         });
     }

@@ -4,59 +4,53 @@ import * as THREE from 'three';
 // Make THREE global immediately
 window.THREE = THREE;
 
-// Import core files in correct order (they register themselves globally)
-// 1. Core geometry functions first
+// Import core files in correct order
 import './core/Geometry.js';
-
-// 2. Units system
 import './core/Units.js';
-
-// 3. Layer and Linetype managers (before UI and TyrexCAD)
 import './core/LayerManager.js';
 import './core/LinetypeManager.js';
-
-// 4. Grips controller
 import './core/GripsController.js';
-
-// 5. UI system (depends on managers)
 import './ui/UI.js';
-
-// 6. Main CAD system (depends on everything above)
 import './core/TyrexCAD.js';
-
-// 7. Advanced geometry (optional, loaded after core)
 import './geometry/GeometryAdvanced.js';
 
-// Wait a bit to ensure all modules are loaded
-setTimeout(() => {
-    // Create CAD instance after all dependencies are loaded
-    if (window.TyrexCAD) {
-        window.cad = new window.TyrexCAD();
-        console.log('✅ TyrexCAD instance created successfully');
-    } else {
-        console.error('❌ TyrexCAD class not found!');
-    }
-}, 100);
-
-// Import and prepare app initialization
+// Import app
 import { initializeApp } from './app.js';
 
-// Enhanced initialization with retry logic
-function startApp() {
+// Create CAD when everything is loaded
+function createCAD() {
+    const required = ['Geometry', 'UI', 'LayerManager', 'LinetypeManager', 'TyrexCAD'];
+    const missing = required.filter(mod => !window[mod]);
+    
+    if (missing.length > 0) {
+        console.warn('Waiting for modules:', missing);
+        setTimeout(createCAD, 50);
+        return;
+    }
+    
+    try {
+        window.cad = new window.TyrexCAD();
+        console.log('✅ TyrexCAD created successfully');
+        waitForCAD();
+    } catch (error) {
+        console.error('❌ Failed to create TyrexCAD:', error);
+    }
+}
+
+function waitForCAD() {
     if (window.cad && window.cad.ready) {
         console.log('✅ CAD is ready, initializing app...');
         initializeApp();
     } else {
-        console.log('⏳ Waiting for CAD to be ready...');
-        setTimeout(startApp, 100);
+        setTimeout(waitForCAD, 50);
     }
 }
 
-// Start when DOM is ready
+// Start
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(startApp, 200); // Give time for CAD creation
+        setTimeout(createCAD, 100);
     });
 } else {
-    setTimeout(startApp, 200); // Give time for CAD creation
+    setTimeout(createCAD, 100);
 }

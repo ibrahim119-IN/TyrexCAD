@@ -3847,6 +3847,297 @@ updateDynamicInput(value) {
         };
         input.click();
     }
+
+
+
+        /**
+     * تحديث إعدادات الرسم
+     */
+    updateDrawingSettings() {
+        this.updateColorDisplay(this.cad.currentColor);
+        this.updateLineWidthDisplay(this.cad.currentLineWidth);
+        this.updateLinetypeDisplay();
+        this.updateLineWeightDisplay();
+}
+/**
+ * عرض لوحة اختيار نوع الخط
+ */
+showLinetypePanel() {
+    // نفس الكود الذي أنشأناه
+}
+
+/**
+ * عرض لوحة اختيار وزن الخط
+ */
+showLineWeightPanel() {
+    // نفس الكود الذي أنشأناه
+}
+
+
+
+/**
+ * عرض لوحة اختيار نوع الخط
+ */
+showLinetypePanel() {
+    // إزالة أي panel سابق
+    const existing = document.querySelector('.linetype-panel-modal');
+    if (existing) existing.remove();
+    
+    // إنشاء overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'linetype-panel-modal';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        z-index: 999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+    
+    // إنشاء panel
+    const panel = document.createElement('div');
+    panel.style.cssText = `
+        background: #1a1a1a;
+        border: 2px solid #00d4aa;
+        border-radius: 8px;
+        padding: 20px;
+        min-width: 300px;
+        max-width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+    `;
+    
+    const linetypes = [
+        { id: 'continuous', name: 'Continuous', preview: '———————————' },
+        { id: 'dashed', name: 'Dashed', preview: '- - - - - - -' },
+        { id: 'dotted', name: 'Dotted', preview: '· · · · · · ·' },
+        { id: 'dashdot', name: 'DashDot', preview: '—·—·—·—·' },
+        { id: 'center', name: 'Center', preview: '—— · —— · ——' },
+        { id: 'hidden', name: 'Hidden', preview: '— — — — — —' }
+    ];
+    
+    let html = '<h3 style="color: #00d4aa; margin: 0 0 15px 0;">Select Line Type</h3>';
+    
+    linetypes.forEach(type => {
+        html += `
+            <div class="linetype-option" 
+                 data-type="${type.id}"
+                 style="padding: 12px; 
+                        margin: 5px 0; 
+                        border: 1px solid #333; 
+                        border-radius: 4px; 
+                        cursor: pointer;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        transition: all 0.2s;"
+                 onmouseover="this.style.backgroundColor='#2a2a2a'; this.style.borderColor='#00d4aa';"
+                 onmouseout="this.style.backgroundColor='transparent'; this.style.borderColor='#333';">
+                <span style="color: #fff;">${type.name}</span>
+                <span style="color: #666; font-family: monospace;">${type.preview}</span>
+            </div>
+        `;
+    });
+    
+    html += `
+        <button style="margin-top: 15px; 
+                       padding: 8px 20px; 
+                       background: #333; 
+                       color: #fff; 
+                       border: none; 
+                       border-radius: 4px; 
+                       cursor: pointer;
+                       width: 100%;"
+                onmouseover="this.style.backgroundColor='#444';"
+                onmouseout="this.style.backgroundColor='#333';"
+                onclick="document.querySelector('.linetype-panel-modal').remove();">
+            Cancel
+        </button>
+    `;
+    
+    panel.innerHTML = html;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    
+    // Event listeners
+    panel.querySelectorAll('.linetype-option').forEach(option => {
+        option.onclick = () => {
+            const type = option.getAttribute('data-type');
+            this.cad.setLineType(type);
+            overlay.remove();
+            
+            // تحديث العرض
+            const display = document.getElementById('propLinetype');
+            if (display) display.textContent = option.querySelector('span').textContent;
+        };
+    });
+    
+    // إغلاق عند النقر خارج Panel
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            overlay.remove();
+        }
+    };
+}
+
+/**
+ * عرض لوحة اختيار وزن الخط
+ */
+showLineWeightPanel() {
+    // إزالة أي panel سابق
+    const existing = document.querySelector('.lineweight-panel-modal');
+    if (existing) existing.remove();
+    
+    // إنشاء overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'lineweight-panel-modal';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        z-index: 999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+    
+    // إنشاء panel
+    const panel = document.createElement('div');
+    panel.style.cssText = `
+        background: #1a1a1a;
+        border: 2px solid #00d4aa;
+        border-radius: 8px;
+        padding: 20px;
+        min-width: 250px;
+        max-width: 90%;
+        max-height: 70vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+    `;
+    
+    const weights = [
+        { value: -3, label: 'Default' },
+        { value: -2, label: 'ByLayer' },
+        { value: -1, label: 'ByBlock' },
+        { value: 0.00, label: '0.00 mm' },
+        { value: 0.05, label: '0.05 mm' },
+        { value: 0.09, label: '0.09 mm' },
+        { value: 0.13, label: '0.13 mm' },
+        { value: 0.15, label: '0.15 mm' },
+        { value: 0.18, label: '0.18 mm' },
+        { value: 0.20, label: '0.20 mm' },
+        { value: 0.25, label: '0.25 mm' },
+        { value: 0.30, label: '0.30 mm' },
+        { value: 0.35, label: '0.35 mm' },
+        { value: 0.40, label: '0.40 mm' },
+        { value: 0.50, label: '0.50 mm' },
+        { value: 0.53, label: '0.53 mm' },
+        { value: 0.60, label: '0.60 mm' },
+        { value: 0.70, label: '0.70 mm' },
+        { value: 0.80, label: '0.80 mm' },
+        { value: 0.90, label: '0.90 mm' },
+        { value: 1.00, label: '1.00 mm' },
+        { value: 1.06, label: '1.06 mm' },
+        { value: 1.20, label: '1.20 mm' },
+        { value: 1.40, label: '1.40 mm' },
+        { value: 1.58, label: '1.58 mm' },
+        { value: 2.00, label: '2.00 mm' },
+        { value: 2.11, label: '2.11 mm' }
+    ];
+    
+    let html = '<h3 style="color: #00d4aa; margin: 0 0 15px 0;">Select Line Weight</h3>';
+    
+    weights.forEach(weight => {
+        const thickness = weight.value > 0 ? Math.max(1, weight.value * 2) : 1;
+        html += `
+            <div class="weight-option" 
+                 data-weight="${weight.value}"
+                 style="padding: 8px 12px; 
+                        margin: 3px 0; 
+                        border: 1px solid #333; 
+                        border-radius: 4px; 
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        transition: all 0.2s;"
+                 onmouseover="this.style.backgroundColor='#2a2a2a'; this.style.borderColor='#00d4aa';"
+                 onmouseout="this.style.backgroundColor='transparent'; this.style.borderColor='#333';">
+                <span style="color: #fff;">${weight.label}</span>
+                ${weight.value > 0 ? `<div style="height: ${thickness}px; 
+                                                  width: 60px; 
+                                                  background: #00d4aa;
+                                                  border-radius: ${thickness/2}px;"></div>` : ''}
+            </div>
+        `;
+    });
+    
+    html += `
+        <button style="margin-top: 15px; 
+                       padding: 8px 20px; 
+                       background: #333; 
+                       color: #fff; 
+                       border: none; 
+                       border-radius: 4px; 
+                       cursor: pointer;
+                       width: 100%;"
+                onmouseover="this.style.backgroundColor='#444';"
+                onmouseout="this.style.backgroundColor='#333';"
+                onclick="document.querySelector('.lineweight-panel-modal').remove();">
+            Cancel
+        </button>
+    `;
+    
+    panel.innerHTML = html;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    
+    // Event listeners
+    panel.querySelectorAll('.weight-option').forEach(option => {
+        option.onclick = () => {
+            const weight = parseFloat(option.getAttribute('data-weight'));
+            this.cad.setLineWeight(weight);
+            overlay.remove();
+            
+            // تحديث العرض
+            const display = document.getElementById('propLineweight');
+            if (display) {
+                const label = weights.find(w => w.value === weight)?.label || weight + ' mm';
+                display.textContent = label;
+            }
+        };
+    });
+    
+    // إغلاق عند النقر خارج Panel
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            overlay.remove();
+        }
+    };
+}
+
+/**
+ * تحديث إعدادات الرسم
+ */
+updateDrawingSettings() {
+    this.updateColorDisplay(this.cad.currentColor);
+    this.updateLineWidthDisplay(this.cad.currentLineWidth);
+    this.updateLinetypeDisplay();
+    this.updateLineWeightDisplay();
+}
+
+
+
+
 }
 
 // دالة إغلاق Layer Manager

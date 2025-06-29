@@ -343,6 +343,32 @@ class LinetypeManager {
         
         return true;
     }
+
+
+    /**
+ * الحصول على نوع الخط الحالي
+ * @returns {Object} معلومات نوع الخط
+ */
+getCurrentLinetype() {
+    const type = this.linetypes.get(this.currentLinetype);
+    if (type) {
+        return {
+            id: this.currentLinetype,
+            name: type.name,
+            pattern: type.pattern || [],
+            description: type.description || ''
+        };
+    }
+    
+    // القيمة الافتراضية
+    return {
+        id: 'continuous',
+        name: 'Continuous',
+        pattern: [],
+        description: 'Solid line'
+    };
+}
+
     
     /**
      * تعيين وزن الخط الحالي
