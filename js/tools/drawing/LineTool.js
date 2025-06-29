@@ -12,12 +12,22 @@ export class LineTool extends DrawingToolBase {
     }
     
     onActivate() {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return false;
+        }
+        
         super.onActivate();
         this.cad.isDrawing = false;
         this.updateStatus('Specify first point');
     }
     
     onClick(point) {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return;
+        }
+        
         if (!this.cad.isDrawing) {
             this.cad.isDrawing = true;
             this.addPoint(point);
@@ -45,13 +55,16 @@ export class LineTool extends DrawingToolBase {
     
     onMouseMove(point) {
         if (this.cad.isDrawing && this.drawingPoints.length > 0) {
+            // استخدام خصائص الطبقة الحالية للمعاينة
+            const currentLayer = this.cad.layerManager?.getCurrentLayer();
+            
             this.tempShape = {
                 type: 'line',
                 start: this.drawingPoints[0],
                 end: point,
-                color: this.cad.currentColor,
-                lineWidth: this.cad.currentLineWidth,
-                lineType: this.cad.currentLineType
+                color: currentLayer?.color || this.cad.currentColor,
+                lineWidth: currentLayer?.lineWidth || this.cad.currentLineWidth,
+                lineType: currentLayer?.lineType || this.cad.currentLineType
             };
             this.cad.tempShape = this.tempShape;
         }
@@ -65,5 +78,6 @@ export class LineTool extends DrawingToolBase {
         });
         
         this.cad.addShape(shape);
+        this.updateStatus('Line created');
     }
 }

@@ -7,7 +7,8 @@ import './core/Units.js';
 import './core/GripsController.js';
 import './ui/UI.js';
 import './core/TyrexCAD.js';
-import './geometry/GeometryAdvanced.js'; // ← تحميل GeometryAdvanced
+import './geometry/GeometryAdvanced.js';
+import './core/LayerManager.js'; // ← تحميل GeometryAdvanced
 
 // Make THREE global for legacy code
 window.THREE = THREE;

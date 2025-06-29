@@ -88,27 +88,17 @@ export class BaseTool {
     }
     
     /**
-     * معالجة الأخطاء المحسنة
+     * معالجة الأخطاء
      */
     handleError(error) {
         console.error(`[${this.name}] Error:`, error);
         this.errors.push(error);
         
-        // عرض رسالة خطأ مفصلة
         if (this.cad.ui) {
             let message = error.message || 'An error occurred';
-            
-            // رسائل خطأ مخصصة
-            if (message.includes('Advanced geometry not available')) {
-                message = 'Advanced tools require GeometryAdvanced module';
-            } else if (message.includes('Invalid selection')) {
-                message = 'Please select valid objects for this operation';
-            }
-            
             this.cad.ui.showError(message);
         }
         
-        // إلغاء العملية الحالية
         this.deactivate();
     }
     
@@ -148,12 +138,46 @@ export class DrawingToolBase extends BaseTool {
     }
     
     onActivate() {
+        // التحقق من إمكانية الرسم على الطبقة الحالية
+        if (!this.canDrawOnCurrentLayer()) {
+            this.cad.updateStatus('Cannot draw on frozen layer');
+            this.toolsManager.activateTool('select');
+            return false;
+        }
+        
         this.drawingPoints = [];
         this.tempShape = null;
     }
     
     onDeactivate() {
         this.finishDrawing();
+    }
+    
+    /**
+     * التحقق من إمكانية الرسم على الطبقة الحالية
+     */
+    canDrawOnCurrentLayer() {
+        if (this.cad.layerManager) {
+            const currentLayer = this.cad.layerManager.getCurrentLayer();
+            if (!currentLayer) return false;
+            
+            // لا يمكن الرسم على طبقة مجمدة
+            if (currentLayer.frozen) {
+                this.cad.updateStatus('Cannot draw on frozen layer');
+                return false;
+            }
+            
+            // لا يمكن الرسم على طبقة غير مرئية (تحذير فقط)
+            if (!currentLayer.visible) {
+                this.cad.updateStatus('Warning: Drawing on hidden layer');
+            }
+            
+            return true;
+        }
+        
+        // Fallback للنظام القديم
+        const layer = this.cad.layers?.get(this.cad.currentLayerId);
+        return layer && !layer.frozen;
     }
     
     finishDrawing() {
@@ -169,17 +193,46 @@ export class DrawingToolBase extends BaseTool {
     }
     
     /**
-     * إنشاء شكل جديد مع الخصائص الافتراضية
+     * إنشاء شكل جديد مع خصائص الطبقة
      */
     createShape(shapeData) {
-        return {
+        // الخصائص الأساسية
+        const shape = {
             ...shapeData,
-            id: this.cad.generateId(),
-            color: this.cad.currentColor,
-            lineWidth: this.cad.currentLineWidth,
-            lineType: this.cad.currentLineType,
-            layerId: this.cad.currentLayerId
+            id: this.cad.generateId()
         };
+        
+        // تطبيق layerId
+        if (this.cad.layerManager) {
+            shape.layerId = this.cad.layerManager.currentLayerId;
+            
+            // تطبيق خصائص الطبقة إذا لم تكن محددة مسبقاً
+            const layer = this.cad.layerManager.getCurrentLayer();
+            if (layer) {
+                // اللون - أولوية للون المحدد مباشرة
+                if (!shape.color || shape.color === this.cad.currentColor) {
+                    shape.color = layer.color || this.cad.currentColor;
+                }
+                
+                // عرض الخط
+                if (!shape.lineWidth) {
+                    shape.lineWidth = layer.lineWidth || this.cad.currentLineWidth;
+                }
+                
+                // نوع الخط
+                if (!shape.lineType) {
+                    shape.lineType = layer.lineType || this.cad.currentLineType;
+                }
+            }
+        } else {
+            // Fallback للنظام القديم
+            shape.layerId = this.cad.currentLayerId || 0;
+            shape.color = shape.color || this.cad.currentColor;
+            shape.lineWidth = shape.lineWidth || this.cad.currentLineWidth;
+            shape.lineType = shape.lineType || this.cad.currentLineType;
+        }
+        
+        return shape;
     }
 }
 
@@ -197,18 +250,61 @@ export class ModifyToolBase extends BaseTool {
         this.selection = [];
         this.originalShapes = [];
         
-        // التحقق من وجود عناصر محددة
-        if (this.cad.selectedShapes.size === 0) {
-            this.updateStatus('Select objects first');
+        // التحقق من وجود عناصر محددة قابلة للتعديل
+        const modifiableShapes = this.getModifiableSelection();
+        
+        if (modifiableShapes.length === 0) {
+            this.updateStatus('No modifiable objects selected');
             this.deactivate();
             return false;
         }
         
         // حفظ نسخ من الأشكال الأصلية
-        this.selection = Array.from(this.cad.selectedShapes);
+        this.selection = modifiableShapes;
         this.originalShapes = this.selection.map(s => this.cad.cloneShape(s));
         
         return true;
+    }
+    
+    /**
+     * الحصول على الأشكال المحددة القابلة للتعديل
+     */
+    getModifiableSelection() {
+        const shapes = [];
+        
+        this.cad.selectedShapes.forEach(shape => {
+            if (this.canModifyShape(shape)) {
+                shapes.push(shape);
+            }
+        });
+        
+        return shapes;
+    }
+    
+    /**
+     * التحقق من إمكانية تعديل شكل
+     */
+    canModifyShape(shape) {
+        if (this.cad.layerManager) {
+            const layer = this.cad.layerManager.layers.get(shape.layerId);
+            if (!layer) return false;
+            
+            // لا يمكن تعديل أشكال في طبقة مقفولة أو مجمدة
+            if (layer.locked || layer.frozen) {
+                return false;
+            }
+            
+            // تحذير إذا كانت الطبقة غير مرئية
+            if (!layer.visible) {
+                console.warn(`Modifying shape on hidden layer: ${layer.name}`);
+            }
+            
+            return true;
+        }
+        
+        // Fallback للنظام القديم
+        const layer = this.cad.layers?.get(shape.layerId);
+        return layer && !layer.locked;
     }
     
     applyModification() {
@@ -239,7 +335,6 @@ export class AdvancedToolBase extends BaseTool {
     
     createUI() {
         if (this.cad.ui) {
-            // استخدام النظام الجديد للـ panels
             this.cad.ui.showToolPanel(this.name, {
                 x: 350,
                 y: 200

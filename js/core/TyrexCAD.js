@@ -27,6 +27,12 @@ class TyrexCAD {
         // Tools Manager reference
         this.toolsManager = null;
         
+        // Layer Management System
+        this.layerManager = null; // سيتم تهيئته بعد تحميل LayerManager
+        
+        // Linetype Management System
+        this.linetypeManager = null; // سيتم تهيئته بعد تحميل LinetypeManager
+        
         // Canvas setup
         this.canvas = document.getElementById('mainCanvas');
         this.ctx = this.canvas.getContext('2d');
@@ -79,7 +85,8 @@ class TyrexCAD {
         // Drawing settings
         this.currentColor = '#00d4aa';
         this.currentLineWidth = 2;
-        this.currentLineType = 'solid';
+        this.currentLineType = 'continuous'; // محدث من 'solid' إلى 'continuous'
+        this.currentLineWeight = 0.25; // وزن الخط بالمليمتر
         
         // Data
         this.shapes = [];
@@ -135,12 +142,16 @@ class TyrexCAD {
         this.distanceAnalysisStep = 0;  // خطوة تحليل المسافة
         this.pathArrayPath = null;  // المسار المختار للمصفوفة
         
-        // Selection enhancements
+        // Selection enhancements - محدثة
         this.defaultTool = 'select'; // الأداة الافتراضية
         this.lastTool = null; // آخر أداة مستخدمة
         this.lastCommand = null; // آخر أمر مستخدم
         this.selectionMode = 'window'; // 'window' or 'crossing'
         this.selectionDirection = null; // 'ltr' or 'rtl'
+        this.selectionClickMode = true; // الوضع الجديد: نقرتين للتحديد
+        this.selectionFirstClick = false; // تتبع النقرة الأولى
+        this.cumulativeSelection = true; // التحديد التراكمي افتراضياً
+        this.selectionStartPoint = null; // نقطة البداية للتحديد
         
         // Preview state
         this.previewShapes = new Set(); // الأشكال في Preview
@@ -188,53 +199,79 @@ class TyrexCAD {
         this.init();
     }
 
-    init() {
-        // لا تحاول استيراد Tools - سيتم تعيينه من app.js
-        // this.toolsManager سيتم تعيينه من الخارج
-        
-        // Initialize UI
-        this.ui.init();
-        
-        // تهيئة Canvas والأحداث
-        this.resizeCanvas();
-        this.setupEventListeners();
-        this.initializeLayers();
-        this.init3D();
-        
-        // Initialize units
-        this.changeUnits('mm');
-        
-        // تهيئة GeometryAdvanced (بدون async)
-        if (window.GeometryAdvanced) {
-            this.geometryAdvanced = new GeometryAdvanced();
-            if (this.geometryAdvanced.init) {
-                this.geometryAdvanced.init(this);
+    async init() {
+        try {
+            // لا تحاول استيراد Tools - سيتم تعيينه من app.js
+            // this.toolsManager سيتم تعيينه من الخارج
+            
+            // Initialize UI
+            this.ui.init();
+            
+            // تهيئة Canvas والأحداث
+            this.resizeCanvas();
+            this.setupEventListeners();
+            
+            // تهيئة نظام الطبقات
+            if (window.LayerManager) {
+                this.layerManager = new LayerManager(this);
+                console.log('✅ Layer Manager initialized');
+            } else {
+                console.warn('⚠️ LayerManager not loaded, using basic layer system');
+                this.initializeLayers(); // النظام القديم كـ fallback
             }
+            
+            // تهيئة نظام أنواع الخطوط
+            if (window.LinetypeManager) {
+                this.linetypeManager = new LinetypeManager(this);
+                console.log('✅ Linetype Manager initialized');
+                
+                // تحديث UI
+                if (this.ui) {
+                    this.ui.initializeLinetypeSystem();
+                }
+            } else {
+                console.warn('⚠️ LinetypeManager not loaded');
+            }
+            
+            this.init3D();
+            
+            // Initialize units
+            this.changeUnits('mm');
+            
+            // تهيئة GeometryAdvanced (بدون async)
+            if (window.GeometryAdvanced) {
+                this.geometryAdvanced = new GeometryAdvanced();
+                if (this.geometryAdvanced.init) {
+                    this.geometryAdvanced.init(this);
+                }
+            }
+            
+            this.updateUI();
+            this.startRenderLoop();
+            
+            // تهيئة نظام Grips
+            this.gripsController = new GripsController(this);
+            console.log('✅ Grips controller initialized');
+            
+            // Hide loading screen
+            setTimeout(() => {
+                this.ui.hideLoadingScreen();
+            }, 1000);
+            
+            this.recordState();
+            this.ready = true;
+            
+            // تعيين الأداة الافتراضية بدون recursion
+            setTimeout(() => {
+                this.currentTool = 'select';
+                document.getElementById('statusTool').textContent = 'SELECT';
+                if (this.toolsManager) {
+                    this.toolsManager.activateTool('select');
+                }
+            }, 100);
+        } catch (error) {
+            console.error('Initialization error:', error);
         }
-        
-        this.updateUI();
-        this.startRenderLoop();
-        
-        // تهيئة نظام Grips
-        this.gripsController = new GripsController(this);
-        console.log('✅ Grips controller initialized');
-        
-        // Hide loading screen
-        setTimeout(() => {
-            this.ui.hideLoadingScreen();
-        }, 1000);
-        
-        this.recordState();
-        this.ready = true;
-        
-        // تعيين الأداة الافتراضية بدون recursion
-        setTimeout(() => {
-            this.currentTool = 'select';
-            document.getElementById('statusTool').textContent = 'SELECT';
-            if (this.toolsManager) {
-                this.toolsManager.activateTool('select');
-            }
-        }, 100);
     }
     
     // Advanced Geometry Loader
@@ -532,21 +569,12 @@ class TyrexCAD {
         const y = e.clientY - rect.top;
         
         this.mouseDown = true;
-        this.clickCount++;
-        
-        if (this.clickTimer) {
-            clearTimeout(this.clickTimer);
-        }
-        
-        this.clickTimer = setTimeout(() => {
-            this.clickCount = 0;
-        }, 300);
         
         if (e.button === 0) { // Left click
             if (this.currentTool === 'pan') {
                 this.startPanning(x, y);
             } else if (this.currentTool === 'select') {
-                // في أداة select
+                // في أداة select - السلوك الجديد
                 if (e.shiftKey && !this.isSelecting) {
                     this.startPanning(x, y);
                 } else {
@@ -566,8 +594,8 @@ class TyrexCAD {
             if (this.isDrawing && this.currentTool === 'polyline') {
                 this.delegateToTool('finishPolyline');
             } else if (this.isSelecting) {
-                // إنهاء selection box بالنقر الأيمن
-                this.finishSelection();
+                // إلغاء selection box بالنقر الأيمن
+                this.cancelSelection();
             }
         }
     }
@@ -659,10 +687,7 @@ class TyrexCAD {
             this.gripsController.endDrag(world);
         }
         
-        // إنهاء selection box
-        if (this.isSelecting && this.selectionStart) {
-            this.finishSelection();
-        }
+        // لا ننهي selection box هنا - ننتظر النقرة الثانية
         
         this.isPanning = false;
         this.mouseDown = false;
@@ -818,6 +843,7 @@ class TyrexCAD {
             e.preventDefault();
             if (this.isSelecting) {
                 this.isSelecting = false;
+                this.selectionFirstClick = false;
                 const box = document.getElementById('selectionBox');
                 if (box) box.style.display = 'none';
                 this.previewShapes.clear();
@@ -849,6 +875,14 @@ class TyrexCAD {
                 // دع ToolsManager يتعامل مع Enter
                 if (this.toolsManager) {
                     this.toolsManager.handleKeyPress('Enter');
+                }
+                break;
+                
+            case 't':
+                // T - تبديل وضع التحديد التراكمي
+                if (!e.ctrlKey && !e.shiftKey) {
+                    this.cumulativeSelection = !this.cumulativeSelection;
+                    this.updateStatus(`Cumulative selection: ${this.cumulativeSelection ? 'ON' : 'OFF'}`);
                 }
                 break;
         }
@@ -1014,8 +1048,10 @@ class TyrexCAD {
         
         // إيقاف selection
         this.isSelecting = false;
+        this.selectionFirstClick = false;
         this.selectionStart = null;
         this.selectionEnd = null;
+        this.selectionStartPoint = null;
         this.selectionDirection = null;
         this.hoveredShape = null;
         
@@ -1107,6 +1143,12 @@ class TyrexCAD {
                     
                 case 'area-pick':
                     this.handleAreaPick(snapPoint);
+                    break;
+                    
+                case 'matchLayer':
+                    if (this.pickingPointCallback) {
+                        this.pickingPointCallback(snapPoint);
+                    }
                     break;
             }
             return;
@@ -1395,7 +1437,7 @@ class TyrexCAD {
         }
     }
     
-    // Selection - محدثة لدعم Grips
+    // Selection - محدثة لدعم Grips والسلوك الجديد
     handleSelection(x, y, ctrlKey) {
         const world = this.screenToWorld(x, y);
         
@@ -1413,15 +1455,22 @@ class TyrexCAD {
         const shape = this.getShapeAt(world.x, world.y);
         
         if (shape) {
-            // التحقق من وجود الشكل في التحديد مع Ctrl
-            if (ctrlKey) {
+            // نقرة على شكل
+            if (this.isSelecting && this.selectionFirstClick) {
+                // إذا كنا في وضع التحديد، أنهي التحديد أولاً
+                this.finishSelection();
+            }
+            
+            // معالجة تحديد الشكل
+            if (this.cumulativeSelection || ctrlKey) {
+                // التحديد التراكمي
                 if (this.selectedShapes.has(shape)) {
                     this.selectedShapes.delete(shape);
                 } else {
                     this.selectedShapes.add(shape);
                 }
             } else {
-                // بدون Ctrl: استبدال التحديد
+                // استبدال التحديد
                 if (!this.selectedShapes.has(shape)) {
                     this.selectedShapes.clear();
                     this.selectedShapes.add(shape);
@@ -1430,31 +1479,45 @@ class TyrexCAD {
             this.ui.updatePropertiesPanel();
             this.render();
         } else {
-            // النقر في الفراغ
-            if (!ctrlKey) {
-                this.selectedShapes.clear();
+            // نقرة في الفراغ - بدء أو إنهاء selection box
+            if (!this.selectionFirstClick) {
+                // النقرة الأولى - بدء التحديد
+                this.startSelectionBox(x, y, ctrlKey);
+            } else {
+                // النقرة الثانية - إنهاء التحديد
+                this.finishSelection();
             }
-            
-            // بدء صندوق التحديد
-            this.isSelecting = true;
-            this.selectionStart = { x, y };
-            this.selectionEnd = { x, y };
-            this.selectionDirection = null;
-            this.previewShapes.clear();
-            
-            // إظهار selection box
-            const box = document.getElementById('selectionBox');
-            if (box) {
-                box.style.display = 'block';
-                box.style.left = x + 'px';
-                box.style.top = y + 'px';
-                box.style.width = '0px';
-                box.style.height = '0px';
-            }
-            
-            this.updateStatus('Specify opposite corner');
-            this.render();
         }
+    }
+    
+    // دالة جديدة لبدء selection box
+    startSelectionBox(x, y, ctrlKey) {
+        // مسح التحديد السابق إذا لم يكن تراكمي
+        if (!this.cumulativeSelection && !ctrlKey) {
+            this.selectedShapes.clear();
+        }
+        
+        // بدء صندوق التحديد
+        this.isSelecting = true;
+        this.selectionFirstClick = true;
+        this.selectionStart = { x, y };
+        this.selectionEnd = { x, y };
+        this.selectionStartPoint = { x, y };
+        this.selectionDirection = null;
+        this.previewShapes.clear();
+        
+        // إظهار selection box
+        const box = document.getElementById('selectionBox');
+        if (box) {
+            box.style.display = 'block';
+            box.style.left = x + 'px';
+            box.style.top = y + 'px';
+            box.style.width = '0px';
+            box.style.height = '0px';
+        }
+        
+        this.updateStatus('Move to opposite corner and click');
+        this.render();
     }
     
     updateSelection() {
@@ -1491,37 +1554,24 @@ class TyrexCAD {
             box.style.backgroundColor = 'rgba(0, 255, 0, 0.05)';
             box.style.borderStyle = 'dashed';
             box.style.borderWidth = lineWidth + 'px';
-            // للخط المتقطع نحتاج dash pattern يتكيف مع الزووم
-            const dashSize = Math.max(4, 8 / Math.sqrt(this.zoom));
-            box.style.backgroundImage = `repeating-linear-gradient(
-                0deg,
-                transparent,
-                transparent ${dashSize}px,
-                ${this.crossingBoxColor} ${dashSize}px,
-                ${this.crossingBoxColor} ${dashSize * 2}px
-            ), repeating-linear-gradient(
-                90deg,
-                transparent,
-                transparent ${dashSize}px,
-                ${this.crossingBoxColor} ${dashSize}px,
-                ${this.crossingBoxColor} ${dashSize * 2}px
-            )`;
-            box.style.backgroundSize = `${dashSize * 2}px ${lineWidth}px, ${lineWidth}px ${dashSize * 2}px`;
-            box.style.backgroundPosition = 'top, left';
-            box.style.backgroundRepeat = 'repeat-x, repeat-y';
         } else {
             box.style.borderColor = this.windowBoxColor;
             box.style.backgroundColor = 'rgba(0, 153, 255, 0.05)';
             box.style.borderStyle = 'solid';
             box.style.borderWidth = lineWidth + 'px';
-            box.style.backgroundImage = 'none';
         }
         
-        // تحديث Preview (محسّن للأداء)
+        // تحديث Preview
         const now = Date.now();
-        if (now - this.lastPreviewUpdate > 50) { // كل 50ms فقط
+        if (now - this.lastPreviewUpdate > 50) {
             this.updateSelectionPreview();
             this.lastPreviewUpdate = now;
+            
+            // عرض عدد الأشكال المحددة
+            const count = this.previewShapes.size;
+            const mode = this.selectionMode === 'window' ? 'Window' : 'Crossing';
+            this.updateStatus(`${mode} selection: ${count} object${count !== 1 ? 's' : ''} found. Click to confirm`);
+            
             this.render();
         }
     }
@@ -1548,7 +1598,7 @@ class TyrexCAD {
         
         // فحص الأشكال
         for (const shape of this.shapes) {
-            const layer = this.layers.get(shape.layerId);
+            const layer = this.getLayer(shape.layerId);
             if (!layer?.visible || layer.locked) continue;
             
             if (this.willShapeBeSelected(shape, worldRect, isWindowMode)) {
@@ -1659,6 +1709,7 @@ class TyrexCAD {
     
     finishSelection() {
         this.isSelecting = false;
+        this.selectionFirstClick = false;
         
         const box = document.getElementById('selectionBox');
         if (box) {
@@ -1666,11 +1717,7 @@ class TyrexCAD {
         }
         
         // نقل الأشكال من preview للـ selection الفعلي
-        if (!this.keys || !this.keys.ctrl) {
-            // بدون Ctrl: استبدال التحديد
-            this.selectedShapes.clear();
-        }
-        
+        // التحديد التراكمي يعمل افتراضياً
         for (const shape of this.previewShapes) {
             this.selectedShapes.add(shape);
         }
@@ -1679,8 +1726,29 @@ class TyrexCAD {
         this.selectionDirection = null;
         this.selectionStart = null;
         this.selectionEnd = null;
+        this.selectionStartPoint = null;
         
         this.ui.updatePropertiesPanel();
+        this.updateStatus('READY');
+        this.render();
+    }
+    
+    // دالة جديدة لإلغاء التحديد
+    cancelSelection() {
+        this.isSelecting = false;
+        this.selectionFirstClick = false;
+        
+        const box = document.getElementById('selectionBox');
+        if (box) {
+            box.style.display = 'none';
+        }
+        
+        this.previewShapes.clear();
+        this.selectionDirection = null;
+        this.selectionStart = null;
+        this.selectionEnd = null;
+        this.selectionStartPoint = null;
+        
         this.updateStatus('READY');
         this.render();
     }
@@ -1699,8 +1767,8 @@ class TyrexCAD {
             const shape = this.shapes[i];
             
             // تحقق من الطبقة
-            const layer = this.layers.get(shape.layerId);
-            if (!layer || !layer.visible || layer.locked) continue;
+            const layer = this.getLayer(shape.layerId);
+            if (!layer || !layer.visible || layer.locked || (layer.frozen && this.layerManager)) continue;
             
             if (this.isPointOnShape(x, y, shape, tolerance)) {
                 return shape;
@@ -1885,6 +1953,51 @@ class TyrexCAD {
     }
     
     /**
+     * الحصول على حدود التحديد (bounding box)
+     * @returns {Object|null} حدود التحديد أو null إذا لم يكن هناك تحديد
+     */
+    getSelectionBounds() {
+        if (this.selectedShapes.size === 0) return null;
+        
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        
+        // حساب الحدود لكل شكل محدد
+        for (const shape of this.selectedShapes) {
+            const bounds = this.getShapeBounds(shape);
+            if (bounds) {
+                minX = Math.min(minX, bounds.minX);
+                minY = Math.min(minY, bounds.minY);
+                maxX = Math.max(maxX, bounds.maxX);
+                maxY = Math.max(maxY, bounds.maxY);
+            }
+        }
+        
+        // التحقق من صحة القيم
+        if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+            return null;
+        }
+        
+        return {
+            minX: minX,
+            minY: minY,
+            maxX: maxX,
+            maxY: maxY,
+            width: maxX - minX,
+            height: maxY - minY,
+            centerX: (minX + maxX) / 2,
+            centerY: (minY + maxY) / 2
+        };
+    }
+    
+    /**
+     * الحصول على حدود الشكل
+     * @param {Object} shape - الشكل
+     * @returns {Object} حدود الشكل {minX, minY, maxX, maxY}
+     */
+    /**
      * الحصول على حدود الشكل
      * @param {Object} shape - الشكل
      * @returns {Object} حدود الشكل {minX, minY, maxX, maxY}
@@ -1919,9 +2032,33 @@ class TyrexCAD {
                 break;
                 
             case 'arc':
-                // حدود القوس تحتاج معالجة خاصة
-                updateBounds(shape.center.x - shape.radius, shape.center.y - shape.radius);
-                updateBounds(shape.center.x + shape.radius, shape.center.y + shape.radius);
+                // حساب نقاط البداية والنهاية
+                const startX = shape.center.x + shape.radius * Math.cos(shape.startAngle);
+                const startY = shape.center.y + shape.radius * Math.sin(shape.startAngle);
+                const endX = shape.center.x + shape.radius * Math.cos(shape.endAngle);
+                const endY = shape.center.y + shape.radius * Math.sin(shape.endAngle);
+                
+                updateBounds(startX, startY);
+                updateBounds(endX, endY);
+                
+                // فحص إذا كان القوس يمر بنقاط القطر
+                const checkAngle = (angle) => {
+                    const normalizedStart = ((shape.startAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+                    const normalizedEnd = ((shape.endAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+                    const normalizedAngle = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+                    
+                    if (normalizedStart <= normalizedEnd) {
+                        return normalizedAngle >= normalizedStart && normalizedAngle <= normalizedEnd;
+                    } else {
+                        return normalizedAngle >= normalizedStart || normalizedAngle <= normalizedEnd;
+                    }
+                };
+                
+                // فحص النقاط الحرجة (0, π/2, π, 3π/2)
+                if (checkAngle(0)) updateBounds(shape.center.x + shape.radius, shape.center.y);
+                if (checkAngle(Math.PI / 2)) updateBounds(shape.center.x, shape.center.y + shape.radius);
+                if (checkAngle(Math.PI)) updateBounds(shape.center.x - shape.radius, shape.center.y);
+                if (checkAngle(3 * Math.PI / 2)) updateBounds(shape.center.x, shape.center.y - shape.radius);
                 break;
                 
             case 'ellipse':
@@ -1973,7 +2110,7 @@ class TyrexCAD {
         
         // Object snaps
         for (const shape of this.shapes) {
-            const layer = this.layers.get(shape.layerId);
+            const layer = this.getLayer(shape.layerId);
             if (!layer || !layer.visible) continue;
             
             // Skip selected shapes when moving/copying
@@ -2414,7 +2551,7 @@ class TyrexCAD {
         this.updateStatus('READY');
     }
     
-    // Rendering - محدثة لدعم Grips
+    // Rendering - محدثة لدعم Grips والطبقات المتقدمة
     render() {
         if (this.mode === '3D') {
             this.render3D();
@@ -2436,53 +2573,86 @@ class TyrexCAD {
             this.drawGrid();
         }
         
-        // Draw shapes
+        // ترتيب رسم الأشكال حسب الطبقات
+        const layerGroups = new Map();
+        
+        // تجميع الأشكال حسب الطبقات
         this.shapes.forEach(shape => {
-            const isSelected = this.selectedShapes.has(shape);
-            const isHovered = shape === this.hoveredShape && !isSelected;
-            const isPreview = this.previewShapes.has(shape);
-            
-            this.ctx.save();
-            
-            // Apply shape properties
-            this.ctx.strokeStyle = shape.color || this.currentColor;
-            this.ctx.lineWidth = (shape.lineWidth || this.currentLineWidth) / this.zoom;
-            this.ctx.fillStyle = shape.fillColor || 'transparent';
-            
-            // Apply line type
-            if (shape.lineType === 'dashed') {
-                this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
-            } else if (shape.lineType === 'dotted') {
-                this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
-            } else {
-                this.ctx.setLineDash([]);
+            const layerId = shape.layerId || 0;
+            if (!layerGroups.has(layerId)) {
+                layerGroups.set(layerId, []);
             }
+            layerGroups.get(layerId).push(shape);
+        });
+        
+        // رسم الطبقات بالترتيب
+        const sortedLayerIds = Array.from(layerGroups.keys()).sort((a, b) => a - b);
+        
+        sortedLayerIds.forEach(layerId => {
+            const layer = this.getLayer(layerId);
+            if (!layer || !layer.visible) return;
             
-            // Selection/hover effects
-            if (isSelected) {
-                this.ctx.strokeStyle = this.selectionColor;
-                this.ctx.lineWidth = (shape.lineWidth + 1) / this.zoom;
+            const shapes = layerGroups.get(layerId);
+            
+            shapes.forEach(shape => {
+                const isSelected = this.selectedShapes.has(shape);
+                const isHovered = shape === this.hoveredShape && !isSelected;
+                const isPreview = this.previewShapes.has(shape);
                 
-                // إضافة توهج للأشكال المحددة
-                this.ctx.shadowColor = this.selectionColor;
-                this.ctx.shadowBlur = 10 / this.zoom;
-            } else if (isHovered) {
-                this.ctx.lineWidth = (shape.lineWidth + 0.5) / this.zoom;
-                this.ctx.globalAlpha = 0.8;
-            } else if (isPreview) {
-                this.ctx.globalAlpha = 0.5;
-                this.ctx.strokeStyle = this.previewColor;
-            }
-            
-            // Draw the shape
-            this.drawShape(shape);
-            
-            this.ctx.restore();
-            
-            // رسم Grips للأشكال المحددة
-            if (isSelected && this.gripsController && this.gripsVisible && this.currentTool === 'select') {
-                this.gripsController.drawGrips(shape);
-            }
+                this.ctx.save();
+                
+                // تطبيق خصائص الطبقة
+                const layerTransparency = layer.transparency || 0;
+                const alpha = 1 - (layerTransparency / 100);
+                
+                // Apply layer properties
+                this.ctx.globalAlpha = alpha;
+                
+                // Locked layer fading
+                if (layer.locked && layer.lockedFading !== false) {
+                    this.ctx.globalAlpha *= 0.5;
+                }
+                
+                // Apply shape properties (مع أولوية لخصائص الشكل)
+                this.ctx.strokeStyle = shape.color || layer.color || this.currentColor;
+                this.ctx.lineWidth = (shape.lineWidth || layer.lineWidth || this.currentLineWidth) / this.zoom;
+                this.ctx.fillStyle = shape.fillColor || 'transparent';
+                
+                // Apply line type
+                const lineType = shape.lineType || layer.lineType || 'solid';
+                if (lineType === 'dashed') {
+                    this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
+                } else if (lineType === 'dotted') {
+                    this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
+                } else {
+                    this.ctx.setLineDash([]);
+                }
+                
+                // Selection/hover effects
+                if (isSelected) {
+                    this.ctx.strokeStyle = this.selectionColor;
+                    this.ctx.lineWidth = (shape.lineWidth + 1) / this.zoom;
+                    this.ctx.shadowColor = this.selectionColor;
+                    this.ctx.shadowBlur = 10 / this.zoom;
+                } else if (isHovered && !layer.locked) {
+                    this.ctx.lineWidth = (shape.lineWidth + 0.5) / this.zoom;
+                    this.ctx.globalAlpha *= 0.8;
+                } else if (isPreview) {
+                    this.ctx.globalAlpha *= 0.5;
+                    this.ctx.strokeStyle = this.previewColor;
+                }
+                
+                // Draw the shape
+                this.drawShape(shape);
+                
+                this.ctx.restore();
+                
+                // رسم Grips للأشكال المحددة (فقط للطبقات غير المقفولة)
+                if (isSelected && !layer.locked && this.gripsController && 
+                    this.gripsVisible && this.currentTool === 'select') {
+                    this.gripsController.drawGrips(shape);
+                }
+            });
         });
         
         // Draw temporary shape (معاينة)
@@ -2621,6 +2791,29 @@ class TyrexCAD {
     }
     
     drawShape(shape) {
+        // تطبيق نوع الخط
+        if (this.linetypeManager && shape.lineType) {
+            const scale = shape.linetypeScale || 1;
+            this.linetypeManager.applyLinetype(this.ctx, shape.lineType, scale, this.zoom);
+        } else if (shape.lineType === 'dashed') {
+            // Fallback للنظام القديم
+            this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
+        } else if (shape.lineType === 'dotted') {
+            this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
+        } else {
+            this.ctx.setLineDash([]);
+        }
+        
+        // تطبيق وزن الخط
+        if (this.linetypeManager && shape.lineWeight !== undefined) {
+            const pixels = this.linetypeManager.getLineWeightInPixels(shape.lineWeight, this.zoom);
+            this.ctx.lineWidth = pixels;
+        } else {
+            // Fallback للنظام القديم
+            this.ctx.lineWidth = (shape.lineWidth || this.currentLineWidth) / this.zoom;
+        }
+        
+        // رسم الشكل حسب نوعه
         switch (shape.type) {
             case 'line':
                 this.ctx.beginPath();
@@ -2666,8 +2859,23 @@ class TyrexCAD {
                 this.ctx.stroke();
                 break;
                 
+            case 'polygon':
+                this.ctx.beginPath();
+                this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                for (let i = 1; i < shape.points.length; i++) {
+                    this.ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                }
+                this.ctx.closePath();
+                this.ctx.stroke();
+                if (shape.fillColor && shape.fillColor !== 'transparent') {
+                    this.ctx.fillStyle = shape.fillColor;
+                    this.ctx.fill();
+                }
+                break;
+                
             case 'text':
                 this.ctx.font = `${shape.fontSize}px Arial`;
+                this.ctx.fillStyle = shape.color || this.currentColor;
                 this.ctx.fillText(shape.text, shape.position.x, shape.position.y);
                 break;
                 
@@ -2907,6 +3115,34 @@ class TyrexCAD {
         // ... كود handles القديم ...
     }
     
+    // دالة تعيين نوع الخط
+    setLinetype(linetypeId) {
+        if (this.linetypeManager) {
+            this.linetypeManager.setCurrentLinetype(linetypeId);
+        } else {
+            // Fallback للنظام القديم
+            this.currentLineType = linetypeId;
+        }
+        
+        this.render();
+    }
+    
+    // دالة تعيين وزن الخط
+    setLineWeight(weight) {
+        if (this.linetypeManager) {
+            this.linetypeManager.setCurrentLineWeight(weight);
+        } else {
+            // Fallback - تحويل بسيط
+            if (weight === 'default' || weight === 'bylayer') {
+                this.currentLineWidth = 2;
+            } else {
+                this.currentLineWidth = parseFloat(weight) * 3.78; // تقريبي
+            }
+        }
+        
+        this.render();
+    }
+    
     // History
     recordState() {
         this.history = this.history.slice(0, this.historyIndex + 1);
@@ -2960,8 +3196,8 @@ class TyrexCAD {
     selectAll() {
         this.selectedShapes.clear();
         this.shapes.forEach(shape => {
-            const layer = this.layers.get(shape.layerId);
-            if (layer && layer.visible && !layer.locked) {
+            const layer = this.getLayer(shape.layerId);
+            if (layer && layer.visible && !layer.locked && (!layer.frozen || !this.layerManager)) {
                 this.selectedShapes.add(shape);
             }
         });
@@ -3131,7 +3367,7 @@ class TyrexCAD {
     setColor(color) {
         this.currentColor = color;
         
-        const layer = this.layers.get(this.currentLayerId);
+        const layer = this.getLayer(this.currentLayerId);
         if (layer) {
             layer.color = color;
         }
@@ -3144,7 +3380,7 @@ class TyrexCAD {
     
     setLineWidth(width) {
         this.currentLineWidth = parseInt(width);
-        const layer = this.layers.get(this.currentLayerId);
+        const layer = this.getLayer(this.currentLayerId);
         if (layer) {
             layer.lineWidth = this.currentLineWidth;
         }
@@ -3157,7 +3393,7 @@ class TyrexCAD {
     
     setLineType(type) {
         this.currentLineType = type;
-        const layer = this.layers.get(this.currentLayerId);
+        const layer = this.getLayer(this.currentLayerId);
         if (layer) {
             layer.lineType = type;
         }
@@ -3202,77 +3438,463 @@ class TyrexCAD {
         event.stopPropagation();
     }
     
-    // Layer management
+    // Layer management - محدثة لدعم LayerManager
+    getLayer(id) {
+        if (this.layerManager) {
+            return this.layerManager.layers.get(id);
+        } else {
+            return this.layers.get(id);
+        }
+    }
+    
+    getCurrentLayer() {
+        if (this.layerManager) {
+            return this.layerManager.getCurrentLayer();
+        } else {
+            return this.layers.get(this.currentLayerId);
+        }
+    }
+    
+    /**
+     * الحصول على ID الطبقة الحالية
+     */
+    getCurrentLayerId() {
+        if (this.layerManager) {
+            return this.layerManager.currentLayerId;
+        } else {
+            return this.currentLayerId;
+        }
+    }
+    
+    /**
+     * الحصول على جميع الطبقات
+     */
+    getAllLayers() {
+        if (this.layerManager) {
+            return this.layerManager.layers;
+        } else {
+            return this.layers;
+        }
+    }
+    
     addLayer() {
-        const id = Date.now();
-        const name = `Layer ${this.layers.size}`;
-        this.layers.set(id, {
-            id: id,
-            name: name,
-            color: '#ffffff',
-            visible: true,
-            locked: false,
-            lineWidth: 2,
-            lineType: 'solid'
-        });
-        this.ui.updateLayersList();
+        if (this.layerManager) {
+            this.layerManager.addLayer();
+        } else {
+            // الكود القديم كـ fallback
+            const id = Date.now();
+            const name = `Layer ${this.layers.size}`;
+            this.layers.set(id, {
+                id: id,
+                name: name,
+                color: '#ffffff',
+                visible: true,
+                locked: false,
+                lineWidth: 2,
+                lineType: 'solid'
+            });
+            this.ui.updateLayersList();
+        }
     }
     
     setCurrentLayer(id) {
-        this.currentLayerId = id;
-        const layer = this.layers.get(id);
-        if (layer) {
-            this.currentColor = layer.color;
-            this.currentLineWidth = layer.lineWidth;
-            this.currentLineType = layer.lineType;
-            
-            // Update UI elements
-            this.setColor(layer.color);
-            document.getElementById('lineWidthSlider').value = layer.lineWidth;
-            document.getElementById('lineWidthValue').textContent = layer.lineWidth;
-            document.getElementById('lineTypeSelect').value = layer.lineType;
+        if (this.layerManager) {
+            return this.layerManager.setCurrentLayer(id);
+        } else {
+            // الكود القديم
+            this.currentLayerId = id;
+            const layer = this.layers.get(id);
+            if (layer) {
+                this.currentColor = layer.color;
+                this.currentLineWidth = layer.lineWidth;
+                this.currentLineType = layer.lineType;
+                
+                this.setColor(layer.color);
+                document.getElementById('lineWidthSlider').value = layer.lineWidth;
+                document.getElementById('lineWidthValue').textContent = layer.lineWidth;
+                document.getElementById('lineTypeSelect').value = layer.lineType;
+            }
+            this.ui.updateLayersList();
+            this.updateUI();
         }
-        this.ui.updateLayersList();
-        this.updateUI();
     }
     
     toggleLayerVisibility(id) {
-        const layer = this.layers.get(id);
-        if (layer) {
-            layer.visible = !layer.visible;
-            this.ui.updateLayersList();
-            this.render();
+        if (this.layerManager) {
+            this.layerManager.toggleVisibility(id);
+        } else {
+            const layer = this.layers.get(id);
+            if (layer) {
+                layer.visible = !layer.visible;
+                this.ui.updateLayersList();
+                this.render();
+            }
         }
     }
     
     toggleLayerLock(id) {
-        const layer = this.layers.get(id);
-        if (layer) {
-            layer.locked = !layer.locked;
-            this.ui.updateLayersList();
+        if (this.layerManager) {
+            this.layerManager.toggleLock(id);
+        } else {
+            const layer = this.layers.get(id);
+            if (layer) {
+                layer.locked = !layer.locked;
+                this.ui.updateLayersList();
+            }
+        }
+    }
+    
+    toggleLayerFreeze(id) {
+        if (this.layerManager) {
+            this.layerManager.toggleFreeze(id);
+        } else {
+            // إضافة دعم التجميد للنظام القديم
+            const layer = this.layers.get(id);
+            if (layer) {
+                // تحقق من أنها ليست الطبقة الحالية
+                if (id === this.currentLayerId) {
+                    this.updateStatus('Cannot freeze current layer');
+                    return;
+                }
+                
+                // إضافة خاصية frozen إذا لم تكن موجودة
+                if (layer.frozen === undefined) {
+                    layer.frozen = false;
+                }
+                
+                layer.frozen = !layer.frozen;
+                
+                // إلغاء تحديد الأشكال في الطبقة المجمدة
+                if (layer.frozen) {
+                    const shapesToDeselect = [];
+                    this.selectedShapes.forEach(shape => {
+                        if (shape.layerId === id) {
+                            shapesToDeselect.push(shape);
+                        }
+                    });
+                    shapesToDeselect.forEach(shape => {
+                        this.selectedShapes.delete(shape);
+                    });
+                }
+                
+                this.ui.updateLayersList();
+                this.render();
+            }
         }
     }
     
     renameLayer(id, name) {
-        const layer = this.layers.get(id);
-        if (layer) {
-            layer.name = name;
+        if (this.layerManager) {
+            this.layerManager.renameLayer(id, name);
+        } else {
+            const layer = this.layers.get(id);
+            if (layer) {
+                layer.name = name;
+            }
         }
     }
     
     changeLayerColor(id) {
         const color = prompt('Enter color (hex):', '#ffffff');
         if (color && /^#[0-9A-F]{6}$/i.test(color)) {
-            const layer = this.layers.get(id);
-            if (layer) {
-                layer.color = color;
-                if (id === this.currentLayerId) {
-                    this.currentColor = color;
-                    this.setColor(color);
+            if (this.layerManager) {
+                this.layerManager.setLayerColor(id, color);
+            } else {
+                const layer = this.layers.get(id);
+                if (layer) {
+                    layer.color = color;
+                    if (id === this.currentLayerId) {
+                        this.currentColor = color;
+                        this.setColor(color);
+                    }
+                    this.ui.updateLayersList();
+                    this.render();
                 }
-                this.ui.updateLayersList();
-                this.render();
             }
+        }
+    }
+    
+    // دوال جديدة للطبقات
+    deleteLayer(id) {
+        if (this.layerManager) {
+            return this.layerManager.deleteLayer(id);
+        } else {
+            // دعم أساسي للحذف في النظام القديم
+            if (id === 0) {
+                this.updateStatus('Cannot delete Layer 0');
+                return false;
+            }
+            
+            if (this.layers.size <= 1) {
+                this.updateStatus('Cannot delete the only layer');
+                return false;
+            }
+            
+            // نقل الأشكال للطبقة 0
+            this.shapes.forEach(shape => {
+                if (shape.layerId === id) {
+                    shape.layerId = 0;
+                }
+            });
+            
+            this.layers.delete(id);
+            
+            if (this.currentLayerId === id) {
+                this.setCurrentLayer(0);
+            }
+            
+            this.render();
+            this.ui.updateLayersList();
+            return true;
+        }
+    }
+    
+    /**
+     * تبديل جميع الطبقات
+     */
+    toggleAllLayers(visible) {
+        if (this.layerManager) {
+            this.layerManager.toggleAllLayers(visible);
+        } else {
+            // دعم النظام القديم
+            this.layers.forEach((layer, id) => {
+                if (id !== this.currentLayerId) {
+                    layer.visible = visible;
+                }
+            });
+            
+            this.render();
+            this.ui.updateLayersList();
+        }
+    }
+    
+    matchLayer() {
+        if (!this.layerManager) {
+            this.updateStatus('Match layer not available');
+            return;
+        }
+        
+        // تفعيل وضع اختيار العنصر
+        this.updateStatus('Select object to match layer');
+        this.pickingPointMode = 'matchLayer';
+        this.pickingPointCallback = (point) => {
+            const shape = this.getShapeAtPoint(point);
+            if (shape) {
+                this.layerManager.matchLayer(shape);
+            } else {
+                this.updateStatus('No object selected');
+            }
+            this.pickingPointMode = null;
+            this.pickingPointCallback = null;
+        };
+    }
+    
+    /**
+     * تنفيذ Match Properties الصحيح
+     */
+    matchProperties() {
+        // تفعيل وضع اختيار العنصر
+        this.updateStatus('Select source object for properties');
+        
+        // إظهار رسالة المساعدة
+        const infoDiv = document.getElementById('matchPropertiesInfo');
+        if (infoDiv) {
+            infoDiv.style.display = 'block';
+        }
+        
+        // حفظ الأداة الحالية
+        const previousTool = this.currentTool;
+        
+        // تغيير المؤشر
+        this.canvas.style.cursor = 'crosshair';
+        
+        // وضع اختيار المصدر
+        this.pickingMode = 'matchPropertiesSource';
+        
+        // معالج النقر المؤقت
+        const handleClick = (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const worldPoint = this.screenToWorld(x, y);
+            
+            if (this.pickingMode === 'matchPropertiesSource') {
+                // البحث عن شكل عند النقطة
+                const shape = this.getShapeAtPoint(worldPoint);
+                
+                if (shape) {
+                    // حفظ خصائص الشكل المصدر
+                    this.matchPropertiesSource = {
+                        color: shape.color || this.currentColor,
+                        lineType: shape.lineType || this.currentLineType,
+                        lineWeight: shape.lineWeight !== undefined ? shape.lineWeight : this.currentLineWeight,
+                        lineWidth: shape.lineWidth || this.currentLineWidth,
+                        layerId: shape.layerId
+                    };
+                    
+                    // الانتقال لوضع اختيار الهدف
+                    this.pickingMode = 'matchPropertiesTarget';
+                    this.updateStatus('Select destination objects (ESC to finish)');
+                    
+                } else {
+                    this.updateStatus('No object found, try again');
+                }
+                
+            } else if (this.pickingMode === 'matchPropertiesTarget') {
+                // البحث عن شكل الهدف
+                const shape = this.getShapeAtPoint(worldPoint);
+                
+                if (shape) {
+                    // تطبيق الخصائص
+                    shape.color = this.matchPropertiesSource.color;
+                    shape.lineType = this.matchPropertiesSource.lineType;
+                    shape.lineWeight = this.matchPropertiesSource.lineWeight;
+                    shape.lineWidth = this.matchPropertiesSource.lineWidth;
+                    shape.layerId = this.matchPropertiesSource.layerId;
+                    
+                    this.render();
+                    this.updateStatus('Properties applied, click more objects or ESC to finish');
+                }
+            }
+        };
+        
+        // معالج ESC
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                // إنهاء Match Properties
+                this.canvas.removeEventListener('click', handleClick);
+                document.removeEventListener('keydown', handleKeyDown);
+                
+                this.pickingMode = null;
+                this.matchPropertiesSource = null;
+                this.canvas.style.cursor = 'default';
+                
+                if (infoDiv) {
+                    infoDiv.style.display = 'none';
+                }
+                
+                // العودة للأداة السابقة
+                this.setTool(previousTool);
+                this.updateStatus('Match Properties cancelled');
+            }
+        };
+        
+        // ربط الأحداث
+        this.canvas.addEventListener('click', handleClick);
+        document.addEventListener('keydown', handleKeyDown);
+    }
+    
+    /**
+     * الحصول على الشكل عند نقطة معينة
+     */
+    getShapeAtPoint(point) {
+        // البحث من الأعلى للأسفل (آخر شكل مرسوم يكون في الأعلى)
+        for (let i = this.shapes.length - 1; i >= 0; i--) {
+            const shape = this.shapes[i];
+            
+            // التحقق من الطبقة
+            const layer = this.getLayer(shape.layerId);
+            if (layer && (!layer.visible || layer.locked || layer.frozen)) {
+                continue;
+            }
+            
+            if (this.isPointInShape(point, shape)) {
+                return shape;
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * التحقق من وقوع نقطة داخل شكل
+     */
+    isPointInShape(point, shape) {
+        const tolerance = 5 / this.zoom; // 5 pixels tolerance
+        
+        switch (shape.type) {
+            case 'line':
+                return this.isPointOnLine(point.x, point.y, shape.start, shape.end, tolerance);
+                
+            case 'rectangle':
+                const minX = Math.min(shape.start.x, shape.end.x);
+                const minY = Math.min(shape.start.y, shape.end.y);
+                const maxX = Math.max(shape.start.x, shape.end.x);
+                const maxY = Math.max(shape.start.y, shape.end.y);
+                
+                // Check if on border
+                if (Math.abs(point.x - minX) < tolerance || Math.abs(point.x - maxX) < tolerance) {
+                    if (point.y >= minY - tolerance && point.y <= maxY + tolerance) return true;
+                }
+                if (Math.abs(point.y - minY) < tolerance || Math.abs(point.y - maxY) < tolerance) {
+                    if (point.x >= minX - tolerance && point.x <= maxX + tolerance) return true;
+                }
+                return false;
+                
+            case 'circle':
+                const dist = this.distance(point.x, point.y, shape.center.x, shape.center.y);
+                return Math.abs(dist - shape.radius) < tolerance;
+                
+            case 'arc':
+                const arcDist = this.distance(point.x, point.y, shape.center.x, shape.center.y);
+                if (Math.abs(arcDist - shape.radius) > tolerance) return false;
+                
+                // Check angle
+                let angle = Math.atan2(point.y - shape.center.y, point.x - shape.center.x);
+                if (angle < 0) angle += Math.PI * 2;
+                
+                let start = shape.startAngle;
+                let end = shape.endAngle;
+                if (start < 0) start += Math.PI * 2;
+                if (end < 0) end += Math.PI * 2;
+                
+                if (start > end) {
+                    return angle >= start || angle <= end;
+                } else {
+                    return angle >= start && angle <= end;
+                }
+                
+            case 'polyline':
+                for (let i = 0; i < shape.points.length - 1; i++) {
+                    if (this.isPointOnLine(point.x, point.y, shape.points[i], shape.points[i + 1], tolerance)) {
+                        return true;
+                    }
+                }
+                return false;
+                
+            case 'polygon':
+                // Check edges
+                for (let i = 0; i < shape.points.length; i++) {
+                    const next = (i + 1) % shape.points.length;
+                    if (this.isPointOnLine(point.x, point.y, shape.points[i], shape.points[next], tolerance)) {
+                        return true;
+                    }
+                }
+                return false;
+                
+            case 'text':
+                // Approximate text bounds
+                const textWidth = (shape.text || '').length * (shape.fontSize || 12) * 0.6;
+                const textHeight = shape.fontSize || 12;
+                
+                return point.x >= shape.position.x - tolerance &&
+                       point.x <= shape.position.x + textWidth + tolerance &&
+                       point.y >= shape.position.y - textHeight - tolerance &&
+                       point.y <= shape.position.y + tolerance;
+                
+            default:
+                return false;
+        }
+    }
+    
+    saveLayerState(stateName) {
+        if (this.layerManager) {
+            this.layerManager.saveLayerState(stateName);
+        }
+    }
+    
+    restoreLayerState(stateName) {
+        if (this.layerManager) {
+            this.layerManager.restoreLayerState(stateName);
         }
     }
     
@@ -3511,7 +4133,9 @@ Other:
     saveFile() {
         const data = {
             shapes: this.shapes,
-            layers: Array.from(this.layers.entries())
+            layers: this.layerManager ? this.layerManager.exportLayers() : Array.from(this.layers.entries()),
+            units: this.currentUnit,
+            version: '3.0'
         };
         
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -3550,14 +4174,179 @@ Other:
         URL.revokeObjectURL(url);
     }
     
+    // تحديث دالة التصدير لتضمين أنواع الخطوط
+    exportToDXF() {
+        let dxf = '0\nSECTION\n2\nHEADER\n';
+        dxf += '9\n$ACADVER\n1\nAC1014\n'; // AutoCAD 2000 format
+        dxf += '0\nENDSEC\n';
+        
+        // قسم أنواع الخطوط
+        dxf += '0\nSECTION\n2\nTABLES\n';
+        dxf += '0\nTABLE\n2\nLTYPE\n';
+        
+        if (this.linetypeManager) {
+            const linetypes = this.linetypeManager.getLinetypesList();
+            linetypes.forEach(type => {
+                dxf += '0\nLTYPE\n';
+                dxf += `2\n${type.name.toUpperCase()}\n`;
+                dxf += '70\n0\n'; // Standard flag
+                dxf += `3\n${type.description}\n`;
+                dxf += '72\n65\n'; // Alignment code
+                dxf += `73\n${type.pattern ? type.pattern.length : 0}\n`;
+                dxf += '40\n0.0\n'; // Total pattern length
+                
+                if (type.pattern) {
+                    type.pattern.forEach(segment => {
+                        dxf += `49\n${segment}\n`;
+                        dxf += '74\n0\n'; // Element type
+                    });
+                }
+            });
+        }
+        
+        dxf += '0\nENDTAB\n';
+        
+        // قسم الطبقات
+        dxf += '0\nTABLE\n2\nLAYER\n';
+        
+        const layers = this.layerManager ? 
+            Array.from(this.layerManager.layers.values()) : 
+            Array.from(this.layers.values());
+        
+        layers.forEach(layer => {
+            dxf += '0\nLAYER\n';
+            dxf += `2\n${layer.name}\n`;
+            dxf += '70\n0\n'; // Standard flag
+            dxf += `62\n${this.colorToDXF(layer.color)}\n`;
+            dxf += `6\n${layer.lineType || 'CONTINUOUS'}\n`;
+            
+            if (this.linetypeManager && layer.lineWeight !== undefined) {
+                const weight = layer.lineWeight === 'bylayer' ? -2 : 
+                              layer.lineWeight === 'default' ? -3 : 
+                              Math.round(layer.lineWeight * 100);
+                dxf += `370\n${weight}\n`;
+            }
+        });
+        
+        dxf += '0\nENDTAB\n';
+        dxf += '0\nENDSEC\n';
+        
+        // قسم الكيانات
+        dxf += '0\nSECTION\n2\nENTITIES\n';
+        
+        this.shapes.forEach(shape => {
+            dxf += this.shapeToDXF(shape);
+        });
+        
+        dxf += '0\nENDSEC\n';
+        dxf += '0\nEOF\n';
+        
+        // تنزيل الملف
+        const blob = new Blob([dxf], { type: 'application/dxf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'tyrexcad_export.dxf';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+    
+    // دالة مساعدة لتحويل الشكل إلى DXF
+    shapeToDXF(shape) {
+        let dxf = '';
+        const layer = this.layerManager ? 
+            this.layerManager.layers.get(shape.layerId) : 
+            this.layers.get(shape.layerId);
+        
+        const layerName = layer ? layer.name : 'Layer 0';
+        const lineType = shape.lineType || 'CONTINUOUS';
+        
+        // خصائص مشتركة
+        const commonProps = () => {
+            let props = `8\n${layerName}\n`; // Layer
+            props += `6\n${lineType.toUpperCase()}\n`; // Linetype
+            
+            if (this.linetypeManager && shape.lineWeight !== undefined) {
+                const weight = shape.lineWeight === 'bylayer' ? -2 : 
+                              shape.lineWeight === 'default' ? -3 : 
+                              Math.round(shape.lineWeight * 100);
+                props += `370\n${weight}\n`;
+            }
+            
+            return props;
+        };
+        
+        switch (shape.type) {
+            case 'line':
+                dxf += '0\nLINE\n';
+                dxf += commonProps();
+                dxf += `10\n${shape.start.x}\n20\n${shape.start.y}\n30\n0.0\n`;
+                dxf += `11\n${shape.end.x}\n21\n${shape.end.y}\n31\n0.0\n`;
+                break;
+                
+            case 'circle':
+                dxf += '0\nCIRCLE\n';
+                dxf += commonProps();
+                dxf += `10\n${shape.center.x}\n20\n${shape.center.y}\n30\n0.0\n`;
+                dxf += `40\n${shape.radius}\n`;
+                break;
+                
+            case 'arc':
+                dxf += '0\nARC\n';
+                dxf += commonProps();
+                dxf += `10\n${shape.center.x}\n20\n${shape.center.y}\n30\n0.0\n`;
+                dxf += `40\n${shape.radius}\n`;
+                dxf += `50\n${shape.startAngle * 180 / Math.PI}\n`;
+                dxf += `51\n${shape.endAngle * 180 / Math.PI}\n`;
+                break;
+                
+            case 'polyline':
+                dxf += '0\nLWPOLYLINE\n';
+                dxf += commonProps();
+                dxf += `90\n${shape.points.length}\n`; // عدد النقاط
+                dxf += '70\n0\n'; // مفتوح
+                shape.points.forEach(pt => {
+                    dxf += `10\n${pt.x}\n20\n${pt.y}\n`;
+                });
+                break;
+                
+            // ... باقي الأشكال
+        }
+        
+        return dxf;
+    }
+    
+    // دالة مساعدة لتحويل اللون إلى كود DXF
+    colorToDXF(color) {
+        // تحويل hex إلى أقرب لون AutoCAD
+        const colors = {
+            '#ff0000': 1, // Red
+            '#ffff00': 2, // Yellow
+            '#00ff00': 3, // Green
+            '#00ffff': 4, // Cyan
+            '#0000ff': 5, // Blue
+            '#ff00ff': 6, // Magenta
+            '#ffffff': 7, // White
+            '#808080': 8, // Gray
+            '#c0c0c0': 9  // Light gray
+        };
+        
+        return colors[color.toLowerCase()] || 7; // افتراضي: أبيض
+    }
+    
     loadData(data) {
         this.shapes = data.shapes || [];
-        this.layers.clear();
-        if (data.layers) {
+        
+        // استيراد الطبقات
+        if (this.layerManager && data.layers) {
+            this.layerManager.importLayers(data.layers);
+        } else if (data.layers) {
+            this.layers.clear();
             data.layers.forEach(([id, layer]) => {
                 this.layers.set(id, layer);
             });
         }
+        
         this.selectedShapes.clear();
         this.history = [];
         this.historyIndex = -1;
@@ -3649,27 +4438,34 @@ Other:
             shape.id = this.generateId();
         }
         
-        // التأكد من وجود خصائص أساسية
-        if (!shape.color) {
-            shape.color = this.currentColor;
-        }
-        if (!shape.lineWidth) {
-            shape.lineWidth = this.currentLineWidth;
-        }
-        if (!shape.lineType) {
-            shape.lineType = this.currentLineType;
-        }
+        // التأكد من وجود layerId
         if (shape.layerId === undefined) {
-            shape.layerId = this.currentLayerId;
+            shape.layerId = this.layerManager ? this.layerManager.currentLayerId : this.currentLayerId;
+        }
+        
+        // تطبيق خصائص الخط
+        if (this.linetypeManager) {
+            shape = this.linetypeManager.applyLineProperties(shape);
+        } else {
+            // Fallback للنظام القديم
+            if (!shape.lineType) shape.lineType = this.currentLineType;
+            if (shape.lineWeight === undefined) shape.lineWeight = this.currentLineWeight;
+            if (!shape.color) shape.color = this.currentColor;
+            if (!shape.lineWidth) shape.lineWidth = this.currentLineWidth;
+        }
+        
+        // تطبيق خصائص الطبقة
+        if (this.layerManager) {
+            shape = this.layerManager.applyLayerProperties(shape);
         }
         
         // إضافة الشكل
         this.shapes.push(shape);
         
-        // تحديث UI
-        this.updateUI();
+        // تسجيل في History
+        this.recordState();
         
-        // إعادة الرسم
+        // تحديث العرض
         this.render();
         
         return shape;
@@ -3681,21 +4477,52 @@ Other:
      * @returns {Object} نسخة جديدة من الشكل
      */
     cloneShape(shape) {
+        // نسخ عميق للشكل
         const clone = JSON.parse(JSON.stringify(shape));
         
         // إنشاء ID جديد للنسخة
         clone.id = this.generateId();
         
-        // معالجة خاصة لبعض الأنواع
+        // إزاحة بسيطة للتمييز
+        const offset = 10 / this.zoom;
+        
+        // معالجة خاصة لبعض الأنواع مع إضافة إزاحة
         switch (shape.type) {
+            case 'line':
+                clone.start.x += offset;
+                clone.start.y += offset;
+                clone.end.x += offset;
+                clone.end.y += offset;
+                break;
+                
+            case 'rectangle':
+                clone.start.x += offset;
+                clone.start.y += offset;
+                clone.end.x += offset;
+                clone.end.y += offset;
+                break;
+                
+            case 'circle':
+            case 'arc':
+            case 'ellipse':
+                clone.center.x += offset;
+                clone.center.y += offset;
+                break;
+                
             case 'polyline':
+            case 'polygon':
                 // التأكد من نسخ array النقاط بشكل صحيح
-                clone.points = shape.points.map(p => ({ x: p.x, y: p.y }));
+                clone.points = shape.points.map(p => ({ 
+                    x: p.x + offset, 
+                    y: p.y + offset 
+                }));
                 break;
                 
             case 'text':
                 // التأكد من نسخ خصائص النص
                 clone.text = shape.text;
+                clone.position.x += offset;
+                clone.position.y += offset;
                 break;
                 
             case 'dimension-linear':

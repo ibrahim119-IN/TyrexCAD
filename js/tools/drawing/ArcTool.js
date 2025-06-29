@@ -12,11 +12,21 @@ export class ArcTool extends DrawingToolBase {
     }
     
     onActivate() {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return false;
+        }
+        
         super.onActivate();
         this.updateStatus('Specify first point');
     }
     
     onClick(point) {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return;
+        }
+        
         if (!this.cad.isDrawing) {
             this.cad.isDrawing = true;
             this.addPoint(point);
@@ -41,6 +51,7 @@ export class ArcTool extends DrawingToolBase {
                 });
                 
                 this.cad.addShape(shape);
+                this.updateStatus('Arc created');
             }
             this.finishDrawing();
         }
@@ -55,15 +66,18 @@ export class ArcTool extends DrawingToolBase {
             );
             
             if (arc) {
+                // استخدام خصائص الطبقة الحالية للمعاينة
+                const currentLayer = this.cad.layerManager?.getCurrentLayer();
+                
                 this.tempShape = {
                     type: 'arc',
                     center: arc.center,
                     radius: arc.radius,
                     startAngle: arc.startAngle,
                     endAngle: arc.endAngle,
-                    color: this.cad.currentColor,
-                    lineWidth: this.cad.currentLineWidth,
-                    lineType: this.cad.currentLineType
+                    color: currentLayer?.color || this.cad.currentColor,
+                    lineWidth: currentLayer?.lineWidth || this.cad.currentLineWidth,
+                    lineType: currentLayer?.lineType || this.cad.currentLineType
                 };
                 this.cad.tempShape = this.tempShape;
             }

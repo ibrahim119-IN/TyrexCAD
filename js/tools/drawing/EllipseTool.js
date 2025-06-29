@@ -12,11 +12,21 @@ export class EllipseTool extends DrawingToolBase {
     }
     
     onActivate() {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return false;
+        }
+        
         super.onActivate();
         this.updateStatus('Specify center point');
     }
     
     onClick(point) {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return;
+        }
+        
         if (!this.cad.isDrawing) {
             this.cad.isDrawing = true;
             this.addPoint(point);
@@ -37,6 +47,7 @@ export class EllipseTool extends DrawingToolBase {
             });
             
             this.cad.addShape(shape);
+            this.updateStatus('Ellipse created');
             this.finishDrawing();
         }
     }
@@ -45,14 +56,18 @@ export class EllipseTool extends DrawingToolBase {
         if (this.cad.isDrawing) {
             if (this.drawingPoints.length === 1) {
                 const center = this.drawingPoints[0];
+                
+                // استخدام خصائص الطبقة الحالية للمعاينة
+                const currentLayer = this.cad.layerManager?.getCurrentLayer();
+                
                 this.tempShape = {
                     type: 'ellipse',
                     center: center,
                     radiusX: Math.abs(point.x - center.x),
                     radiusY: Math.abs(point.y - center.y),
-                    color: this.cad.currentColor,
-                    lineWidth: this.cad.currentLineWidth,
-                    lineType: this.cad.currentLineType
+                    color: currentLayer?.color || this.cad.currentColor,
+                    lineWidth: currentLayer?.lineWidth || this.cad.currentLineWidth,
+                    lineType: currentLayer?.lineType || this.cad.currentLineType
                 };
                 this.cad.tempShape = this.tempShape;
             }

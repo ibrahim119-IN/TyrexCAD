@@ -12,11 +12,21 @@ export class CircleTool extends DrawingToolBase {
     }
     
     onActivate() {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return false;
+        }
+        
         super.onActivate();
         this.updateStatus('Specify center point');
     }
     
     onClick(point) {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return;
+        }
+        
         if (!this.cad.isDrawing) {
             this.cad.isDrawing = true;
             this.addPoint(point);
@@ -51,13 +61,16 @@ export class CircleTool extends DrawingToolBase {
                 point.y
             );
             
+            // استخدام خصائص الطبقة الحالية للمعاينة
+            const currentLayer = this.cad.layerManager?.getCurrentLayer();
+            
             this.tempShape = {
                 type: 'circle',
                 center: this.drawingPoints[0],
                 radius: radius,
-                color: this.cad.currentColor,
-                lineWidth: this.cad.currentLineWidth,
-                lineType: this.cad.currentLineType
+                color: currentLayer?.color || this.cad.currentColor,
+                lineWidth: currentLayer?.lineWidth || this.cad.currentLineWidth,
+                lineType: currentLayer?.lineType || this.cad.currentLineType
             };
             this.cad.tempShape = this.tempShape;
         }
@@ -71,5 +84,6 @@ export class CircleTool extends DrawingToolBase {
         });
         
         this.cad.addShape(shape);
+        this.updateStatus('Circle created');
     }
 }

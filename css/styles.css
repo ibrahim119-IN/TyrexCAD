@@ -1930,3 +1930,1380 @@ body {
     0% { stroke-dashoffset: 0; }
     100% { stroke-dashoffset: 10; }
 }
+
+/* Selection Info Panel */
+.selection-info-panel {
+    position: absolute;
+    top: 80px;
+    right: 20px;
+    background: rgba(26, 26, 26, 0.95);
+    border: 1px solid #00d4aa;
+    border-radius: 8px;
+    padding: 12px;
+    min-width: 200px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 12px rgba(0, 212, 170, 0.15);
+    font-size: 13px;
+    z-index: 100;
+    transition: all 0.3s ease;
+}
+
+.selection-info-panel:hover {
+    box-shadow: 0 6px 20px rgba(0, 212, 170, 0.25);
+}
+
+.selection-info-panel .info-header {
+    color: #00d4aa;
+    font-weight: bold;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(0, 212, 170, 0.3);
+    font-size: 14px;
+}
+
+.selection-info-panel .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 6px 0;
+    padding: 2px 0;
+}
+
+.selection-info-panel .label {
+    color: #888;
+    font-size: 12px;
+}
+
+.selection-info-panel .value {
+    color: #fff;
+    font-weight: 500;
+    font-size: 12px;
+}
+
+/* Quick Action Bar */
+.quick-action-bar {
+    position: absolute;
+    background: rgba(26, 26, 26, 0.95);
+    border: 1px solid #00d4aa;
+    border-radius: 20px;
+    padding: 4px;
+    display: none;
+    gap: 2px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 12px rgba(0, 212, 170, 0.2);
+    z-index: 200;
+    align-items: center;
+}
+
+.quick-action {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.quick-action:hover {
+    background: rgba(0, 212, 170, 0.2);
+    color: #00d4aa;
+    transform: scale(1.1);
+}
+
+.quick-action:active {
+    transform: scale(0.95);
+}
+
+.quick-action-bar .separator {
+    width: 1px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 0 4px;
+    align-self: center;
+}
+
+/* Grip Properties Dialog */
+.grip-properties-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(26, 26, 26, 0.98);
+    border: 1px solid #00d4aa;
+    border-radius: 12px;
+    min-width: 350px;
+    max-width: 500px;
+    box-shadow: 0 8px 32px rgba(0, 212, 170, 0.2);
+    z-index: 1000;
+    display: none;
+    backdrop-filter: blur(10px);
+    animation: dialogFadeIn 0.3s ease;
+}
+
+@keyframes dialogFadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+.grip-properties-dialog .dialog-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.grip-properties-dialog .dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.grip-properties-dialog .dialog-header h3 {
+    color: #00d4aa;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.grip-properties-dialog .close-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.grip-properties-dialog .close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ff4444;
+}
+
+.grip-properties-dialog .dialog-body {
+    padding: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.grip-properties-dialog .property-section {
+    margin: 15px 0;
+    padding-left: 10px;
+    border-left: 2px solid #00d4aa;
+}
+
+.grip-properties-dialog .property-section h4 {
+    color: #00d4aa;
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.grip-properties-dialog .property-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 10px 0;
+}
+
+.grip-properties-dialog .property-row label {
+    color: #a0a0a0;
+    font-size: 13px;
+    flex: 1;
+}
+
+.grip-properties-dialog .property-row input[type="number"],
+.grip-properties-dialog .property-row input[type="text"] {
+    background: #0a0a0a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    width: 120px;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.grip-properties-dialog .property-row input:focus {
+    border-color: #00d4aa;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.1);
+}
+
+.grip-properties-dialog .property-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    cursor: pointer;
+}
+
+.grip-properties-dialog .property-row span {
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.grip-properties-dialog .dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.grip-properties-dialog button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.grip-properties-dialog .btn-primary {
+    background: #00d4aa;
+    color: #0a0a0a;
+}
+
+.grip-properties-dialog .btn-primary:hover {
+    background: #00ffcc;
+    transform: translateY(-1px);
+}
+
+.grip-properties-dialog .btn-cancel {
+    background: transparent;
+    color: #a0a0a0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.grip-properties-dialog .btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
+}
+
+/* Selection Mode Indicator */
+.selection-mode-indicator {
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(26, 26, 26, 0.9);
+    border: 1px solid #00d4aa;
+    border-radius: 20px;
+    padding: 8px 16px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #fff;
+    z-index: 150;
+    backdrop-filter: blur(10px);
+    animation: indicatorSlideUp 0.3s ease;
+}
+
+@keyframes indicatorSlideUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.selection-mode-indicator i {
+    font-size: 16px;
+    color: #00d4aa;
+}
+
+.selection-mode-indicator .cumulative {
+    color: #00ff88;
+    font-weight: 500;
+}
+
+.selection-mode-indicator .replace {
+    color: #ff8800;
+    font-weight: 500;
+}
+
+/* تحسينات على selection box */
+.selection-box {
+    transition: none; /* منع التأخير في الحركة */
+    pointer-events: none;
+    z-index: 80;
+}
+
+.selection-box.window {
+    border: 2px solid #0099ff;
+    background: rgba(0, 153, 255, 0.08);
+    backdrop-filter: blur(2px);
+}
+
+.selection-box.crossing {
+    border: 2px dashed #00ff00;
+    background: rgba(0, 255, 0, 0.08);
+    animation: dash-move 0.5s linear infinite;
+}
+
+@keyframes dash-move {
+    0% { border-dashoffset: 0; }
+    100% { border-dashoffset: 10; }
+}
+
+/* Scrollbar للـ dialog */
+.grip-properties-dialog .dialog-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.grip-properties-dialog .dialog-body::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.grip-properties-dialog .dialog-body::-webkit-scrollbar-thumb {
+    background: #00d4aa;
+    border-radius: 3px;
+}
+
+.grip-properties-dialog .dialog-body::-webkit-scrollbar-thumb:hover {
+    background: #00ffcc;
+}
+
+/* تأثيرات إضافية للـ Grips */
+.canvas-container.grip-hover {
+    cursor: move !important;
+}
+
+.canvas-container.grip-dragging {
+    cursor: grabbing !important;
+}
+
+/* رسائل التنبيه للـ Grips */
+.grip-tooltip {
+    position: absolute;
+    background: rgba(26, 26, 26, 0.9);
+    border: 1px solid #00d4aa;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: #ffffff;
+    pointer-events: none;
+    z-index: 1000;
+    display: none;
+}
+
+/* تحسينات responsive */
+@media (max-width: 768px) {
+    .selection-info-panel {
+        top: auto;
+        bottom: 80px;
+        right: 10px;
+        font-size: 12px;
+        min-width: 160px;
+    }
+    
+    .quick-action-bar {
+        padding: 2px;
+    }
+    
+    .quick-action {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+    
+    .grip-properties-dialog {
+        min-width: 300px;
+        max-width: 90%;
+    }
+}
+
+/* Edge Hold Menu */
+.edge-hold-menu {
+    background: rgba(26, 26, 26, 0.95);
+    border: 1px solid #00d4aa;
+    border-radius: 20px;
+    padding: 4px;
+    display: flex;
+    gap: 4px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 8px rgba(0, 212, 170, 0.3);
+}
+
+.edge-action {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: #a0a0a0;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.edge-action:hover {
+    background: rgba(0, 212, 170, 0.2);
+    color: #00d4aa;
+    transform: scale(1.1);
+}
+
+/* تمييز أنواع مختلفة من Grips */
+.vertex-grip-center {
+    stroke: #4da6ff !important;
+}
+
+.vertex-grip-radius {
+    stroke: #ff9999 !important;
+}
+
+.vertex-grip-curve {
+    stroke: #ffaa00 !important;
+}
+
+.edge-grip-hover {
+    animation: pulse-edge 1s infinite;
+}
+
+@keyframes pulse-edge {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+/* ==================== Layer Management System Styles ==================== */
+
+/* شريط أدوات الطبقات */
+.layers-toolbar {
+    padding: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.layers-toolbar-buttons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.layer-tool-btn {
+    width: 28px;
+    height: 28px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    font-size: 12px;
+}
+
+.layer-tool-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.layer-tool-separator {
+    width: 1px;
+    height: 20px;
+    background: var(--border-color);
+    margin: 0 4px;
+}
+
+/* قائمة الطبقات */
+.layers-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border-radius: 6px;
+    background: var(--bg-tertiary);
+}
+
+/* عنصر الطبقة المحدث */
+.layer-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    margin-bottom: 2px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    background: var(--bg-secondary);
+    border: 1px solid transparent;
+}
+
+.layer-item:hover {
+    background: var(--bg-hover);
+    border-color: rgba(0, 212, 170, 0.2);
+}
+
+.layer-item.active {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 1px rgba(0, 212, 170, 0.2) inset;
+}
+
+/* أزرار التحكم في الطبقة */
+.layer-controls {
+    display: flex;
+    gap: 2px;
+    margin-right: 8px;
+}
+
+.layer-visibility,
+.layer-freeze,
+.layer-lock,
+.layer-plot {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-dim);
+    border-radius: 3px;
+    transition: all var(--transition-fast);
+    font-size: 11px;
+}
+
+.layer-visibility:hover,
+.layer-freeze:hover,
+.layer-lock:hover,
+.layer-plot:hover {
+    background: var(--bg-hover);
+}
+
+.layer-visibility.visible {
+    color: var(--accent-primary);
+}
+
+.layer-freeze.frozen {
+    color: #00ccff;
+}
+
+.layer-lock.locked {
+    color: #ffaa00;
+}
+
+.layer-plot.plot {
+    color: var(--accent-secondary);
+}
+
+/* لون الطبقة */
+.layer-color {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    margin-right: 8px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    position: relative;
+}
+
+.layer-color:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.3);
+}
+
+/* معلومات الطبقة */
+.layer-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.layer-name {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.layer-name:hover {
+    background: var(--bg-tertiary);
+}
+
+.layer-name:focus {
+    background: var(--bg-primary);
+    outline: 1px solid var(--accent-primary);
+}
+
+.layer-name[readonly] {
+    opacity: 0.7;
+    cursor: default;
+}
+
+.layer-count {
+    font-size: 10px;
+    color: var(--text-dim);
+    padding-left: 4px;
+}
+
+/* مؤشر الشفافية */
+.layer-transparency {
+    display: inline-block;
+    font-size: 10px;
+    color: var(--accent-secondary);
+    background: rgba(0, 153, 255, 0.1);
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: 8px;
+}
+
+/* زر خيارات الطبقة */
+.layer-options {
+    margin-left: 4px;
+}
+
+.layer-option-btn {
+    width: 20px;
+    height: 20px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.layer-option-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* حوارات الطبقات */
+.layer-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dialog-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.dialog-content {
+    position: relative;
+    background: var(--bg-panel);
+    border: 1px solid var(--accent-primary);
+    border-radius: 8px;
+    padding: 24px;
+    min-width: 350px;
+    max-width: 500px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.dialog-content h3 {
+    margin: 0 0 16px 0;
+    color: var(--accent-primary);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.dialog-body {
+    margin-bottom: 20px;
+}
+
+.dialog-body label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+/* تحكم الشفافية */
+.transparency-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.transparency-control input[type="range"] {
+    flex: 1;
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.transparency-control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.transparency-control input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.transparency-control span {
+    min-width: 40px;
+    text-align: right;
+    color: var(--text-primary);
+    font-family: 'SF Mono', monospace;
+    font-size: 13px;
+}
+
+/* أزرار الحوار */
+.dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.dialog-buttons button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-ok {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+}
+
+.btn-ok:hover {
+    background: #00ffcc;
+}
+
+.btn-cancel {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-cancel:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+/* حوار حالات الطبقات */
+.layer-states-dialog .dialog-content {
+    min-width: 400px;
+}
+
+.states-toolbar {
+    margin-bottom: 16px;
+}
+
+.states-list {
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.no-states {
+    text-align: center;
+    color: var(--text-dim);
+    padding: 32px;
+    margin: 0;
+}
+
+.state-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    margin-bottom: 4px;
+}
+
+.state-item:hover {
+    background: var(--bg-hover);
+}
+
+.state-name {
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.state-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.state-actions button {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.state-actions button:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* تأثيرات بصرية للطبقات المقفولة */
+.layer-item.locked-effect {
+    opacity: 0.7;
+}
+
+/* مؤشر Match Layer */
+.match-layer-cursor {
+    cursor: crosshair !important;
+}
+
+.match-layer-info {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-panel);
+    border: 1px solid var(--accent-primary);
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--text-primary);
+    z-index: 100;
+    pointer-events: none;
+}
+
+/* تحسينات الأداء */
+.layers-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.layers-list::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+}
+
+.layers-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.layers-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+}
+
+/* الرسوم المتحركة */
+@keyframes layer-flash {
+    0% { background: var(--bg-secondary); }
+    50% { background: rgba(0, 212, 170, 0.2); }
+    100% { background: var(--bg-secondary); }
+}
+
+.layer-item.flash {
+    animation: layer-flash 0.5s ease;
+}
+
+/* دعم الوضع المظلم */
+@media (prefers-color-scheme: dark) {
+    .layer-dialog {
+        color-scheme: dark;
+    }
+}
+
+
+/* ==================== Linetype System Styles ==================== */
+
+/* قوائم اختيار أنواع وأوزان الخطوط */
+#linetypeSelect,
+#lineWeightSelect {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    min-width: 140px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+#linetypeSelect:hover,
+#lineWeightSelect:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-hover);
+}
+
+#linetypeSelect:focus,
+#lineWeightSelect:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.2);
+}
+
+/* معاينة نوع الخط */
+#linetypePreview {
+    margin-top: 8px;
+    padding: 4px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#linetypePreview canvas {
+    display: block;
+}
+
+/* لوحة أنواع الخطوط */
+.linetype-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-panel);
+    border: 1px solid var(--accent-primary);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    width: 500px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+}
+
+.linetype-panel .panel-header {
+    padding: 16px;
+    background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.linetype-panel h3 {
+    margin: 0;
+    color: var(--accent-primary);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.panel-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all var(--transition-fast);
+}
+
+.panel-close:hover {
+    background: var(--bg-hover);
+    color: var(--accent-primary);
+}
+
+.linetype-panel .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+/* شريط أدوات أنواع الخطوط */
+.linetype-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.linetype-toolbar .btn {
+    padding: 8px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.linetype-toolbar .btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* إعدادات أنواع الخطوط */
+.linetype-settings {
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.linetype-settings label {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.linetype-settings input {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    width: 80px;
+    font-size: 13px;
+}
+
+/* قائمة أنواع الخطوط */
+.linetype-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.linetype-item {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.linetype-item:hover {
+    background: var(--bg-hover);
+    border-color: rgba(0, 212, 170, 0.3);
+}
+
+.linetype-item.active {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 1px rgba(0, 212, 170, 0.2) inset;
+}
+
+.linetype-preview {
+    flex-shrink: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+}
+
+.linetype-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.linetype-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.linetype-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* مجموعات الخيارات في القوائم المنسدلة */
+optgroup {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 12px;
+}
+
+option {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: 4px;
+}
+
+option:hover {
+    background: var(--bg-hover);
+}
+
+option:disabled {
+    color: var(--text-dim);
+    font-size: 10px;
+    text-align: center;
+}
+
+/* حوار إنشاء نوع خط مخصص */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.form-group small {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-dim);
+    font-size: 11px;
+}
+
+/* تكامل مع شريط الأدوات */
+.drawing-settings {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+}
+
+.drawing-settings .setting-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.drawing-settings .setting-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* أيقونات أنواع الخطوط */
+.linetype-icon {
+    display: inline-block;
+    width: 40px;
+    height: 2px;
+    background: var(--text-primary);
+    position: relative;
+}
+
+.linetype-icon.dashed {
+    background: linear-gradient(90deg, 
+        var(--text-primary) 0%, 
+        var(--text-primary) 60%, 
+        transparent 60%, 
+        transparent 100%);
+    background-size: 10px 2px;
+}
+
+.linetype-icon.dotted {
+    background: radial-gradient(circle, 
+        var(--text-primary) 30%, 
+        transparent 30%);
+    background-size: 4px 2px;
+    background-position: 0 0;
+}
+
+.linetype-icon.center {
+    background: linear-gradient(90deg,
+        var(--text-primary) 0%,
+        var(--text-primary) 40%,
+        transparent 40%,
+        transparent 50%,
+        var(--text-primary) 50%,
+        var(--text-primary) 55%,
+        transparent 55%,
+        transparent 65%,
+        var(--text-primary) 65%,
+        var(--text-primary) 100%);
+}
+
+/* تأثيرات وزن الخط في الواجهة */
+.weight-preview {
+    height: 20px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+}
+
+.weight-line {
+    width: 100%;
+    background: var(--text-primary);
+    transition: all var(--transition-fast);
+}
+
+/* دعم الوضع المظلم */
+@media (prefers-color-scheme: dark) {
+    .linetype-panel,
+    .linetype-settings {
+        color-scheme: dark;
+    }
+}
+
+/* تحسينات الأداء */
+.linetype-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.linetype-list::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+}
+
+.linetype-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.linetype-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+}
+
+/* رسوم متحركة */
+@keyframes linetype-dash {
+    0% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: 20; }
+}
+
+.linetype-animated {
+    animation: linetype-dash 1s linear infinite;
+}
+
+/* تكامل مع نظام الطبقات */
+.layer-linetype-indicator {
+    display: inline-block;
+    width: 30px;
+    height: 2px;
+    margin-left: 8px;
+    background: var(--text-secondary);
+}
+
+.layer-item .layer-linetype {
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+/* شريط الحالة */
+#statusLinetype,
+#statusLineWeight {
+    font-family: 'SF Mono', monospace;
+    font-size: 12px;
+    color: var(--accent-secondary);
+}
+
+/* تلميحات الأدوات */
+.linetype-tooltip {
+    position: absolute;
+    background: var(--bg-primary);
+    border: 1px solid var(--accent-primary);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text-primary);
+    pointer-events: none;
+    z-index: 1100;
+    white-space: nowrap;
+}
+
+/* دعم الطباعة */
+@media print {
+    .linetype-panel,
+    .linetype-toolbar {
+        display: none;
+    }
+}
+
+/* تحسينات للأجهزة اللمسية */
+@media (hover: none) {
+    .linetype-item {
+        padding: 16px;
+    }
+    
+    #linetypeSelect,
+    #lineWeightSelect {
+        padding: 10px 14px;
+        font-size: 14px;
+    }
+}

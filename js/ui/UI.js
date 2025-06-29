@@ -122,6 +122,11 @@ class UI {
             this.currentPanel = null;
         }
         this.stopLivePreview();
+        
+        const panels = document.querySelectorAll('.tool-panel');
+        panels.forEach(panel => {
+            panel.classList.remove('active');
+        });
     }
     
     /**
@@ -1023,6 +1028,17 @@ class UI {
             errorDiv.classList.add('fade-out');
             setTimeout(() => errorDiv.remove(), 300);
         }, 3000);
+        
+        // تحديث الحالة (إذا لم تكن موجودة)
+        const originalStatus = document.getElementById('statusMode').textContent;
+        this.updateStatus(`ERROR: ${message}`);
+        
+        // إرجاع الحالة السابقة بعد 3 ثواني
+        setTimeout(() => {
+            document.getElementById('statusMode').textContent = originalStatus;
+        }, 3000);
+        
+        console.error(message);
     }
     
     /**
@@ -1215,18 +1231,96 @@ class UI {
      * تحديث الواجهة بالكامل
      */
     updateUI() {
-        this.updatePropertiesPanel();
-        this.updateStatus();
-        this.elements.get('statusObjects').textContent = this.cad.shapes.length;
-        this.elements.get('statusLayer').textContent = this.cad.layers.get(this.cad.currentLayerId)?.name || '0';
-        this.elements.get('unitsSelect').value = this.cad.currentUnit;
+        // التحقق من وجود CAD
+        if (!this.cad) return;
+        
+        // تحديث معلومات الأداة
+        const statusTool = document.getElementById('statusTool');
+        if (statusTool) {
+            statusTool.textContent = this.cad.currentTool ? 
+                this.cad.currentTool.toUpperCase() : 'SELECT';
+        }
+        
+        // تحديث الإحداثيات
+        const coordX = document.getElementById('coordX');
+        const coordY = document.getElementById('coordY');
+        
+        if (coordX && coordY) {
+            const world = this.cad.screenToWorld(this.cad.mouseX, this.cad.mouseY);
+            const snapPoint = this.cad.getSnapPoint(world.x, world.y);
+            
+            coordX.textContent = this.cad.formatValue(snapPoint.x);
+            coordY.textContent = this.cad.formatValue(snapPoint.y);
+        }
+        
+        // تحديث معلومات الأشكال المحددة
+        const propType = document.getElementById('propType');
+        const specificProperties = document.getElementById('specificProperties');
+        
+        if (propType) {
+            if (this.cad.selectedShapes.size === 0) {
+                propType.textContent = 'None';
+                if (specificProperties) {
+                    specificProperties.innerHTML = '';
+                }
+            } else if (this.cad.selectedShapes.size === 1) {
+                const shape = Array.from(this.cad.selectedShapes)[0];
+                propType.textContent = shape.type.charAt(0).toUpperCase() + shape.type.slice(1);
+                if (specificProperties) {
+                    specificProperties.innerHTML = this.getShapePropertiesHTML(shape);
+                }
+            } else {
+                propType.textContent = `${this.cad.selectedShapes.size} objects`;
+                if (specificProperties) {
+                    specificProperties.innerHTML = '';
+                }
+            }
+        }
+        
+        // تحديث قائمة الطبقات إذا كان LayerManager موجود
+        if (this.cad.layerManager) {
+            this.updateLayersList();
+        } else if (this.cad.layers && this.cad.layers.size > 0) {
+            // استخدام النظام القديم
+            this.updateLayersList();
+        }
+        
+        // تحديث أزرار التحكم
+        this.updateBottomToolbar();
+        
+        // تحديث dropdown الوحدات
+        const unitsSelect = document.getElementById('unitsSelect');
+        if (unitsSelect && this.cad.currentUnit) {
+            unitsSelect.value = this.cad.currentUnit;
+        }
+        
+        // تحديث عرض اللون
+        this.updateColorDisplay(this.cad.currentColor);
+        
+        // تحديث عرض عرض الخط
+        const lineWidthSlider = document.getElementById('lineWidthSlider');
+        const lineWidthValue = document.getElementById('lineWidthValue');
+        
+        if (lineWidthSlider && lineWidthValue) {
+            lineWidthSlider.value = this.cad.currentLineWidth;
+            lineWidthValue.textContent = this.cad.currentLineWidth;
+        }
+        
+        // تحديث نوع الخط
+        const lineTypeSelect = document.getElementById('lineTypeSelect');
+        if (lineTypeSelect && this.cad.currentLineType) {
+            lineTypeSelect.value = this.cad.currentLineType;
+        }
     }
     
     /**
      * تحديث رسالة الحالة
      */
     updateStatus(message) {
-        this.elements.get('statusMode').textContent = message || 'READY';
+        const statusElement = this.elements.get('statusMode') || document.getElementById('statusMode');
+        if (statusElement) {
+            statusElement.textContent = message || 'READY';
+        }
     }
     
     /**
@@ -1258,6 +1352,16 @@ class UI {
         } else {
             propType.textContent = 'None';
             specificProperties.innerHTML = '';
+        }
+        
+        // إضافة في النهاية:
+        if (this.cad.selectedShapes.size > 0) {
+            this.updateSelectionInfo();
+            this.showQuickActionBar(this.cad.selectedShapes);
+        } else {
+            const panel = document.getElementById('selectionInfoPanel');
+            if (panel) panel.style.display = 'none';
+            this.hideQuickActionBar();
         }
     }
     
@@ -1367,51 +1471,546 @@ class UI {
     }
     
     /**
-     * تحديث قائمة الطبقات
+     * الحصول على HTML خصائص الشكل
      */
-    updateLayersList() {
-        const container = this.elements.get('layersList');
-        container.innerHTML = '';
-        
-        for (const [id, layer] of this.cad.layers) {
-            const item = document.createElement('div');
-            item.className = 'layer-item';
-            if (id === this.cad.currentLayerId) item.classList.add('active');
-            
-            item.innerHTML = `
-                <div class="layer-visibility ${layer.visible ? 'visible' : ''}" 
-                     onclick="cad.toggleLayerVisibility(${id})">
-                    <i class="fas fa-eye${layer.visible ? '' : '-slash'}"></i>
-                </div>
-                <div class="layer-lock ${layer.locked ? 'locked' : ''}"
-                     onclick="cad.toggleLayerLock(${id})">
-                    <i class="fas fa-lock${layer.locked ? '' : '-open'}"></i>
-                </div>
-                <div class="layer-color" style="background: ${layer.color};"
-                     onclick="cad.changeLayerColor(${id})"></div>
-                <input class="layer-name" value="${layer.name}" 
-                       style="background: transparent; border: none; color: var(--text-primary); flex: 1; font-size: 13px; padding: 4px;"
-                       onchange="cad.renameLayer(${id}, this.value)"
-                       onclick="cad.setCurrentLayer(${id})">
-            `;
-            
-            container.appendChild(item);
-        }
+    getShapePropertiesHTML(shape) {
+        return this.getShapeProperties(shape);
     }
     
     /**
-     * إظهار قائمة السياق
+     * إصلاح تحديث قائمة الطبقات لتجنب الـ recursion
      */
-    showContextMenu(x, y) {
-        const menu = this.elements.get('contextMenu');
+    updateLayersList() {
+        // تحقق من وجود العناصر المطلوبة
+        const container = this.elements.get('layersList');
+        if (!container) return;
+        
+        // منع التحديثات المتكررة
+        if (this._updatingLayersList) return;
+        this._updatingLayersList = true;
+        
+        try {
+            container.innerHTML = '';
+            
+            // الحصول على الطبقات
+            const layers = this.cad.layerManager ? 
+                Array.from(this.cad.layerManager.layers.values()) : 
+                Array.from(this.cad.layers.values());
+            
+            // ترتيب الطبقات (الأحدث أولاً)
+            layers.sort((a, b) => b.id - a.id);
+            
+            // إنشاء عناصر الطبقات
+            layers.forEach(layer => {
+                const item = this.createLayerItem(layer);
+                container.appendChild(item);
+            });
+            
+            // تحديث الـ dropdown إذا كان موجوداً
+            if (typeof updateLayerDropdown === 'function') {
+                updateLayerDropdown();
+            }
+            
+        } finally {
+            this._updatingLayersList = false;
+        }
+    }
+
+    /**
+     * إنشاء عنصر طبقة محسّن
+     */
+    createLayerItem(layer) {
+        const currentLayerId = this.cad.getCurrentLayerId();
+        
+        const item = document.createElement('div');
+        item.className = 'layer-item';
+        if (layer.id === currentLayerId) {
+            item.classList.add('active');
+        }
+        
+        // عدد الأشكال في الطبقة
+        const shapeCount = this.cad.shapes.filter(s => s.layerId === layer.id).length;
+        
+        // إنشاء HTML
+        item.innerHTML = `
+            <div class="layer-controls">
+                <div class="layer-visibility ${layer.visible ? 'visible' : ''}" 
+                     onclick="window.cad.toggleLayerVisibility(${layer.id})"
+                     title="${layer.visible ? 'Hide' : 'Show'} Layer">
+                    <i class="fas fa-eye${layer.visible ? '' : '-slash'}"></i>
+                </div>
+                <div class="layer-freeze ${layer.frozen ? 'frozen' : ''}"
+                     onclick="window.cad.toggleLayerFreeze(${layer.id})"
+                     title="${layer.frozen ? 'Thaw' : 'Freeze'} Layer">
+                    <i class="fas fa-snowflake"></i>
+                </div>
+                <div class="layer-lock ${layer.locked ? 'locked' : ''}"
+                     onclick="window.cad.toggleLayerLock(${layer.id})"
+                     title="${layer.locked ? 'Unlock' : 'Lock'} Layer">
+                    <i class="fas fa-lock${layer.locked ? '' : '-open'}"></i>
+                </div>
+                <div class="layer-plot ${layer.plot !== false ? 'plot' : ''}"
+                     onclick="window.cad.layerManager && window.cad.layerManager.togglePlot(${layer.id})"
+                     title="${layer.plot !== false ? 'No Plot' : 'Plot'} Layer">
+                    <i class="fas fa-print"></i>
+                </div>
+            </div>
+            <div class="layer-color" style="background: ${layer.color};"
+                 onclick="window.cad.changeLayerColor(${layer.id})"
+                 title="Change Color"></div>
+            <div class="layer-info" onclick="window.cad.setCurrentLayer(${layer.id})">
+                <input class="layer-name" value="${layer.name}" 
+                       onclick="event.stopPropagation();"
+                       onchange="window.cad.renameLayer(${layer.id}, this.value)"
+                       ${layer.id === 0 ? 'readonly' : ''}>
+                <span class="layer-count">${shapeCount} objects</span>
+            </div>
+            <div class="layer-options">
+                <button class="layer-option-btn" onclick="window.cad.ui.showLayerOptionsMenu(event, ${layer.id})">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+            </div>
+        `;
+        
+        // إضافة مؤشر الشفافية إذا كانت مفعلة
+        if (layer.transparency > 0) {
+            const transparencyIndicator = document.createElement('div');
+            transparencyIndicator.className = 'layer-transparency';
+            transparencyIndicator.textContent = `${layer.transparency}%`;
+            transparencyIndicator.title = `Transparency: ${layer.transparency}%`;
+            item.querySelector('.layer-info').appendChild(transparencyIndicator);
+        }
+        
+        return item;
+    }
+
+    /**
+     * إصلاح showLayerOptionsMenu
+     */
+    showLayerOptionsMenu(event, layerId) {
+        event.stopPropagation();
+        
+        const layer = this.cad.getLayer(layerId);
+        if (!layer) return;
+        
+        // إنشاء array من العناصر مباشرة
+        const items = [];
+        
+        items.push({ 
+            icon: 'fas fa-adjust', 
+            label: 'Set Transparency...', 
+            action: () => this.showTransparencyDialog(layerId) 
+        });
+        
+        items.push({ 
+            icon: 'fas fa-eye', 
+            label: 'Isolate Layer', 
+            action: () => {
+                if (this.cad.layerManager) {
+                    this.cad.layerManager.isolateLayer(layerId);
+                }
+            }
+        });
+        
+        items.push({ separator: true });
+        
+        items.push({ 
+            icon: 'fas fa-clone', 
+            label: 'Duplicate Layer', 
+            action: () => this.duplicateLayer(layerId) 
+        });
+        
+        items.push({ 
+            icon: 'fas fa-compress-arrows-alt', 
+            label: 'Merge Down', 
+            action: () => this.mergeLayerDown(layerId) 
+        });
+        
+        items.push({ separator: true });
+        
+        items.push({ 
+            icon: 'fas fa-info-circle', 
+            label: 'Layer Properties...', 
+            action: () => this.showLayerPropertiesDialog(layerId) 
+        });
+        
+        // إذا كانت ليست الطبقة 0، أضف خيار الحذف
+        if (layerId !== 0) {
+            items.push({ separator: true });
+            items.push({ 
+                icon: 'fas fa-trash', 
+                label: 'Delete Layer', 
+                action: () => this.cad.deleteLayer(layerId) 
+            });
+        }
+        
+        const rect = event.target.getBoundingClientRect();
+        this.showContextMenu(rect.left, rect.bottom + 5, items);
+    }
+
+    /**
+     * عرض حوار الشفافية
+     */
+    showTransparencyDialog(layerId) {
+        const layer = this.cad.layerManager ? 
+            this.cad.layerManager.layers.get(layerId) : 
+            this.cad.layers.get(layerId);
+        
+        if (!layer) return;
+        
+        const dialog = document.createElement('div');
+        dialog.className = 'layer-dialog';
+        dialog.innerHTML = `
+            <div class="dialog-overlay" onclick="this.parentElement.remove()"></div>
+            <div class="dialog-content">
+                <h3>Layer Transparency</h3>
+                <div class="dialog-body">
+                    <label>Transparency (0-100%):</label>
+                    <div class="transparency-control">
+                        <input type="range" id="transparencySlider" 
+                               min="0" max="100" value="${layer.transparency || 0}"
+                               oninput="document.getElementById('transparencyValue').textContent = this.value + '%'">
+                        <span id="transparencyValue">${layer.transparency || 0}%</span>
+                    </div>
+                </div>
+                <div class="dialog-buttons">
+                    <button class="btn-cancel" onclick="this.closest('.layer-dialog').remove()">Cancel</button>
+                    <button class="btn-ok" onclick="cad.ui.applyTransparency(${layerId}, document.getElementById('transparencySlider').value)">OK</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+    }
+
+    /**
+     * تطبيق الشفافية
+     */
+    applyTransparency(layerId, transparency) {
+        if (this.cad.layerManager) {
+            this.cad.layerManager.setLayerTransparency(layerId, parseInt(transparency));
+        }
+        document.querySelector('.layer-dialog').remove();
+        this.updateLayersList();
+    }
+
+    /**
+     * عرض حوار حالات الطبقات
+     */
+    showLayerStatesDialog() {
+        if (!this.cad.layerManager) {
+            this.cad.updateStatus('Layer states not available');
+            return;
+        }
+        
+        const states = this.cad.layerManager.getLayerStates();
+        
+        const dialog = document.createElement('div');
+        dialog.className = 'layer-dialog';
+        dialog.innerHTML = `
+            <div class="dialog-overlay" onclick="this.parentElement.remove()"></div>
+            <div class="dialog-content layer-states-dialog">
+                <h3>Layer States Manager</h3>
+                <div class="dialog-body">
+                    <div class="states-toolbar">
+                        <button class="btn" onclick="cad.ui.saveNewLayerState()">
+                            <i class="fas fa-plus"></i> New State
+                        </button>
+                    </div>
+                    <div class="states-list">
+                        ${states.length === 0 ? '<p class="no-states">No saved states</p>' : ''}
+                        ${states.map(state => `
+                            <div class="state-item">
+                                <span class="state-name">${state}</span>
+                                <div class="state-actions">
+                                    <button onclick="cad.restoreLayerState('${state}')" title="Restore">
+                                        <i class="fas fa-undo"></i>
+                                    </button>
+                                    <button onclick="cad.ui.deleteLayerState('${state}')" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="dialog-buttons">
+                    <button class="btn-ok" onclick="this.closest('.layer-dialog').remove()">Close</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+    }
+
+    /**
+     * حفظ حالة طبقة جديدة
+     */
+    saveNewLayerState() {
+        const name = prompt('Enter state name:');
+        if (name && name.trim()) {
+            this.cad.saveLayerState(name.trim());
+            document.querySelector('.layer-dialog').remove();
+            this.showLayerStatesDialog();
+        }
+    }
+
+    /**
+     * حذف حالة طبقة
+     */
+    deleteLayerState(stateName) {
+        if (confirm(`Delete layer state "${stateName}"?`)) {
+            if (this.cad.layerManager) {
+                this.cad.layerManager.layerStates.delete(stateName);
+                this.cad.updateStatus(`Layer state "${stateName}" deleted`);
+            }
+            document.querySelector('.layer-dialog').remove();
+            this.showLayerStatesDialog();
+        }
+    }
+
+    /**
+     * تحديث toggleAllLayers لاستخدام cad مباشرة
+     */
+    toggleAllLayers(visible) {
+        this.cad.toggleAllLayers(visible);
+    }
+
+    /**
+     * إضافة دالة duplicateLayer
+     */
+    duplicateLayer(layerId) {
+        if (!this.cad.layerManager) return;
+        
+        const sourceLayer = this.cad.layerManager.layers.get(layerId);
+        if (!sourceLayer) return;
+        
+        // إنشاء طبقة جديدة بنفس الخصائص
+        const newLayer = this.cad.layerManager.addLayer({
+            name: sourceLayer.name + ' Copy',
+            color: sourceLayer.color,
+            lineWidth: sourceLayer.lineWidth,
+            lineType: sourceLayer.lineType,
+            transparency: sourceLayer.transparency
+        });
+        
+        // نسخ الأشكال
+        const shapesToCopy = this.cad.shapes.filter(s => s.layerId === layerId);
+        shapesToCopy.forEach(shape => {
+            const newShape = this.cad.cloneShape(shape);
+            newShape.layerId = newLayer.id;
+            newShape.id = this.cad.generateId();
+            this.cad.shapes.push(newShape);
+        });
+        
+        this.cad.render();
+        this.updateLayersList();
+        this.cad.updateStatus(`Layer duplicated: ${newLayer.name}`);
+    }
+
+    /**
+     * إضافة دالة mergeLayerDown
+     */
+    mergeLayerDown(layerId) {
+        if (!this.cad.layerManager || layerId === 0) return;
+        
+        const layers = Array.from(this.cad.layerManager.layers.values());
+        layers.sort((a, b) => b.id - a.id);
+        
+        const currentIndex = layers.findIndex(l => l.id === layerId);
+        if (currentIndex === -1 || currentIndex === layers.length - 1) return;
+        
+        const targetLayer = layers[currentIndex + 1];
+        
+        if (confirm(`Merge "${layers[currentIndex].name}" into "${targetLayer.name}"?`)) {
+            this.cad.layerManager.mergeLayers([layerId], targetLayer.id);
+        }
+    }
+
+    /**
+     * إضافة دالة showLayerPropertiesDialog
+     */
+    showLayerPropertiesDialog(layerId) {
+        const layer = this.cad.getLayer(layerId);
+        if (!layer) return;
+        
+        const dialog = document.createElement('div');
+        dialog.className = 'layer-dialog';
+        dialog.innerHTML = `
+            <div class="dialog-overlay" onclick="this.parentElement.remove()"></div>
+            <div class="dialog-content">
+                <h3>Layer Properties</h3>
+                <div class="dialog-body">
+                    <div class="form-group">
+                        <label>Name:</label>
+                        <input type="text" id="layerPropName" value="${layer.name}" 
+                               ${layerId === 0 ? 'readonly' : ''}>
+                    </div>
+                    <div class="form-group">
+                        <label>Color:</label>
+                        <input type="color" id="layerPropColor" value="${layer.color}">
+                    </div>
+                    <div class="form-group">
+                        <label>Line Type:</label>
+                        <select id="layerPropLineType">
+                            <option value="solid" ${layer.lineType === 'solid' ? 'selected' : ''}>Solid</option>
+                            <option value="dashed" ${layer.lineType === 'dashed' ? 'selected' : ''}>Dashed</option>
+                            <option value="dotted" ${layer.lineType === 'dotted' ? 'selected' : ''}>Dotted</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Line Weight:</label>
+                        <input type="number" id="layerPropLineWeight" value="${layer.lineWidth || 2}" 
+                               min="1" max="10" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Transparency:</label>
+                        <input type="range" id="layerPropTransparency" 
+                               value="${layer.transparency || 0}" min="0" max="100">
+                        <span>${layer.transparency || 0}%</span>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="layerPropPlot" 
+                                   ${layer.plot !== false ? 'checked' : ''}>
+                            Plot/Print
+                        </label>
+                    </div>
+                </div>
+                <div class="dialog-buttons">
+                    <button class="btn-cancel" onclick="this.closest('.layer-dialog').remove()">Cancel</button>
+                    <button class="btn-ok" onclick="window.cad.ui.applyLayerProperties(${layerId})">OK</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        // Update transparency display
+        const slider = dialog.querySelector('#layerPropTransparency');
+        const display = slider.nextElementSibling;
+        slider.oninput = () => {
+            display.textContent = slider.value + '%';
+        };
+    }
+
+    /**
+     * تطبيق خصائص الطبقة
+     */
+    applyLayerProperties(layerId) {
+        const layer = this.cad.getLayer(layerId);
+        if (!layer) return;
+        
+        const name = document.getElementById('layerPropName').value;
+        const color = document.getElementById('layerPropColor').value;
+        const lineType = document.getElementById('layerPropLineType').value;
+        const lineWeight = parseInt(document.getElementById('layerPropLineWeight').value);
+        const transparency = parseInt(document.getElementById('layerPropTransparency').value);
+        const plot = document.getElementById('layerPropPlot').checked;
+        
+        // تطبيق التغييرات
+        if (layerId !== 0) {
+            layer.name = name;
+        }
+        layer.color = color;
+        layer.lineType = lineType;
+        layer.lineWidth = lineWeight;
+        layer.transparency = transparency;
+        layer.plot = plot;
+        
+        // إذا كانت الطبقة الحالية، حدث الإعدادات
+        if (layerId === this.cad.getCurrentLayerId()) {
+            this.cad.currentColor = color;
+            this.cad.currentLineType = lineType;
+            this.cad.currentLineWidth = lineWeight;
+            this.cad.setColor(color);
+        }
+        
+        document.querySelector('.layer-dialog').remove();
+        this.updateLayersList();
+        this.cad.render();
+    }
+
+
+    
+    /**
+     * إصلاح showContextMenu - نسخة محدثة
+     */
+    showContextMenu(x, y, items) {
+        // إضافة فحص أقوى للمعاملات
+        if (!items) {
+            console.error('showContextMenu: items is undefined');
+            return;
+        }
+        
+        // تحويل items إلى array إذا لم يكن كذلك
+        if (!Array.isArray(items)) {
+            console.error('showContextMenu expects an array of items, got:', typeof items);
+            // محاولة تحويل إلى array
+            if (items && typeof items === 'object') {
+                items = Object.values(items);
+            } else {
+                return;
+            }
+        }
+        
+        // إخفاء أي قائمة سابقة
+        this.hideContextMenu();
+        
+        const menu = document.createElement('div');
+        menu.className = 'context-menu grips-context-menu';
+        menu.style.position = 'fixed';
         menu.style.left = x + 'px';
         menu.style.top = y + 'px';
-        menu.style.display = 'block';
+        menu.style.zIndex = '1000';
         
+        // التعامل مع العناصر
+        items.forEach(item => {
+            if (!item) return; // تجاهل العناصر الفارغة
+            
+            if (item.separator) {
+                const separator = document.createElement('div');
+                separator.className = 'context-menu-separator';
+                menu.appendChild(separator);
+            } else {
+                const menuItem = document.createElement('div');
+                menuItem.className = 'context-menu-item';
+                
+                if (item.enabled === false) {
+                    menuItem.classList.add('disabled');
+                }
+                
+                // إنشاء المحتوى
+                const icon = item.icon ? `<i class="${item.icon}"></i>` : '';
+                const label = item.label || '';
+                
+                menuItem.innerHTML = `${icon}<span>${label}</span>`;
+                
+                if (item.enabled !== false && item.action) {
+                    menuItem.onclick = (e) => {
+                        e.stopPropagation();
+                        this.hideContextMenu();
+                        if (typeof item.action === 'function') {
+                            item.action();
+                        }
+                    };
+                }
+                
+                menu.appendChild(menuItem);
+            }
+        });
+        
+        document.body.appendChild(menu);
+        this.currentContextMenu = menu;
+        
+        // إخفاء عند النقر خارج القائمة
         setTimeout(() => {
-            document.addEventListener('click', () => {
-                menu.style.display = 'none';
-            }, { once: true });
+            this.hideContextMenuHandler = (e) => {
+                if (!menu.contains(e.target)) {
+                    this.hideContextMenu();
+                }
+            };
+            document.addEventListener('click', this.hideContextMenuHandler);
         }, 0);
     }
     
@@ -1463,7 +2062,11 @@ class UI {
      * إخفاء حقل الإدخال الديناميكي
      */
     hideDynamicInput() {
-        this.elements.get('dynamicInput').classList.remove('active');
+        const input = this.elements.get('dynamicInput') || document.getElementById('dynamicInput');
+        if (input) {
+            input.classList.remove('active');
+            input.style.display = 'none';
+        }
     }
     
     /**
@@ -1704,7 +2307,10 @@ class UI {
      * إخفاء صندوق التحديد
      */
     hideSelectionBox() {
-        this.elements.get('selectionBox').style.display = 'none';
+        const box = this.elements.get('selectionBox') || document.getElementById('selectionBox');
+        if (box) {
+            box.style.display = 'none';
+        }
     }
     
     /**
@@ -1719,8 +2325,14 @@ class UI {
      * إخفاء نافذة التكبير
      */
     hideZoomWindow() {
-        this.elements.get('zoomWindowOverlay').style.display = 'none';
-        this.elements.get('zoomWindowBox').style.display = 'none';
+        const overlay = this.elements.get('zoomWindowOverlay') || document.getElementById('zoomWindowOverlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+        const box = this.elements.get('zoomWindowBox');
+        if (box) {
+            box.style.display = 'none';
+        }
     }
     
     /**
@@ -1890,32 +2502,6 @@ showAnalysisResult(result) {
 }
 
 /**
- * عرض رسالة خطأ
- */
-showError(message) {
-    // عرض رسالة خطأ مؤقتة
-    const originalStatus = document.getElementById('statusMode').textContent;
-    this.updateStatus(`ERROR: ${message}`);
-    
-    // إرجاع الحالة السابقة بعد 3 ثواني
-    setTimeout(() => {
-        document.getElementById('statusMode').textContent = originalStatus;
-    }, 3000);
-    
-    console.error(message);
-}
-
-/**
- * تحديث الحالة (إذا لم تكن موجودة)
- */
-updateStatus(message) {
-    const statusElement = document.getElementById('statusMode');
-    if (statusElement) {
-        statusElement.textContent = message;
-    }
-}
-
-/**
  * عرض قائمة سياق مخصصة
  * @param {Array} items - عناصر القائمة
  * @param {number} x - موقع X على الشاشة
@@ -1991,36 +2577,55 @@ hideContextMenuHandler = (e) => {
 }
 
 /**
- * عرض نافذة خصائص Grip
+ * عرض dialog خصائص Grips المتقدمة
  */
 showGripPropertiesDialog(content, callback) {
-    // إزالة أي نافذة سابقة
-    const existing = document.querySelector('.grip-properties-dialog');
-    if (existing) existing.remove();
+    // إنشاء dialog إذا لم يكن موجود
+    let dialog = document.getElementById('gripPropertiesDialog');
+    if (!dialog) {
+        dialog = document.createElement('div');
+        dialog.id = 'gripPropertiesDialog';
+        dialog.className = 'grip-properties-dialog';
+        dialog.innerHTML = `
+            <div class="dialog-content">
+                <div class="dialog-header">
+                    <h3>Properties</h3>
+                    <button class="close-btn" onclick="this.closest('.grip-properties-dialog').style.display='none'">×</button>
+                </div>
+                <div class="dialog-body"></div>
+                <div class="dialog-footer">
+                    <button class="btn btn-primary" id="gripDialogOk">OK</button>
+                    <button class="btn btn-cancel" id="gripDialogCancel">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+    }
     
-    // إنشاء النافذة
-    const dialog = document.createElement('div');
-    dialog.className = 'grip-properties-dialog';
-    dialog.innerHTML = `
-        ${content}
-        <div class="buttons">
-            <button class="btn-cancel">Cancel</button>
-            <button class="btn-ok">OK</button>
-        </div>
-    `;
+    // تحديث المحتوى
+    dialog.querySelector('.dialog-body').innerHTML = content;
+    
+    // إظهار dialog
+    dialog.style.display = 'block';
     
     // معالجات الأحداث
-    dialog.querySelector('.btn-ok').onclick = () => {
-        callback(true);
-        dialog.remove();
+    const okBtn = dialog.querySelector('#gripDialogOk');
+    const cancelBtn = dialog.querySelector('#gripDialogCancel');
+    
+    // إزالة معالجات قديمة
+    okBtn.replaceWith(okBtn.cloneNode(true));
+    cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+    
+    // إضافة معالجات جديدة
+    dialog.querySelector('#gripDialogOk').onclick = () => {
+        dialog.style.display = 'none';
+        if (callback) callback(true);
     };
     
-    dialog.querySelector('.btn-cancel').onclick = () => {
-        callback(false);
-        dialog.remove();
+    dialog.querySelector('#gripDialogCancel').onclick = () => {
+        dialog.style.display = 'none';
+        if (callback) callback(false);
     };
-    
-    document.body.appendChild(dialog);
 }
 
 /**
@@ -2043,11 +2648,289 @@ showGripInfo(message) {
     }, 3000);
 }
 
+/**
+ * عرض معلومات التحديد المحسنة
+ */
+updateSelectionInfo() {
+    const count = this.cad.selectedShapes.size;
+    const shapes = Array.from(this.cad.selectedShapes);
+    
+    // حساب الإحصائيات
+    const types = {};
+    let totalLength = 0;
+    let totalArea = 0;
+    
+    shapes.forEach(shape => {
+        types[shape.type] = (types[shape.type] || 0) + 1;
+        
+        // حساب الطول
+        switch (shape.type) {
+            case 'line':
+                totalLength += this.cad.distance(
+                    shape.start.x, shape.start.y,
+                    shape.end.x, shape.end.y
+                );
+                break;
+            case 'circle':
+                totalLength += 2 * Math.PI * shape.radius;
+                totalArea += Math.PI * shape.radius * shape.radius;
+                break;
+            case 'rectangle':
+                const width = Math.abs(shape.end.x - shape.start.x);
+                const height = Math.abs(shape.end.y - shape.start.y);
+                totalLength += 2 * (width + height);
+                totalArea += width * height;
+                break;
+            case 'polyline':
+                for (let i = 1; i < shape.points.length; i++) {
+                    totalLength += this.cad.distance(
+                        shape.points[i-1].x, shape.points[i-1].y,
+                        shape.points[i].x, shape.points[i].y
+                    );
+                }
+                if (shape.closed && shape.points.length > 2) {
+                    totalLength += this.cad.distance(
+                        shape.points[shape.points.length-1].x,
+                        shape.points[shape.points.length-1].y,
+                        shape.points[0].x,
+                        shape.points[0].y
+                    );
+                }
+                break;
+            case 'arc':
+                const arcLength = shape.radius * Math.abs(shape.endAngle - shape.startAngle);
+                totalLength += arcLength;
+                break;
+            case 'ellipse':
+                // تقريب محيط القطع الناقص
+                const h = Math.pow((shape.radiusX - shape.radiusY), 2) / 
+                         Math.pow((shape.radiusX + shape.radiusY), 2);
+                const perimeter = Math.PI * (shape.radiusX + shape.radiusY) * 
+                                 (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+                totalLength += perimeter;
+                totalArea += Math.PI * shape.radiusX * shape.radiusY;
+                break;
+        }
+    });
+    
+    // تحديث العرض
+    this.showSelectionInfoPanel({
+        count,
+        types,
+        totalLength,
+        totalArea
+    });
+}
 
+/**
+ * عرض لوحة معلومات التحديد
+ */
+showSelectionInfoPanel(info) {
+    let panel = document.getElementById('selectionInfoPanel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'selectionInfoPanel';
+        panel.className = 'selection-info-panel';
+        document.getElementById('canvasContainer').appendChild(panel);
+    }
+    
+    // تكوين أنواع الأشكال
+    const typesText = Object.entries(info.types)
+        .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
+        .join(', ');
+    
+    panel.innerHTML = `
+        <div class="info-header">Selection Info</div>
+        <div class="info-row">
+            <span class="label">Objects:</span>
+            <span class="value">${info.count}</span>
+        </div>
+        ${typesText ? `
+        <div class="info-row">
+            <span class="label">Types:</span>
+            <span class="value">${typesText}</span>
+        </div>
+        ` : ''}
+        ${info.totalLength > 0 ? `
+        <div class="info-row">
+            <span class="label">Total Length:</span>
+            <span class="value">${info.totalLength.toFixed(2)} units</span>
+        </div>
+        ` : ''}
+        ${info.totalArea > 0 ? `
+        <div class="info-row">
+            <span class="label">Total Area:</span>
+            <span class="value">${info.totalArea.toFixed(2)} units²</span>
+        </div>
+        ` : ''}
+    `;
+    
+    // إظهار/إخفاء اللوحة
+    panel.style.display = info.count > 0 ? 'block' : 'none';
+}
+
+/**
+ * عرض شريط الإجراءات السريعة
+ */
+showQuickActionBar(selectedShapes) {
+    if (selectedShapes.size === 0) {
+        this.hideQuickActionBar();
+        return;
+    }
+    
+    let bar = document.getElementById('quickActionBar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'quickActionBar';
+        bar.className = 'quick-action-bar';
+        document.getElementById('canvasContainer').appendChild(bar);
+    }
+    
+    bar.innerHTML = `
+        <button class="quick-action" title="Copy (Ctrl+C)" onclick="cad.copySelected()">
+            <i class="fas fa-copy"></i>
+        </button>
+        <button class="quick-action" title="Delete (Del)" onclick="cad.deleteSelected()">
+            <i class="fas fa-trash"></i>
+        </button>
+        <button class="quick-action" title="Move" onclick="cad.setTool('move')">
+            <i class="fas fa-arrows-alt"></i>
+        </button>
+        <button class="quick-action" title="Rotate" onclick="cad.setTool('rotate')">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+        <button class="quick-action" title="Scale" onclick="cad.setTool('scale')">
+            <i class="fas fa-expand-arrows-alt"></i>
+        </button>
+        <div class="separator"></div>
+        <button class="quick-action" title="Group" onclick="cad.groupSelected()">
+            <i class="fas fa-object-group"></i>
+        </button>
+        <button class="quick-action" title="Align" onclick="cad.showAlignMenu()">
+            <i class="fas fa-align-center"></i>
+        </button>
+        <button class="quick-action" title="Properties" onclick="cad.showProperties()">
+            <i class="fas fa-cog"></i>
+        </button>
+    `;
+    
+    // تحديد موقع الشريط
+    const bounds = this.cad.getSelectionBounds();
+    if (bounds) {
+        const screenPos = this.cad.worldToScreen(
+            (bounds.minX + bounds.maxX) / 2,
+            bounds.minY - 20
+        );
+        
+        // التأكد من أن الشريط داخل حدود الشاشة
+        const rect = bar.getBoundingClientRect();
+        let left = screenPos.x - rect.width / 2;
+        let top = screenPos.y - rect.height - 10;
+        
+        // تعديل الموقع إذا كان خارج الشاشة
+        if (left < 10) left = 10;
+        if (left + rect.width > window.innerWidth - 10) {
+            left = window.innerWidth - rect.width - 10;
+        }
+        if (top < 10) {
+            top = screenPos.y + 30; // عرض أسفل التحديد بدلاً من أعلى
+        }
+        
+        bar.style.left = left + 'px';
+        bar.style.top = top + 'px';
+    }
+    
+    bar.style.display = 'flex';
+}
+
+/**
+ * إخفاء شريط الإجراءات السريعة
+ */
+hideQuickActionBar() {
+    const bar = document.getElementById('quickActionBar');
+    if (bar) {
+        bar.style.display = 'none';
+    }
+}
+
+/**
+ * عرض مؤشر وضع التحديد
+ */
+showSelectionModeIndicator() {
+    let indicator = document.getElementById('selectionModeIndicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'selectionModeIndicator';
+        indicator.className = 'selection-mode-indicator';
+        document.getElementById('canvasContainer').appendChild(indicator);
+    }
+    
+    const mode = this.cad.cumulativeSelection ? 'Cumulative' : 'Replace';
+    const modeClass = this.cad.cumulativeSelection ? 'cumulative' : 'replace';
+    
+    indicator.innerHTML = `
+        <i class="fas fa-mouse-pointer"></i>
+        <span class="${modeClass}">${mode} Selection</span>
+    `;
+    
+    indicator.style.display = 'block';
+    
+    // إخفاء تلقائي بعد 2 ثانية
+    clearTimeout(this.modeIndicatorTimeout);
+    this.modeIndicatorTimeout = setTimeout(() => {
+        indicator.style.display = 'none';
+    }, 2000);
+}
 
 }
 
+// دالة إغلاق Layer Manager
+window.closeLayerManager = function() {
+    const panel = document.getElementById('layerManagerPanel');
+    if (panel) {
+        panel.remove();
+    }
+};
 
+// دالة تطبيق التغييرات
+window.applyLayerChanges = function() {
+    window.cad.render();
+    window.cad.updateStatus('Layer changes applied');
+    // لا نغلق الـ panel تلقائياً
+};
+
+// دالة حذف الطبقات المحددة
+window.deleteSelectedLayers = function() {
+    const checkboxes = document.querySelectorAll('#layerTableBody input[type="checkbox"]:checked');
+    const layerIds = [];
+    
+    checkboxes.forEach(cb => {
+        const layerId = parseInt(cb.getAttribute('data-layer-id'));
+        if (layerId !== 0) { // لا يمكن حذف الطبقة 0
+            layerIds.push(layerId);
+        }
+    });
+    
+    if (layerIds.length === 0) {
+        window.cad.updateStatus('No layers selected for deletion');
+        return;
+    }
+    
+    if (confirm(`Delete ${layerIds.length} selected layer(s)?`)) {
+        layerIds.forEach(id => {
+            window.cad.deleteLayer(id);
+        });
+        window.cad.ui.updateLayerTable();
+        window.cad.updateStatus(`${layerIds.length} layer(s) deleted`);
+    }
+};
+
+// دالة تحديث جدول الطبقات
+window.updateLayerTable = function() {
+    if (window.cad && window.cad.ui) {
+        window.cad.ui.updateLayerTable();
+    }
+};
 
 // تصدير النظام
 window.UI = UI;

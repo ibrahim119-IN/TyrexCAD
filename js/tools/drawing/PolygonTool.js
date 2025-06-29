@@ -18,6 +18,11 @@ export class PolygonTool extends DrawingToolBase {
     }
     
     onActivate() {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return false;
+        }
+        
         super.onActivate();
         
         // عرض dialog لعدد الأضلاع
@@ -30,6 +35,11 @@ export class PolygonTool extends DrawingToolBase {
     }
     
     onClick(point) {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return;
+        }
+        
         if (!this.cad.isDrawing) {
             this.cad.isDrawing = true;
             this.addPoint(point);
@@ -60,13 +70,16 @@ export class PolygonTool extends DrawingToolBase {
             }
             points.push(points[0]);
             
+            // استخدام خصائص الطبقة الحالية للمعاينة
+            const currentLayer = this.cad.layerManager?.getCurrentLayer();
+            
             this.tempShape = {
                 type: 'polyline',
                 points: points,
                 closed: true,
-                color: this.cad.currentColor,
-                lineWidth: this.cad.currentLineWidth,
-                lineType: this.cad.currentLineType
+                color: currentLayer?.color || this.cad.currentColor,
+                lineWidth: currentLayer?.lineWidth || this.cad.currentLineWidth,
+                lineType: currentLayer?.lineType || this.cad.currentLineType
             };
             this.cad.tempShape = this.tempShape;
         }
@@ -77,6 +90,28 @@ export class PolygonTool extends DrawingToolBase {
             const polygon = this.cad.geometryAdvanced.createPolygon(center, radius, this.options.sides);
             const shape = this.createShape(polygon);
             this.cad.addShape(shape);
+            this.updateStatus('Polygon created');
+        } else {
+            // Fallback - رسم مضلع بسيط
+            const points = [];
+            const angleStep = (2 * Math.PI) / this.options.sides;
+            
+            for (let i = 0; i < this.options.sides; i++) {
+                const angle = i * angleStep - Math.PI / 2;
+                points.push({
+                    x: center.x + radius * Math.cos(angle),
+                    y: center.y + radius * Math.sin(angle)
+                });
+            }
+            
+            const shape = this.createShape({
+                type: 'polygon',
+                points: points,
+                closed: true
+            });
+            
+            this.cad.addShape(shape);
+            this.updateStatus('Polygon created');
         }
     }
 }

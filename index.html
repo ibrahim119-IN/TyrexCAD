@@ -7,6 +7,356 @@
     <!-- Font Awesome for Professional Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/styles.css">
+    
+    <!-- أنماط CSS إضافية -->
+    <style>
+    /* أنماط الأزرار الصغيرة */
+    .btn-mini {
+        padding: 2px 6px;
+        font-size: 10px;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        border-radius: 3px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-mini:hover {
+        background: var(--bg-hover);
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+    }
+
+    .section-title-buttons {
+        display: flex;
+        gap: 4px;
+    }
+
+    /* Layer Select في Bottom Bar */
+    .layer-select {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        min-width: 120px;
+    }
+
+    /* Layer Manager Modal */
+    .layer-manager {
+        max-width: 800px;
+        width: 90%;
+    }
+
+    .layer-manager-toolbar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+        padding: 12px;
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+    }
+
+    .toolbar-separator {
+        width: 1px;
+        background: var(--border-color);
+        margin: 0 8px;
+    }
+
+    .layer-manager-content {
+        max-height: 400px;
+        overflow-y: auto;
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        padding: 8px;
+    }
+
+    .layer-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .layer-table th {
+        background: var(--bg-secondary);
+        padding: 8px;
+        text-align: left;
+        font-size: 12px;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .layer-table td {
+        padding: 6px 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .layer-table tr:hover {
+        background: var(--bg-hover);
+    }
+
+    .layer-table input[type="checkbox"] {
+        cursor: pointer;
+    }
+
+    .layer-table .color-swatch {
+        width: 24px;
+        height: 24px;
+        border-radius: 3px;
+        border: 1px solid var(--border-color);
+        cursor: pointer;
+        display: inline-block;
+    }
+
+    .layer-table input[type="text"] {
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--text-primary);
+        padding: 4px;
+        width: 100%;
+    }
+
+    .layer-table input[type="text"]:focus {
+        background: var(--bg-primary);
+        border-color: var(--accent-primary);
+        outline: none;
+    }
+
+    .layer-table .transparency-input {
+        width: 60px;
+        text-align: center;
+    }
+
+    /* إضافة أنماط CSS للـ current layer */
+    .layer-table tr.current-layer {
+        background: rgba(0, 212, 170, 0.1);
+        border-left: 3px solid var(--accent-primary);
+    }
+
+    /* إصلاح أنماط القائمة السياقية */
+    .grips-context-menu {
+        position: fixed;
+        background: var(--bg-panel);
+        border: 1px solid var(--accent-primary);
+        border-radius: 4px;
+        box-shadow: 0 4px 12px rgba(0, 212, 170, 0.15);
+        min-width: 180px;
+        padding: 4px 0;
+        font-size: 14px;
+        z-index: 1000;
+    }
+
+    .grips-context-menu .context-menu-item {
+        padding: 8px 16px;
+        cursor: pointer;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.2s ease;
+    }
+
+    .grips-context-menu .context-menu-item:hover {
+        background: rgba(0, 212, 170, 0.1);
+        color: var(--accent-primary);
+    }
+
+    .grips-context-menu .context-menu-item.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .grips-context-menu .context-menu-separator {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 4px 0;
+    }
+
+    /* أنماط CSS إضافية للوحة الأوزان */
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-content {
+        background: var(--bg-panel);
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        max-width: 90%;
+        max-height: 90%;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        font-size: 18px;
+        color: var(--text-primary);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 20px;
+        cursor: pointer;
+        padding: 4px 8px;
+    }
+
+    .modal-body {
+        padding: 20px;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 16px 20px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .weight-list {
+        max-height: 400px;
+        overflow-y: auto;
+        margin-bottom: 16px;
+    }
+
+    .weight-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+
+    .weight-item:hover {
+        background: var(--bg-hover);
+    }
+
+    .weight-item.active {
+        background: var(--bg-hover);
+        border: 1px solid var(--accent-primary);
+    }
+
+    .weight-preview {
+        width: 100px;
+        margin-right: 16px;
+    }
+
+    .weight-line {
+        width: 100%;
+        background: var(--text-primary);
+        border-radius: 1px;
+    }
+
+    .weight-label {
+        font-size: 13px;
+        color: var(--text-primary);
+    }
+
+    .weight-display,
+    .weight-scale {
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .weight-display label,
+    .weight-scale label {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .weight-scale input[type="range"] {
+        width: 150px;
+        margin: 0 12px;
+    }
+
+    .match-info {
+        position: fixed;
+        bottom: 60px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--bg-panel);
+        border: 1px solid var(--accent-primary);
+        border-radius: 4px;
+        padding: 8px 16px;
+        font-size: 12px;
+        color: var(--text-primary);
+        z-index: 100;
+    }
+
+    /* تكامل مع أدوات الرسم */
+    .drawing-toolbar {
+        display: flex;
+        gap: 8px;
+        padding: 8px;
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        margin-bottom: 8px;
+    }
+
+    .drawing-toolbar .tool-separator {
+        width: 1px;
+        background: var(--border-color);
+        margin: 0 4px;
+    }
+
+    .quick-linetype {
+        display: flex;
+        gap: 4px;
+    }
+
+    .quick-linetype button {
+        width: 32px;
+        height: 32px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    .quick-linetype button:hover {
+        background: var(--bg-hover);
+        border-color: var(--accent-primary);
+    }
+
+    .quick-linetype button.active {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+    }
+
+    /* Input group style */
+    .input-group {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+    }
+    </style>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -84,6 +434,44 @@
                             <path d="M12 2L3 7V17L12 22L21 17V7L12 2Z" stroke="currentColor" stroke-width="2"/>
                         </svg>
                     </button>
+                </div>
+            </div>
+            
+            <!-- إضافة في قسم الـ Ribbon - Draw -->
+            <div class="ribbon-group">
+                <div class="ribbon-group-title">Layers</div>
+                <div class="ribbon-group-content">
+                    <div class="ribbon-tool" onclick="showLayerManager()" title="Layer Manager">
+                        <div class="ribbon-tool-icon"><i class="fas fa-layer-group"></i></div>
+                        <div class="ribbon-tool-label">Manager</div>
+                    </div>
+                    <div class="ribbon-tool" onclick="window.cad && cad.matchLayer()" title="Match Layer">
+                        <div class="ribbon-tool-icon"><i class="fas fa-eyedropper"></i></div>
+                        <div class="ribbon-tool-label">Match</div>
+                    </div>
+                    <div class="ribbon-tool" onclick="window.cad && cad.ui.showLayerStatesDialog()" title="Layer States">
+                        <div class="ribbon-tool-icon"><i class="fas fa-save"></i></div>
+                        <div class="ribbon-tool-label">States</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- إضافة في الـ Ribbon - Draw -->
+            <div class="ribbon-group">
+                <div class="ribbon-group-title">Line Properties</div>
+                <div class="ribbon-group-content">
+                    <div class="ribbon-tool" onclick="window.cad && cad.ui.showLinetypePanel()" title="Linetype Manager">
+                        <div class="ribbon-tool-icon"><i class="fas fa-grip-lines"></i></div>
+                        <div class="ribbon-tool-label">Linetypes</div>
+                    </div>
+                    <div class="ribbon-tool" onclick="showLineWeightPanel()" title="Line Weight">
+                        <div class="ribbon-tool-icon"><i class="fas fa-weight"></i></div>
+                        <div class="ribbon-tool-label">Weights</div>
+                    </div>
+                    <div class="ribbon-tool" onclick="matchProperties()" title="Match Properties">
+                        <div class="ribbon-tool-icon"><i class="fas fa-paint-brush"></i></div>
+                        <div class="ribbon-tool-label">Match</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -381,6 +769,42 @@
         </div>
     </div>
     
+    <!-- Line Weight Panel Modal -->
+    <div id="lineWeightPanel" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>Line Weight Settings</h2>
+                <button class="modal-close" onclick="closeLineWeightPanel()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="weight-list">
+                    <!-- سيتم ملؤها ديناميكياً -->
+                </div>
+                <div class="weight-display">
+                    <label>Display line weights</label>
+                    <input type="checkbox" id="displayLineWeights" checked>
+                </div>
+                <div class="weight-scale">
+                    <label>Adjust display scale:</label>
+                    <input type="range" id="weightDisplayScale" 
+                           min="0.5" max="2" step="0.1" value="1">
+                    <span id="weightScaleValue">1.0</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="applyLineWeightSettings()">OK</button>
+                <button class="btn" onclick="closeLineWeightPanel()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Match Properties Tool -->
+    <div id="matchPropertiesInfo" class="match-info" style="display: none;">
+        Select source object for properties...
+    </div>
+    
     <!-- Main Container -->
     <div class="main-container">
         <!-- Canvas Container -->
@@ -557,42 +981,62 @@
                     <div id="specificProperties"></div>
                 </div>
                 
-                <!-- Layers -->
+                <!-- تحديث قسم الطبقات في Properties Panel -->
                 <div class="panel-section">
                     <div class="section-title">
-                        Layers
-                        <button class="btn btn-small" onclick="addLayer()">
-                            <i class="fas fa-plus"></i> Add
-                        </button>
+                        <span>Layers</span>
+                        <div class="section-title-buttons">
+                            <button class="btn btn-mini" onclick="window.cad && cad.ui.toggleAllLayers(true)" title="Show All">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-mini" onclick="window.cad && cad.ui.toggleAllLayers(false)" title="Hide All">
+                                <i class="fas fa-eye-slash"></i>
+                            </button>
+                            <button class="btn btn-mini" onclick="showLayerManager()" title="Layer Manager">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div id="layersList"></div>
+                    <div id="layersList" class="layers-container"></div>
                 </div>
                 
                 <!-- Drawing Settings -->
                 <div class="panel-section">
                     <div class="section-title">Drawing Settings</div>
                     
-                    <!-- Line Width -->
-                    <div class="property-row">
-                        <span class="property-label">Line Width:</span>
-                        <div class="line-width-control">
-                            <input type="range" id="lineWidthSlider" 
-                                   min="1" max="10" value="2" 
-                                   oninput="setLineWidth(this.value)"
-                                   style="width: 100px;">
-                            <span class="line-width-value" id="lineWidthValue">2</span>
-                        </div>
-                    </div>
-                    
                     <!-- Line Type -->
                     <div class="property-row">
                         <span class="property-label">Line Type:</span>
-                        <select id="lineTypeSelect" onchange="setLineType(this.value)"
-                                style="width: 120px; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 4px; border-radius: 4px;">
-                            <option value="solid">Solid</option>
-                            <option value="dashed">Dashed</option>
-                            <option value="dotted">Dotted</option>
+                        <select id="linetypeSelect" onchange="window.cad && cad.setLinetype(this.value)"
+                                style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 4px; border-radius: 4px;">
+                            <!-- سيتم ملؤها ديناميكياً -->
                         </select>
+                    </div>
+                    
+                    <!-- Line Type Preview -->
+                    <div id="linetypePreview"></div>
+                    
+                    <!-- Line Weight -->
+                    <div class="property-row">
+                        <span class="property-label">Line Weight:</span>
+                        <select id="lineWeightSelect" onchange="window.cad && cad.setLineWeight(this.value)"
+                                style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 4px; border-radius: 4px;">
+                            <!-- سيتم ملؤها ديناميكياً -->
+                        </select>
+                    </div>
+                    
+                    <!-- Linetype Scale -->
+                    <div class="property-row">
+                        <span class="property-label">Linetype Scale:</span>
+                        <div class="input-group">
+                            <input type="number" id="linetypeScale" 
+                                   value="1" min="0.1" max="10" step="0.1"
+                                   onchange="window.cad && cad.linetypeManager && cad.linetypeManager.setGlobalLinetypeScale(this.value)"
+                                   style="width: 80px; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 4px; border-radius: 4px;">
+                            <button class="btn btn-mini" onclick="window.cad && cad.ui.showLinetypePanel()">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Color -->
@@ -623,12 +1067,28 @@
             </div>
         </div>
         
+        <!-- إضافة في Bottom Bar -->
+        <div class="bottom-section">
+            <div class="bottom-item">
+                <span class="bottom-label">LType:</span>
+                <span class="bottom-value" id="statusLinetype">Continuous</span>
+            </div>
+            <div class="bottom-item">
+                <span class="bottom-label">LWeight:</span>
+                <span class="bottom-value" id="statusLineWeight">0.25 mm</span>
+            </div>
+        </div>
+        
         <div class="bottom-section">
             <div class="bottom-item">
                 Tool: <span class="bottom-value" id="statusTool">SELECT</span>
             </div>
+            <!-- إضافة Layer Dropdown في الـ Bottom Bar -->
             <div class="bottom-item">
-                Layer: <span class="bottom-value" id="statusLayer">0</span>
+                <span class="bottom-label">Layer:</span>
+                <select id="currentLayerSelect" class="layer-select" onchange="window.cad && cad.setCurrentLayer(parseInt(this.value))">
+                    <!-- سيتم ملؤها ديناميكياً -->
+                </select>
             </div>
             <div class="bottom-item">
                 Objects: <span class="bottom-value" id="statusObjects">0</span>
@@ -666,6 +1126,63 @@
         </div>
     </footer>
     
+    <!-- Layer Manager Modal -->
+    <div id="layerManagerModal" class="modal" style="display: none;">
+        <div class="modal-content layer-manager">
+            <div class="modal-header">
+                <h2>Layer Manager</h2>
+                <button class="modal-close" onclick="closeLayerManager()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="layer-manager-toolbar">
+                    <button class="btn" onclick="window.cad && cad.addLayer()">
+                        <i class="fas fa-plus"></i> New Layer
+                    </button>
+                    <button class="btn" onclick="deleteSelectedLayers()">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                    <button class="btn" onclick="window.cad && cad.ui.showLayerStatesDialog()">
+                        <i class="fas fa-save"></i> States
+                    </button>
+                    <div class="toolbar-separator"></div>
+                    <button class="btn" onclick="window.cad && cad.ui.toggleAllLayers(true)">
+                        <i class="fas fa-eye"></i> Show All
+                    </button>
+                    <button class="btn" onclick="window.cad && cad.ui.toggleAllLayers(false)">
+                        <i class="fas fa-eye-slash"></i> Hide All
+                    </button>
+                </div>
+                <div class="layer-manager-content">
+                    <table class="layer-table">
+                        <thead>
+                            <tr>
+                                <th width="30"><input type="checkbox" id="selectAllLayers"></th>
+                                <th width="30"><i class="fas fa-eye" title="Visibility"></i></th>
+                                <th width="30"><i class="fas fa-snowflake" title="Freeze/Thaw"></i></th>
+                                <th width="30"><i class="fas fa-lock" title="Lock/Unlock"></i></th>
+                                <th width="30"><i class="fas fa-print" title="Plot"></i></th>
+                                <th width="40">Color</th>
+                                <th>Name</th>
+                                <th width="60">Objects</th>
+                                <th width="80">Transparency</th>
+                                <th width="30"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="layerTableBody">
+                            <!-- سيتم ملؤها ديناميكياً -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="applyLayerChanges()">Apply</button>
+                <button class="btn" onclick="closeLayerManager()">Close</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Main Module Entry Point -->
     <script type="module" src="/js/main.js"></script>
     
@@ -685,6 +1202,295 @@
             const menu = document.getElementById('arrayMenu');
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
+    </script>
+    
+    <!-- JavaScript للـ Layer Manager -->
+    <script>
+    function showLayerManager() {
+        if (!window.cad) {
+            console.error('CAD not loaded yet');
+            return;
+        }
+        const modal = document.getElementById('layerManagerModal');
+        modal.style.display = 'flex';
+        updateLayerTable();
+    }
+
+    function closeLayerManager() {
+        document.getElementById('layerManagerModal').style.display = 'none';
+    }
+
+    // إصلاح دالة updateLayerTable
+    function updateLayerTable() {
+        const tbody = document.getElementById('layerTableBody');
+        if (!tbody || !window.cad) return;
+        
+        // التحقق من وجود الدوال المطلوبة
+        if (typeof window.cad.getCurrentLayerId !== 'function') {
+            console.warn('CAD not fully initialized');
+            return;
+        }
+        
+        tbody.innerHTML = '';
+        
+        const layers = window.cad.layerManager ? 
+            Array.from(window.cad.layerManager.layers.values()) : 
+            Array.from(window.cad.layers.values());
+        
+        layers.sort((a, b) => b.id - a.id);
+        
+        const currentLayerId = window.cad.getCurrentLayerId();
+        
+        layers.forEach(layer => {
+            const shapeCount = window.cad.shapes.filter(s => s.layerId === layer.id).length;
+            const row = document.createElement('tr');
+            
+            if (layer.id === currentLayerId) {
+                row.classList.add('current-layer');
+            }
+            
+            row.innerHTML = `
+                <td><input type="checkbox" class="layer-checkbox" data-layer-id="${layer.id}"></td>
+                <td>
+                    <input type="checkbox" ${layer.visible ? 'checked' : ''} 
+                           onchange="window.cad.toggleLayerVisibility(${layer.id})">
+                </td>
+                <td>
+                    <input type="checkbox" ${layer.frozen ? 'checked' : ''} 
+                           onchange="window.cad.toggleLayerFreeze(${layer.id})"
+                           ${layer.id === currentLayerId ? 'disabled' : ''}>
+                </td>
+                <td>
+                    <input type="checkbox" ${layer.locked ? 'checked' : ''} 
+                           onchange="window.cad.toggleLayerLock(${layer.id})">
+                </td>
+                <td>
+                    <input type="checkbox" ${layer.plot !== false ? 'checked' : ''} 
+                           onchange="window.cad.layerManager && window.cad.layerManager.togglePlot(${layer.id})">
+                </td>
+                <td>
+                    <div class="color-swatch" style="background: ${layer.color}"
+                         onclick="window.cad.changeLayerColor(${layer.id})"></div>
+                </td>
+                <td>
+                    <input type="text" value="${layer.name}" 
+                           onchange="window.cad.renameLayer(${layer.id}, this.value)"
+                           ${layer.id === 0 ? 'readonly' : ''}>
+                </td>
+                <td style="text-align: center;">${shapeCount}</td>
+                <td>
+                    <input type="number" class="transparency-input" 
+                           value="${layer.transparency || 0}" min="0" max="100"
+                           onchange="window.cad.layerManager && window.cad.layerManager.setLayerTransparency(${layer.id}, this.value)">%
+                </td>
+                <td>
+                    ${layer.id !== 0 ? `<button class="btn btn-mini" onclick="window.cad.deleteLayer(${layer.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>` : ''}
+                </td>
+            `;
+            
+            tbody.appendChild(row);
+        });
+    }
+
+    function deleteSelectedLayers() {
+        if (!window.cad) {
+            console.error('CAD not loaded yet');
+            return;
+        }
+        
+        const checkboxes = document.querySelectorAll('.layer-checkbox:checked');
+        const layerIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.layerId));
+        
+        if (layerIds.length === 0) {
+            window.cad.updateStatus('No layers selected');
+            return;
+        }
+        
+        if (confirm(`Delete ${layerIds.length} layer(s)?`)) {
+            layerIds.forEach(id => window.cad.deleteLayer(id));
+            updateLayerTable();
+        }
+    }
+
+    function applyLayerChanges() {
+        if (window.cad) {
+            window.cad.render();
+        }
+        closeLayerManager();
+    }
+
+    // إصلاح دالة updateLayerDropdown
+    function updateLayerDropdown() {
+        const select = document.getElementById('currentLayerSelect');
+        if (!select || !window.cad) return;
+        
+        // التحقق من وجود دالة getCurrentLayerId
+        if (typeof window.cad.getCurrentLayerId !== 'function') {
+            console.warn('getCurrentLayerId not available yet');
+            return;
+        }
+        
+        select.innerHTML = '';
+        
+        const layers = window.cad.layerManager ? 
+            Array.from(window.cad.layerManager.layers.values()) : 
+            Array.from(window.cad.layers.values());
+        
+        layers.forEach(layer => {
+            const option = document.createElement('option');
+            option.value = layer.id;
+            option.textContent = layer.name;
+            if (layer.id === window.cad.getCurrentLayerId()) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+    }
+
+    // تحديث دالة تهيئة updateLayersList
+    document.addEventListener('DOMContentLoaded', function() {
+        // انتظار تحميل CAD
+        let checkInterval;
+        let attempts = 0;
+        
+        function checkCADReady() {
+            attempts++;
+            
+            if (window.cad && typeof window.cad.getCurrentLayerId === 'function') {
+                clearInterval(checkInterval);
+                
+                // تحديث dropdown مرة واحدة عند البداية
+                updateLayerDropdown();
+                
+                // إزالة الـ setInterval القديم وإضافة listener بدلاً منه
+                const originalUpdateLayersList = window.cad.ui.updateLayersList;
+                window.cad.ui.updateLayersList = function() {
+                    originalUpdateLayersList.call(this);
+                    // تحديث الـ dropdown فقط عند تغيير الطبقات
+                    updateLayerDropdown();
+                };
+                
+                console.log('✅ Layer dropdown initialized');
+            } else if (attempts > 50) {
+                clearInterval(checkInterval);
+                console.warn('CAD loading timeout - layer dropdown may not work properly');
+            }
+        }
+        
+        checkInterval = setInterval(checkCADReady, 100);
+    });
+    
+    // JavaScript لنظام أنواع وأوزان الخطوط
+    // عرض لوحة أوزان الخطوط
+    function showLineWeightPanel() {
+        const panel = document.getElementById('lineWeightPanel');
+        panel.style.display = 'flex';
+        updateLineWeightPanel();
+    }
+
+    function closeLineWeightPanel() {
+        document.getElementById('lineWeightPanel').style.display = 'none';
+    }
+
+    function updateLineWeightPanel() {
+        const list = document.querySelector('.weight-list');
+        list.innerHTML = '';
+        
+        if (window.cad && window.cad.linetypeManager) {
+            const weights = window.cad.linetypeManager.getLineWeightsList();
+            const currentWeight = window.cad.linetypeManager.currentLineWeight;
+            
+            weights.forEach(weight => {
+                const item = document.createElement('div');
+                item.className = 'weight-item';
+                if (weight.value === currentWeight) {
+                    item.classList.add('active');
+                }
+                
+                // خط المعاينة
+                const lineHeight = weight.mm === 0 ? 0.5 : 
+                                  weight.mm < 0 ? 1 : 
+                                  Math.min(weight.mm * 2, 6);
+                
+                item.innerHTML = `
+                    <div class="weight-preview">
+                        <div class="weight-line" style="height: ${lineHeight}px;"></div>
+                    </div>
+                    <div class="weight-label">${weight.label}</div>
+                `;
+                
+                item.onclick = () => {
+                    window.cad.setLineWeight(weight.value);
+                    updateLineWeightPanel();
+                };
+                
+                list.appendChild(item);
+            });
+        }
+    }
+
+    // Match Properties
+    function matchProperties() {
+        if (!window.cad) return;
+        
+        window.cad.updateStatus('Select source object');
+        document.getElementById('matchPropertiesInfo').style.display = 'block';
+        
+        // تفعيل وضع اختيار الخصائص
+        window.cad.pickingPointMode = 'matchProperties';
+        window.cad.pickingPointCallback = (point) => {
+            const shape = window.cad.getShapeAtPoint(point);
+            if (shape) {
+                // نسخ الخصائص
+                const properties = {
+                    color: shape.color,
+                    lineType: shape.lineType || 'continuous',
+                    lineWeight: shape.lineWeight || 0.25,
+                    layerId: shape.layerId
+                };
+                
+                // تطبيق الخصائص
+                window.cad.currentColor = properties.color;
+                window.cad.setLinetype(properties.lineType);
+                window.cad.setLineWeight(properties.lineWeight);
+                if (window.cad.layerManager) {
+                    window.cad.layerManager.setCurrentLayer(properties.layerId);
+                }
+                
+                document.getElementById('matchPropertiesInfo').style.display = 'none';
+                window.cad.updateStatus('Properties matched');
+            } else {
+                window.cad.updateStatus('No object selected');
+            }
+            
+            window.cad.pickingPointMode = null;
+            window.cad.pickingPointCallback = null;
+        };
+    }
+
+    // تحديث إعدادات عرض الأوزان
+    function applyLineWeightSettings() {
+        const displayWeights = document.getElementById('displayLineWeights').checked;
+        const scale = parseFloat(document.getElementById('weightDisplayScale').value);
+        
+        // حفظ الإعدادات
+        if (window.cad && window.cad.linetypeManager) {
+            window.cad.linetypeManager.displayLineWeights = displayWeights;
+            window.cad.linetypeManager.weightDisplayScale = scale;
+        }
+        
+        if (window.cad) {
+            window.cad.render();
+        }
+        closeLineWeightPanel();
+    }
+
+    // تحديث قيمة المقياس
+    document.getElementById('weightDisplayScale').oninput = function() {
+        document.getElementById('weightScaleValue').textContent = this.value;
+    };
     </script>
     
 </body>

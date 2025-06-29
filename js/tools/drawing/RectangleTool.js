@@ -1,4 +1,3 @@
-
 // ==================== js/tools/drawing/RectangleTool.js ====================
 
 import { DrawingToolBase } from '../BaseTool.js';
@@ -13,11 +12,21 @@ export class RectangleTool extends DrawingToolBase {
     }
     
     onActivate() {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return false;
+        }
+        
         super.onActivate();
         this.updateStatus('Specify first corner');
     }
     
     onClick(point) {
+        // التحقق من إمكانية الرسم
+        if (!this.canDrawOnCurrentLayer()) {
+            return;
+        }
+        
         if (!this.cad.isDrawing) {
             this.cad.isDrawing = true;
             this.addPoint(point);
@@ -47,13 +56,16 @@ export class RectangleTool extends DrawingToolBase {
     
     onMouseMove(point) {
         if (this.cad.isDrawing && this.drawingPoints.length > 0) {
+            // استخدام خصائص الطبقة الحالية للمعاينة
+            const currentLayer = this.cad.layerManager?.getCurrentLayer();
+            
             this.tempShape = {
                 type: 'rectangle',
                 start: this.drawingPoints[0],
                 end: point,
-                color: this.cad.currentColor,
-                lineWidth: this.cad.currentLineWidth,
-                lineType: this.cad.currentLineType
+                color: currentLayer?.color || this.cad.currentColor,
+                lineWidth: currentLayer?.lineWidth || this.cad.currentLineWidth,
+                lineType: currentLayer?.lineType || this.cad.currentLineType
             };
             this.cad.tempShape = this.tempShape;
         }
@@ -67,5 +79,6 @@ export class RectangleTool extends DrawingToolBase {
         });
         
         this.cad.addShape(shape);
+        this.updateStatus('Rectangle created');
     }
 }
