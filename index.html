@@ -152,7 +152,7 @@
             </div>
         </div>
         
-        <!-- Modify Ribbon -->
+        <!-- Modify Ribbon - تم تحديثه بالأدوات الجديدة -->
         <div class="ribbon-content" id="ribbon-modify">
             <div class="ribbon-group">
                 <div class="ribbon-group-title">Transform</div>
@@ -195,6 +195,11 @@
                         <div class="ribbon-tool-icon"><i class="fas fa-clone"></i></div>
                         <div class="ribbon-tool-label">Offset</div>
                     </div>
+                    <!-- 🆕 أداة Stretch الجديدة -->
+                    <div class="ribbon-tool" onclick="setTool('stretch')" title="Stretch Objects (STR)">
+                        <div class="ribbon-tool-icon"><i class="fas fa-arrows-alt-h"></i></div>
+                        <div class="ribbon-tool-label">Stretch</div>
+                    </div>
                     
                     <div class="tool-separator"></div>
                     
@@ -232,6 +237,23 @@
                             <button onclick="setTool('polar-array')">Polar Array</button>
                             <button onclick="setTool('path-array')">Path Array</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 🆕 مجموعة Break الجديدة -->
+            <div class="ribbon-group">
+                <div class="ribbon-group-title">Break</div>
+                <div class="ribbon-group-content">
+                    <!-- 🆕 أداة Break -->
+                    <div class="ribbon-tool" onclick="setTool('break')" title="Break Objects Between Two Points (BR)">
+                        <div class="ribbon-tool-icon"><i class="fas fa-cut"></i></div>
+                        <div class="ribbon-tool-label">Break</div>
+                    </div>
+                    <!-- 🆕 أداة Break at Point -->
+                    <div class="ribbon-tool" onclick="setTool('break-at-point')" title="Break Objects at Point (BRP)">
+                        <div class="ribbon-tool-icon"><i class="fas fa-crosshairs"></i></div>
+                        <div class="ribbon-tool-label">Break@Pt</div>
                     </div>
                 </div>
             </div>
@@ -798,6 +820,72 @@
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
         
+        // 🆕 إضافة دعم الاختصارات للأدوات الجديدة
+        document.addEventListener('keydown', function(e) {
+            // تأكد أن focus ليس على input field
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+            
+            const key = e.key.toLowerCase();
+            
+            // اختصارات الأدوات الجديدة
+            switch(key) {
+                case 's':
+                    if (e.ctrlKey) return; // تجنب تداخل مع Ctrl+S (Save)
+                    if (e.shiftKey) {
+                        // Shift+S للStretch
+                        setTool('stretch');
+                        e.preventDefault();
+                    }
+                    break;
+                    
+                case 'b':
+                    if (e.shiftKey) {
+                        // Shift+B للBreak at Point
+                        setTool('break-at-point');
+                    } else {
+                        // B للBreak
+                        setTool('break');
+                    }
+                    e.preventDefault();
+                    break;
+                    
+                // اختصارات إضافية للأدوات الموجودة
+                case 'm':
+                    if (e.ctrlKey) return;
+                    setTool('move');
+                    e.preventDefault();
+                    break;
+                    
+                case 'c':
+                    if (e.ctrlKey) return; // تجنب تداخل مع Ctrl+C
+                    setTool('copy');
+                    e.preventDefault();
+                    break;
+                    
+                case 'r':
+                    if (e.ctrlKey) return;
+                    setTool('rotate');
+                    e.preventDefault();
+                    break;
+            }
+        });
+        
+        // دالة مساعدة لتحديث حالة الأزرار
+        function updateToolButtonState(activeTool) {
+            // إزالة حالة active من جميع الأزرار
+            document.querySelectorAll('.ribbon-tool').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // إضافة حالة active للأداة النشطة
+            document.querySelectorAll('.ribbon-tool').forEach(btn => {
+                const onclick = btn.getAttribute('onclick');
+                if (onclick && onclick.includes(`'${activeTool}'`)) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+        
         // Layer dropdown update function
         function updateLayerDropdown() {
             const select = document.getElementById('currentLayerSelect');
@@ -824,6 +912,17 @@
                 }
                 select.appendChild(option);
             });
+        }
+
+        // ربط التحديث مع نظام الأدوات
+        if (window.cad) {
+            const originalSetTool = window.setTool;
+            window.setTool = function(tool) {
+                if (originalSetTool) {
+                    originalSetTool(tool);
+                }
+                updateToolButtonState(tool);
+            };
         }
 
         // Initialize layer dropdown when CAD is ready

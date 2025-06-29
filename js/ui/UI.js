@@ -1,10 +1,11 @@
 /**
- * TyrexCAD UI System - Enhanced Edition
- * نظام إدارة واجهة المستخدم المتطور
+ * TyrexCAD UI System - Core Module
+ * نظام إدارة واجهة المستخدم - الوحدة الأساسية
  * 
- * يحتوي على جميع وظائف التحديث والعرض للواجهة
- * مع إضافة دعم كامل للأدوات المتقدمة
+ * يحتوي على الوظائف الأساسية للواجهة ونظام الطبقات
  */
+
+import { UITools } from './ui-tools.js';
 
 class UI {
     constructor(cad) {
@@ -12,30 +13,43 @@ class UI {
         this.elements = new Map();
         this.inputDialogCallback = null;
         
-        // نظام الـ Panels المتقدم
-        this.toolPanels = new Map();
-        this.currentPanel = null;
-        this.panelContainer = null;
+        // ربط UITools
+        this.tools = new UITools(this);
         
-        // نظام المعاينة الحية
-        this.previewMode = false;
-        this.previewShapes = [];
-        
-        // حالة الأدوات المتقدمة
-        this.advancedToolState = {
-            fillet: { radius: 10, trim: true, multiple: false },
-            chamfer: { distance1: 10, distance2: 10, method: 'distance' },
-            array: {
-                rectangular: { rows: 3, cols: 3, rowSpacing: 50, colSpacing: 50 },
-                polar: { count: 6, angle: 360, rotate: true },
-                path: { count: 10, align: true, method: 'divide' }
-            }
-        };
+        // ربط دوال tools مباشرة (حل بديل أبسط)
+        this._bindToolsMethods();
         
         // متغيرات إضافية
         this.gripInfoTimeout = null;
         this.modeIndicatorTimeout = null;
         this._updatingLayersList = false;
+        
+        // Context menu
+        this.currentContextMenu = null;
+        this.hideContextMenuHandler = null;
+    }
+    
+    /**
+     * ربط دوال UITools مباشرة للـ UI instance
+     */
+    _bindToolsMethods() {
+        // قائمة الدوال التي نريد ربطها
+        const toolsMethods = [
+            'hideToolPanel', 'showToolPanel', 'updateFilletPreview', 'updateChamferPreview',
+            'updateArrayPreview', 'updateFilletOptions', 'applyFillet', 'updateChamferOptions',
+            'setChamferMethod', 'setChamferEqual', 'applyChamfer', 'applyRectangularArray',
+            'applyPolarArray', 'pickPolarCenter', 'setPathArrayMethod', 'selectPathForArray',
+            'applyPathArray', 'performBoolean', 'analyzeDistance', 'analyzeArea',
+            'analyzeProperties', 'exportAnalysisResults', 'convertToPolyline',
+            'simplifyCurve', 'smoothCurve', 'applyCurveOperation'
+        ];
+        
+        // ربط كل دالة
+        toolsMethods.forEach(method => {
+            if (typeof this.tools[method] === 'function') {
+                this[method] = this.tools[method].bind(this.tools);
+            }
+        });
     }
     
     /**
@@ -47,1026 +61,9 @@ class UI {
         this.initializeColorPalette();
         this.initializeBottomToolbar();
         this.updateLayersList();
-        this.initializeAdvancedTools();
-        this.createPanelContainer();
+        this.tools.initialize(); // تهيئة الأدوات المتقدمة
         this.initializeLinetypeSystem();
     }
-    
-    /**
-     * تهيئة الأدوات المتقدمة
-     */
-    initializeAdvancedTools() {
-        // تسجيل panels للأدوات المتقدمة
-        this.registerToolPanel('fillet', this.createFilletPanel.bind(this));
-        this.registerToolPanel('chamfer', this.createChamferPanel.bind(this));
-        this.registerToolPanel('rectangular-array', this.createRectangularArrayPanel.bind(this));
-        this.registerToolPanel('polar-array', this.createPolarArrayPanel.bind(this));
-        this.registerToolPanel('path-array', this.createPathArrayPanel.bind(this));
-        this.registerToolPanel('boolean', this.createBooleanPanel.bind(this));
-        this.registerToolPanel('analysis', this.createAnalysisPanel.bind(this));
-        this.registerToolPanel('curves', this.createCurvesPanel.bind(this));
-    }
-    
-    /**
-     * إنشاء حاوية الـ Panels
-     */
-    createPanelContainer() {
-        this.panelContainer = document.createElement('div');
-        this.panelContainer.id = 'toolPanelContainer';
-        this.panelContainer.className = 'tool-panel-container';
-        document.getElementById('canvasContainer').appendChild(this.panelContainer);
-    }
-    
-    /**
-     * تسجيل panel لأداة
-     */
-    registerToolPanel(toolName, createFunction) {
-        this.toolPanels.set(toolName, createFunction);
-    }
-    
-    /**
-     * عرض panel أداة
-     */
-    showToolPanel(toolName, position) {
-        // إخفاء أي panel مفتوح
-        this.hideToolPanel();
-        
-        // إنشاء الـ panel الجديد
-        const createPanel = this.toolPanels.get(toolName);
-        if (!createPanel) return;
-        
-        const panel = document.createElement('div');
-        panel.className = 'tool-panel active';
-        panel.innerHTML = createPanel();
-        
-        // تحديد الموضع
-        if (position) {
-            panel.style.left = position.x + 'px';
-            panel.style.top = position.y + 'px';
-        } else {
-            // موضع افتراضي بجانب الأدوات
-            panel.style.left = '350px';
-            panel.style.top = '200px';
-        }
-        
-        this.panelContainer.appendChild(panel);
-        this.currentPanel = panel;
-        
-        // تفعيل المعاينة الحية
-        this.startLivePreview(toolName);
-        
-        // إضافة إمكانية السحب
-        this.makePanelDraggable(panel);
-    }
-    
-    /**
-     * إخفاء panel الأداة
-     */
-    hideToolPanel() {
-        if (this.currentPanel) {
-            this.currentPanel.remove();
-            this.currentPanel = null;
-        }
-        this.stopLivePreview();
-        
-        const panels = document.querySelectorAll('.tool-panel');
-        panels.forEach(panel => {
-            panel.classList.remove('active');
-        });
-    }
-    
-    /**
-     * جعل الـ panel قابل للسحب
-     */
-    makePanelDraggable(panel) {
-        const header = panel.querySelector('h3');
-        if (!header) return;
-        
-        let isDragging = false;
-        let currentX;
-        let currentY;
-        let initialX;
-        let initialY;
-        
-        header.style.cursor = 'move';
-        
-        header.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            initialX = e.clientX - panel.offsetLeft;
-            initialY = e.clientY - panel.offsetTop;
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            
-            e.preventDefault();
-            currentX = e.clientX - initialX;
-            currentY = e.clientY - initialY;
-            
-            panel.style.left = currentX + 'px';
-            panel.style.top = currentY + 'px';
-        });
-        
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-        });
-    }
-    
-    // ==================== Panels للأدوات المتقدمة ====================
-    
-    /**
-     * إنشاء panel Fillet
-     */
-    createFilletPanel() {
-        const state = this.advancedToolState.fillet;
-        const unitSymbol = this.cad.units.getUnitInfo(this.cad.currentUnit).symbol;
-        
-        return `
-            <h3><i class="fas fa-bezier-curve"></i> Fillet Options</h3>
-            <div class="panel-content">
-                <div class="panel-row">
-                    <label>Radius:</label>
-                    <div class="input-group">
-                        <input type="number" id="filletRadius" value="${state.radius}" 
-                               onchange="cad.ui.updateFilletOptions()">
-                        <span class="unit-label">${unitSymbol}</span>
-                    </div>
-                </div>
-                <div class="panel-row">
-                    <label>
-                        <input type="checkbox" id="filletTrim" ${state.trim ? 'checked' : ''}
-                               onchange="cad.ui.updateFilletOptions()">
-                        Trim corners
-                    </label>
-                </div>
-                <div class="panel-row">
-                    <label>
-                        <input type="checkbox" id="filletMultiple" ${state.multiple ? 'checked' : ''}
-                               onchange="cad.ui.updateFilletOptions()">
-                        Multiple mode
-                    </label>
-                </div>
-                <div class="panel-row">
-                    <label>
-                        <input type="checkbox" id="filletPolyline"
-                               onchange="cad.ui.updateFilletOptions()">
-                        Apply to entire polyline
-                    </label>
-                </div>
-                <div class="panel-help">
-                    <i class="fas fa-info-circle"></i>
-                    Select two lines or a polyline to apply fillet
-                </div>
-                <div class="panel-buttons">
-                    <button class="btn btn-primary" onclick="cad.ui.applyFillet()">
-                        <i class="fas fa-check"></i> Apply
-                    </button>
-                    <button class="btn btn-secondary" onclick="cad.ui.hideToolPanel()">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-    
-    /**
-     * إنشاء panel Chamfer
-     */
-    createChamferPanel() {
-        const state = this.advancedToolState.chamfer;
-        const unitSymbol = this.cad.units.getUnitInfo(this.cad.currentUnit).symbol;
-        
-        return `
-            <h3><i class="fas fa-cut"></i> Chamfer Options</h3>
-            <div class="panel-content">
-                <div class="panel-tabs">
-                    <button class="tab-btn ${state.method === 'distance' ? 'active' : ''}"
-                            onclick="cad.ui.setChamferMethod('distance')">Distance</button>
-                    <button class="tab-btn ${state.method === 'angle' ? 'active' : ''}"
-                            onclick="cad.ui.setChamferMethod('angle')">Angle</button>
-                </div>
-                
-                <div id="chamferDistanceOptions" style="display: ${state.method === 'distance' ? 'block' : 'none'}">
-                    <div class="panel-row">
-                        <label>Distance 1:</label>
-                        <div class="input-group">
-                            <input type="number" id="chamferDistance1" value="${state.distance1}"
-                                   onchange="cad.ui.updateChamferOptions()">
-                            <span class="unit-label">${unitSymbol}</span>
-                        </div>
-                    </div>
-                    <div class="panel-row">
-                        <label>Distance 2:</label>
-                        <div class="input-group">
-                            <input type="number" id="chamferDistance2" value="${state.distance2}"
-                                   onchange="cad.ui.updateChamferOptions()">
-                            <span class="unit-label">${unitSymbol}</span>
-                        </div>
-                    </div>
-                    <div class="panel-row">
-                        <button class="btn btn-small" onclick="cad.ui.setChamferEqual()">
-                            <i class="fas fa-equals"></i> Equal distances
-                        </button>
-                    </div>
-                </div>
-                
-                <div id="chamferAngleOptions" style="display: ${state.method === 'angle' ? 'block' : 'none'}">
-                    <div class="panel-row">
-                        <label>Distance:</label>
-                        <div class="input-group">
-                            <input type="number" id="chamferAngleDistance" value="${state.distance1}"
-                                   onchange="cad.ui.updateChamferOptions()">
-                            <span class="unit-label">${unitSymbol}</span>
-                        </div>
-                    </div>
-                    <div class="panel-row">
-                        <label>Angle:</label>
-                        <div class="input-group">
-                            <input type="number" id="chamferAngle" value="45"
-                                   onchange="cad.ui.updateChamferOptions()">
-                            <span class="unit-label">°</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="panel-row">
-                    <label>
-                        <input type="checkbox" id="chamferTrim" checked
-                               onchange="cad.ui.updateChamferOptions()">
-                        Trim corners
-                    </label>
-                </div>
-                <div class="panel-row">
-                    <label>
-                        <input type="checkbox" id="chamferPolyline"
-                               onchange="cad.ui.updateChamferOptions()">
-                        Apply to entire polyline
-                    </label>
-                </div>
-                <div class="panel-buttons">
-                    <button class="btn btn-primary" onclick="cad.ui.applyChamfer()">
-                        <i class="fas fa-check"></i> Apply
-                    </button>
-                    <button class="btn btn-secondary" onclick="cad.ui.hideToolPanel()">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-    
-    /**
-     * إنشاء panel Rectangular Array
-     */
-    createRectangularArrayPanel() {
-        const state = this.advancedToolState.array.rectangular;
-        const unitSymbol = this.cad.units.getUnitInfo(this.cad.currentUnit).symbol;
-        
-        return `
-            <h3><i class="fas fa-th"></i> Rectangular Array</h3>
-            <div class="panel-content">
-                <div class="array-preview">
-                    <canvas id="arrayPreviewCanvas" width="200" height="150"></canvas>
-                </div>
-                <div class="panel-row">
-                    <label>Rows:</label>
-                    <input type="number" id="arrayRows" value="${state.rows}" min="1"
-                           onchange="cad.ui.updateArrayPreview()">
-                </div>
-                <div class="panel-row">
-                    <label>Columns:</label>
-                    <input type="number" id="arrayCols" value="${state.cols}" min="1"
-                           onchange="cad.ui.updateArrayPreview()">
-                </div>
-                <div class="panel-row">
-                    <label>Row spacing:</label>
-                    <div class="input-group">
-                        <input type="number" id="arrayRowSpacing" value="${state.rowSpacing}"
-                               onchange="cad.ui.updateArrayPreview()">
-                        <span class="unit-label">${unitSymbol}</span>
-                    </div>
-                </div>
-                <div class="panel-row">
-                    <label>Column spacing:</label>
-                    <div class="input-group">
-                        <input type="number" id="arrayColSpacing" value="${state.colSpacing}"
-                               onchange="cad.ui.updateArrayPreview()">
-                        <span class="unit-label">${unitSymbol}</span>
-                    </div>
-                </div>
-                <div class="panel-row">
-                    <label>Total items: <span id="arrayTotalItems">${state.rows * state.cols}</span></label>
-                </div>
-                <div class="panel-buttons">
-                    <button class="btn btn-primary" onclick="cad.ui.applyRectangularArray()">
-                        <i class="fas fa-check"></i> Create Array
-                    </button>
-                    <button class="btn btn-secondary" onclick="cad.ui.hideToolPanel()">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-    
-    /**
-     * إنشاء panel Polar Array
-     */
-    createPolarArrayPanel() {
-        const state = this.advancedToolState.array.polar;
-        
-        return `
-            <h3><i class="fas fa-circle-notch"></i> Polar Array</h3>
-            <div class="panel-content">
-                <div class="array-preview">
-                    <canvas id="arrayPreviewCanvas" width="200" height="200"></canvas>
-                </div>
-                <div class="panel-row">
-                    <label>Number of items:</label>
-                    <input type="number" id="polarCount" value="${state.count}" min="2"
-                           onchange="cad.ui.updateArrayPreview()">
-                </div>
-                <div class="panel-row">
-                    <label>Fill angle:</label>
-                    <div class="input-group">
-                        <input type="number" id="polarAngle" value="${state.angle}" 
-                               min="0" max="360" step="15"
-                               onchange="cad.ui.updateArrayPreview()">
-                        <span class="unit-label">°</span>
-                    </div>
-                </div>
-                <div class="panel-row">
-                    <label>
-                        <input type="checkbox" id="polarRotate" ${state.rotate ? 'checked' : ''}
-                               onchange="cad.ui.updateArrayPreview()">
-                        Rotate items
-                    </label>
-                </div>
-                <div class="panel-row">
-                    <label>Center point:</label>
-                    <button class="btn btn-small" onclick="cad.ui.pickPolarCenter()">
-                        <i class="fas fa-crosshairs"></i> Pick center
-                    </button>
-                </div>
-                <div class="panel-help">
-                    <i class="fas fa-info-circle"></i>
-                    Click to specify the center point of rotation
-                </div>
-                <div class="panel-buttons">
-                    <button class="btn btn-primary" onclick="cad.ui.applyPolarArray()">
-                        <i class="fas fa-check"></i> Create Array
-                    </button>
-                    <button class="btn btn-secondary" onclick="cad.ui.hideToolPanel()">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-    
-    /**
-     * إنشاء panel Path Array
-     */
-    createPathArrayPanel() {
-        const state = this.advancedToolState.array.path;
-        
-        return `
-            <h3><i class="fas fa-route"></i> Path Array</h3>
-            <div class="panel-content">
-                <div class="panel-tabs">
-                    <button class="tab-btn ${state.method === 'divide' ? 'active' : ''}"
-                            onclick="cad.ui.setPathArrayMethod('divide')">Divide</button>
-                    <button class="tab-btn ${state.method === 'measure' ? 'active' : ''}"
-                            onclick="cad.ui.setPathArrayMethod('measure')">Measure</button>
-                </div>
-                
-                <div id="pathDivideOptions" style="display: ${state.method === 'divide' ? 'block' : 'none'}">
-                    <div class="panel-row">
-                        <label>Number of items:</label>
-                        <input type="number" id="pathCount" value="${state.count}" min="2"
-                               onchange="cad.ui.updateArrayPreview()">
-                    </div>
-                </div>
-                
-                <div id="pathMeasureOptions" style="display: ${state.method === 'measure' ? 'block' : 'none'}">
-                    <div class="panel-row">
-                        <label>Item spacing:</label>
-                        <div class="input-group">
-                            <input type="number" id="pathSpacing" value="50"
-                                   onchange="cad.ui.updateArrayPreview()">
-                            <span class="unit-label">${this.cad.units.getUnitInfo(this.cad.currentUnit).symbol}</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="panel-row">
-                    <label>
-                        <input type="checkbox" id="pathAlign" ${state.align ? 'checked' : ''}
-                               onchange="cad.ui.updateArrayPreview()">
-                        Align items to path
-                    </label>
-                </div>
-                <div class="panel-row">
-                    <label>Path:</label>
-                    <button class="btn btn-small" onclick="cad.ui.selectPathForArray()">
-                        <i class="fas fa-mouse-pointer"></i> Select path
-                    </button>
-                </div>
-                <div class="panel-help">
-                    <i class="fas fa-info-circle"></i>
-                    Select a polyline or curve as the path
-                </div>
-                <div class="panel-buttons">
-                    <button class="btn btn-primary" onclick="cad.ui.applyPathArray()">
-                        <i class="fas fa-check"></i> Create Array
-                    </button>
-                    <button class="btn btn-secondary" onclick="cad.ui.hideToolPanel()">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-    
-    /**
-     * إنشاء panel Boolean Operations
-     */
-    createBooleanPanel() {
-        return `
-            <h3><i class="fas fa-object-group"></i> Boolean Operations</h3>
-            <div class="panel-content">
-                <div class="boolean-options">
-                    <button class="boolean-btn" onclick="cad.ui.performBoolean('union')">
-                        <svg width="40" height="40" viewBox="0 0 40 40">
-                            <circle cx="15" cy="20" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-                            <circle cx="25" cy="20" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-                            <path d="M15 10 Q20 10 25 10 Q30 15 30 20 Q30 25 25 30 Q20 30 15 30 Q10 25 10 20 Q10 15 15 10" fill="currentColor" opacity="0.3"/>
-                        </svg>
-                        <span>Union</span>
-                    </button>
-                    <button class="boolean-btn" onclick="cad.ui.performBoolean('difference')">
-                        <svg width="40" height="40" viewBox="0 0 40 40">
-                            <circle cx="15" cy="20" r="10" fill="currentColor" opacity="0.3"/>
-                            <circle cx="25" cy="20" r="10" fill="white" stroke="currentColor" stroke-width="2"/>
-                        </svg>
-                        <span>Difference</span>
-                    </button>
-                    <button class="boolean-btn" onclick="cad.ui.performBoolean('intersection')">
-                        <svg width="40" height="40" viewBox="0 0 40 40">
-                            <circle cx="15" cy="20" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-                            <circle cx="25" cy="20" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-                            <path d="M20 10 Q25 10 25 20 Q25 30 20 30 Q15 30 15 20 Q15 10 20 10" fill="currentColor" opacity="0.3"/>
-                        </svg>
-                        <span>Intersection</span>
-                    </button>
-                </div>
-                <div class="panel-help">
-                    <i class="fas fa-info-circle"></i>
-                    Select shapes and click an operation
-                </div>
-                <div class="panel-row">
-                    <label>Selected shapes: <span id="booleanShapeCount">0</span></label>
-                </div>
-            </div>
-        `;
-    }
-    
-    /**
-     * إنشاء panel Analysis
-     */
-    createAnalysisPanel() {
-        return `
-            <h3><i class="fas fa-ruler-combined"></i> Analysis Tools</h3>
-            <div class="panel-content">
-                <div class="analysis-options">
-                    <button class="analysis-btn" onclick="cad.ui.analyzeDistance()">
-                        <i class="fas fa-ruler"></i>
-                        <span>Distance</span>
-                    </button>
-                    <button class="analysis-btn" onclick="cad.ui.analyzeArea()">
-                        <i class="fas fa-vector-square"></i>
-                        <span>Area</span>
-                    </button>
-                    <button class="analysis-btn" onclick="cad.ui.analyzeProperties()">
-                        <i class="fas fa-info"></i>
-                        <span>Properties</span>
-                    </button>
-                </div>
-                <div class="analysis-results" id="analysisResults">
-                    <p class="placeholder">Select a tool to begin analysis</p>
-                </div>
-                <div class="panel-buttons">
-                    <button class="btn btn-small" onclick="cad.ui.exportAnalysisResults()">
-                        <i class="fas fa-file-export"></i> Export Results
-                    </button>
-                    <button class="btn btn-secondary" onclick="cad.ui.hideToolPanel()">
-                        <i class="fas fa-times"></i> Close
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-    
-    /**
-     * إنشاء panel Curves
-     */
-    createCurvesPanel() {
-        return `
-            <h3><i class="fas fa-wave-square"></i> Curve Tools</h3>
-            <div class="panel-content">
-                <div class="curve-options">
-                    <button class="curve-btn" onclick="cad.ui.convertToPolyline()">
-                        <i class="fas fa-project-diagram"></i>
-                        <span>Convert to Polyline</span>
-                    </button>
-                    <button class="curve-btn" onclick="cad.ui.simplifyCurve()">
-                        <i class="fas fa-compress-alt"></i>
-                        <span>Simplify</span>
-                    </button>
-                    <button class="curve-btn" onclick="cad.ui.smoothCurve()">
-                        <i class="fas fa-bezier-curve"></i>
-                        <span>Smooth</span>
-                    </button>
-                </div>
-                <div class="panel-row" id="simplifyOptions" style="display: none;">
-                    <label>Tolerance:</label>
-                    <div class="input-group">
-                        <input type="number" id="simplifyTolerance" value="1" step="0.1">
-                        <span class="unit-label">${this.cad.units.getUnitInfo(this.cad.currentUnit).symbol}</span>
-                    </div>
-                </div>
-                <div class="panel-row" id="smoothOptions" style="display: none;">
-                    <label>Iterations:</label>
-                    <input type="number" id="smoothIterations" value="2" min="1" max="10">
-                </div>
-                <div class="panel-help">
-                    <i class="fas fa-info-circle"></i>
-                    Select curves or polylines to process
-                </div>
-                <div class="panel-buttons">
-                    <button class="btn btn-primary" onclick="cad.ui.applyCurveOperation()">
-                        <i class="fas fa-check"></i> Apply
-                    </button>
-                    <button class="btn btn-secondary" onclick="cad.ui.hideToolPanel()">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-    
-    // ==================== نظام المعاينة الحية ====================
-    
-    /**
-     * بدء المعاينة الحية
-     */
-    startLivePreview(toolName) {
-        this.previewMode = true;
-        this.updateLivePreview();
-    }
-    
-    /**
-     * إيقاف المعاينة الحية
-     */
-    stopLivePreview() {
-        this.previewMode = false;
-        this.cad.tempShapes = null;
-        this.cad.render();
-    }
-    
-    /**
-     * تحديث المعاينة الحية
-     */
-    updateLivePreview() {
-        if (!this.previewMode) return;
-        
-        // توليد أشكال المعاينة بناءً على الأداة الحالية
-        const tool = this.cad.currentTool;
-        
-        switch (tool) {
-            case 'fillet':
-                this.updateFilletPreview();
-                break;
-            case 'chamfer':
-                this.updateChamferPreview();
-                break;
-            case 'rectangular-array':
-            case 'polar-array':
-            case 'path-array':
-                this.updateArrayPreview();
-                break;
-        }
-        
-        this.cad.render();
-    }
-    
-    /**
-     * تحديث معاينة Fillet
-     */
-    updateFilletPreview() {
-        // التحقق من وجود أشكال محددة
-        const selected = Array.from(this.cad.selectedShapes);
-        if (selected.length < 2) return;
-        
-        const radius = parseFloat(document.getElementById('filletRadius')?.value) || 10;
-        
-        // محاولة إنشاء fillet preview
-        if (this.cad.geometryAdvanced) {
-            try {
-                const result = this.cad.geometryAdvanced.filletCorner(
-                    selected[0], 
-                    selected[1], 
-                    radius
-                );
-                if (result) {
-                    this.cad.tempShapes = [result.arc];
-                }
-            } catch (error) {
-                console.error('Fillet preview error:', error);
-            }
-        }
-    }
-    
-    /**
-     * تحديث معاينة Array
-     */
-    updateArrayPreview() {
-        const canvas = document.getElementById('arrayPreviewCanvas');
-        if (!canvas) return;
-        
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // رسم معاينة بسيطة للمصفوفة
-        ctx.strokeStyle = '#00d4aa';
-        ctx.fillStyle = '#00d4aa';
-        
-        if (this.cad.currentTool === 'rectangular-array') {
-            const rows = parseInt(document.getElementById('arrayRows')?.value) || 3;
-            const cols = parseInt(document.getElementById('arrayCols')?.value) || 3;
-            
-            const cellWidth = canvas.width / (cols + 1);
-            const cellHeight = canvas.height / (rows + 1);
-            
-            for (let row = 0; row < rows; row++) {
-                for (let col = 0; col < cols; col++) {
-                    const x = (col + 1) * cellWidth;
-                    const y = (row + 1) * cellHeight;
-                    ctx.fillRect(x - 5, y - 5, 10, 10);
-                }
-            }
-            
-            // تحديث عدد العناصر
-            const totalItems = document.getElementById('arrayTotalItems');
-            if (totalItems) totalItems.textContent = rows * cols;
-        } else if (this.cad.currentTool === 'polar-array') {
-            const count = parseInt(document.getElementById('polarCount')?.value) || 6;
-            const angle = parseFloat(document.getElementById('polarAngle')?.value) || 360;
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const radius = Math.min(canvas.width, canvas.height) / 3;
-            
-            for (let i = 0; i < count; i++) {
-                const a = (i / count) * (angle * Math.PI / 180);
-                const x = centerX + radius * Math.cos(a);
-                const y = centerY + radius * Math.sin(a);
-                ctx.fillRect(x - 5, y - 5, 10, 10);
-            }
-        }
-    }
-    
-    // ==================== معالجات الأحداث للأدوات المتقدمة ====================
-    
-    /**
-     * تحديث خيارات Fillet
-     */
-    updateFilletOptions() {
-        const radius = parseFloat(document.getElementById('filletRadius').value) || 10;
-        const trim = document.getElementById('filletTrim').checked;
-        const multiple = document.getElementById('filletMultiple').checked;
-        const polyline = document.getElementById('filletPolyline').checked;
-        
-        this.advancedToolState.fillet = { radius, trim, multiple, polyline };
-        this.updateLivePreview();
-    }
-    
-    /**
-     * تطبيق Fillet
-     */
-    applyFillet() {
-        const state = this.advancedToolState.fillet;
-        this.hideToolPanel();
-        
-        // استدعاء دالة Fillet في CAD
-        this.cad.applyFilletWithOptions(state);
-    }
-    
-    /**
-     * تحديث خيارات Chamfer
-     */
-    updateChamferOptions() {
-        const distance1 = parseFloat(document.getElementById('chamferDistance1')?.value) || 10;
-        const distance2 = parseFloat(document.getElementById('chamferDistance2')?.value) || 10;
-        
-        this.advancedToolState.chamfer.distance1 = distance1;
-        this.advancedToolState.chamfer.distance2 = distance2;
-        this.updateLivePreview();
-    }
-    
-    /**
-     * تعيين طريقة Chamfer
-     */
-    setChamferMethod(method) {
-        this.advancedToolState.chamfer.method = method;
-        document.getElementById('chamferDistanceOptions').style.display = 
-            method === 'distance' ? 'block' : 'none';
-        document.getElementById('chamferAngleOptions').style.display = 
-            method === 'angle' ? 'block' : 'none';
-        
-        // تحديث الأزرار
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.textContent.toLowerCase() === method);
-        });
-    }
-    
-    /**
-     * جعل مسافات Chamfer متساوية
-     */
-    setChamferEqual() {
-        const distance1 = document.getElementById('chamferDistance1').value;
-        document.getElementById('chamferDistance2').value = distance1;
-        this.updateChamferOptions();
-    }
-    
-    /**
-     * تطبيق Chamfer
-     */
-    applyChamfer() {
-        const state = this.advancedToolState.chamfer;
-        this.hideToolPanel();
-        
-        // استدعاء دالة Chamfer في CAD
-        this.cad.applyChamferWithOptions(state);
-    }
-    
-    /**
-     * تطبيق Rectangular Array
-     */
-    applyRectangularArray() {
-        const rows = parseInt(document.getElementById('arrayRows').value);
-        const cols = parseInt(document.getElementById('arrayCols').value);
-        const rowSpacing = parseFloat(document.getElementById('arrayRowSpacing').value);
-        const colSpacing = parseFloat(document.getElementById('arrayColSpacing').value);
-        
-        this.hideToolPanel();
-        
-        this.cad.applyRectangularArrayWithOptions({
-            rows, cols, rowSpacing, colSpacing
-        });
-    }
-    
-    /**
-     * تطبيق Polar Array
-     */
-    applyPolarArray() {
-        const count = parseInt(document.getElementById('polarCount').value);
-        const angle = parseFloat(document.getElementById('polarAngle').value);
-        const rotate = document.getElementById('polarRotate').checked;
-        
-        this.hideToolPanel();
-        
-        this.cad.applyPolarArrayWithOptions({
-            count, angle, rotate
-        });
-    }
-    
-    /**
-     * اختيار مركز Polar Array
-     */
-    pickPolarCenter() {
-        this.hideToolPanel();
-        this.cad.startPickingPoint('polar-center');
-    }
-    
-    /**
-     * تعيين طريقة Path Array
-     */
-    setPathArrayMethod(method) {
-        this.advancedToolState.array.path.method = method;
-        document.getElementById('pathDivideOptions').style.display = 
-            method === 'divide' ? 'block' : 'none';
-        document.getElementById('pathMeasureOptions').style.display = 
-            method === 'measure' ? 'block' : 'none';
-        
-        // تحديث الأزرار
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.textContent.toLowerCase() === method);
-        });
-    }
-    
-    /**
-     * اختيار مسار للمصفوفة
-     */
-    selectPathForArray() {
-        this.hideToolPanel();
-        this.cad.startSelectingPath();
-    }
-    
-    /**
-     * تطبيق Path Array
-     */
-    applyPathArray() {
-        const method = this.advancedToolState.array.path.method;
-        const count = parseInt(document.getElementById('pathCount')?.value) || 10;
-        const spacing = parseFloat(document.getElementById('pathSpacing')?.value) || 50;
-        const align = document.getElementById('pathAlign').checked;
-        
-        this.hideToolPanel();
-        
-        this.cad.applyPathArrayWithOptions({
-            method, count, spacing, align
-        });
-    }
-    
-    /**
-     * تنفيذ Boolean Operation
-     */
-    performBoolean(operation) {
-        this.hideToolPanel();
-        
-        switch (operation) {
-            case 'union':
-                this.cad.performUnion();
-                break;
-            case 'difference':
-                this.cad.performDifference();
-                break;
-            case 'intersection':
-                this.cad.performIntersection();
-                break;
-        }
-    }
-    
-    /**
-     * تحليل المسافة
-     */
-    analyzeDistance() {
-        const results = document.getElementById('analysisResults');
-        results.innerHTML = '<p>Select two shapes to measure distance...</p>';
-        
-        this.cad.startDistanceAnalysis((result) => {
-            results.innerHTML = `
-                <div class="analysis-result">
-                    <h4>Distance Measurement</h4>
-                    <p><strong>Distance:</strong> ${this.cad.formatValue(result.distance)}</p>
-                    <p><strong>ΔX:</strong> ${this.cad.formatValue(result.dx)}</p>
-                    <p><strong>ΔY:</strong> ${this.cad.formatValue(result.dy)}</p>
-                    <p><strong>Angle:</strong> ${result.angle.toFixed(2)}°</p>
-                </div>
-            `;
-        });
-    }
-    
-    /**
-     * تحليل المساحة
-     */
-    analyzeArea() {
-        const results = document.getElementById('analysisResults');
-        this.cad.analyzeArea();
-    }
-    
-    /**
-     * تحليل الخصائص
-     */
-    analyzeProperties() {
-        const results = document.getElementById('analysisResults');
-        this.cad.analyzeProperties();
-    }
-    
-    /**
-     * تصدير نتائج التحليل
-     */
-    exportAnalysisResults() {
-        const results = document.getElementById('analysisResults').innerText;
-        const blob = new Blob([results], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'analysis_results.txt';
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-    
-    /**
-     * تحويل إلى Polyline
-     */
-    convertToPolyline() {
-        document.getElementById('simplifyOptions').style.display = 'none';
-        document.getElementById('smoothOptions').style.display = 'none';
-        this.cad.convertToPolyline();
-    }
-    
-    /**
-     * تبسيط المنحنى
-     */
-    simplifyCurve() {
-        document.getElementById('simplifyOptions').style.display = 'block';
-        document.getElementById('smoothOptions').style.display = 'none';
-    }
-    
-    /**
-     * تنعيم المنحنى
-     */
-    smoothCurve() {
-        document.getElementById('simplifyOptions').style.display = 'none';
-        document.getElementById('smoothOptions').style.display = 'block';
-    }
-    
-    /**
-     * تطبيق عملية المنحنى
-     */
-    applyCurveOperation() {
-        const tolerance = parseFloat(document.getElementById('simplifyTolerance')?.value) || 1;
-        const iterations = parseInt(document.getElementById('smoothIterations')?.value) || 2;
-        
-        this.hideToolPanel();
-        
-        if (document.getElementById('simplifyOptions').style.display === 'block') {
-            this.cad.simplifyPolyline(tolerance);
-        } else if (document.getElementById('smoothOptions').style.display === 'block') {
-            this.cad.smoothPolyline(iterations);
-        }
-    }
-    
-    // ==================== دوال مساعدة ====================
-    
-    /**
-     * عرض tooltip
-     */
-    showTooltip(element, text) {
-        const tooltip = document.createElement('div');
-        tooltip.className = 'tooltip';
-        tooltip.textContent = text;
-        
-        const rect = element.getBoundingClientRect();
-        tooltip.style.left = rect.left + 'px';
-        tooltip.style.top = (rect.bottom + 5) + 'px';
-        
-        document.body.appendChild(tooltip);
-        
-        setTimeout(() => tooltip.remove(), 3000);
-    }
-    
-    /**
-     * عرض رسالة خطأ
-     */
-    showError(message) {
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'error-message';
-        errorDiv.innerHTML = `
-            <i class="fas fa-exclamation-triangle"></i>
-            <span>${message}</span>
-        `;
-        
-        document.body.appendChild(errorDiv);
-        
-        setTimeout(() => {
-            errorDiv.classList.add('fade-out');
-            setTimeout(() => errorDiv.remove(), 300);
-        }, 3000);
-        
-        // تحديث الحالة (إذا لم تكن موجودة)
-        const originalStatus = document.getElementById('statusMode').textContent;
-        this.updateStatus(`ERROR: ${message}`);
-        
-        // إرجاع الحالة السابقة بعد 3 ثواني
-        setTimeout(() => {
-            document.getElementById('statusMode').textContent = originalStatus;
-        }, 3000);
-        
-        console.error(message);
-    }
-    
-    /**
-     * عرض رسالة نجاح
-     */
-    showSuccess(message) {
-        const successDiv = document.createElement('div');
-        successDiv.className = 'success-message';
-        successDiv.innerHTML = `
-            <i class="fas fa-check-circle"></i>
-            <span>${message}</span>
-        `;
-        
-        document.body.appendChild(successDiv);
-        
-        setTimeout(() => {
-            successDiv.classList.add('fade-out');
-            setTimeout(() => successDiv.remove(), 300);
-        }, 2000);
-    }
-    
-    // ==================== الدوال الأصلية المحدثة ====================
     
     /**
      * تخزين مراجع العناصر للأداء
@@ -1153,7 +150,7 @@ class UI {
     }
     
     /**
-     * ربط الأحداث - محدث
+     * ربط الأحداث
      */
     bindEvents() {
         // Close menus when clicking outside
@@ -1172,10 +169,10 @@ class UI {
             }
             
             // Close tool panels if clicking outside
-            if (this.currentPanel && !this.currentPanel.contains(e.target)) {
+            if (this.tools.currentPanel && !this.tools.currentPanel.contains(e.target)) {
                 const isToolButton = e.target.closest('.ribbon-tool, .tool-btn');
                 if (!isToolButton) {
-                    this.hideToolPanel();
+                    this.tools.hideToolPanel();
                 }
             }
         });
@@ -1184,8 +181,8 @@ class UI {
         document.addEventListener('keydown', (e) => {
             // ESC to cancel current operation
             if (e.key === 'Escape') {
-                if (this.currentPanel) {
-                    this.hideToolPanel();
+                if (this.tools.currentPanel) {
+                    this.tools.hideToolPanel();
                 } else {
                     this.cad.cancelCurrentOperation();
                 }
@@ -1211,7 +208,7 @@ class UI {
     }
     
     /**
-     * تحديث الأداة النشطة - محدث
+     * تحديث الأداة النشطة
      */
     updateActiveTool(tool) {
         // Update UI
@@ -1230,9 +227,9 @@ class UI {
         this.elements.get('statusTool').textContent = tool.toUpperCase();
         
         // Show panel for advanced tools
-        if (this.toolPanels.has(tool)) {
+        if (this.tools.toolPanels.has(tool)) {
             setTimeout(() => {
-                this.showToolPanel(tool);
+                this.tools.showToolPanel(tool);
             }, 100);
         }
     }
@@ -1287,11 +284,10 @@ class UI {
             }
         }
         
-        // تحديث قائمة الطبقات إذا كان LayerManager موجود
+        // تحديث قائمة الطبقات
         if (this.cad.layerManager) {
             this.updateLayersList();
         } else if (this.cad.layers && this.cad.layers.size > 0) {
-            // استخدام النظام القديم
             this.updateLayersList();
         }
         
@@ -1561,8 +557,10 @@ class UI {
         return this.getShapeProperties(shape);
     }
     
+    // ==================== نظام الطبقات ====================
+    
     /**
-     * إصلاح تحديث قائمة الطبقات لتجنب الـ recursion
+     * تحديث قائمة الطبقات
      */
     updateLayersList() {
         // تحقق من وجود العناصر المطلوبة
@@ -1599,7 +597,7 @@ class UI {
             this._updatingLayersList = false;
         }
     }
-
+    
     /**
      * إنشاء عنصر طبقة محسّن
      */
@@ -1667,12 +665,9 @@ class UI {
         
         return item;
     }
-
+    
     /**
-     * إصلاح showContextMenu - نسخة نهائية تعمل مع جميع الحالات
-     * @param {number} x - موقع X
-     * @param {number} y - موقع Y  
-     * @param {Array} items - قائمة العناصر
+     * إظهار قائمة السياق
      */
     showContextMenu(x, y, items) {
         // التحقق من الـ parameters
@@ -1816,9 +811,9 @@ class UI {
             document.addEventListener('contextmenu', this.hideContextMenuHandler);
         }, 0);
     }
-
+    
     /**
-     * إصلاح showLayerOptionsMenu
+     * إظهار قائمة خيارات الطبقة
      */
     showLayerOptionsMenu(event, layerId) {
         event.stopPropagation();
@@ -1874,7 +869,7 @@ class UI {
         // تمرير الـ parameters بالترتيب الصحيح: x, y, items
         this.showContextMenu(rect.left, rect.bottom + 5, items);
     }
-
+    
     /**
      * إخفاء قائمة السياق
      */
@@ -1890,7 +885,7 @@ class UI {
             }
         }
     }
-
+    
     /**
      * عرض حوار الشفافية
      */
@@ -1925,7 +920,7 @@ class UI {
         
         document.body.appendChild(dialog);
     }
-
+    
     /**
      * تطبيق الشفافية
      */
@@ -1936,7 +931,7 @@ class UI {
         document.querySelector('.layer-dialog').remove();
         this.updateLayersList();
     }
-
+    
     /**
      * عرض حوار حالات الطبقات
      */
@@ -1985,7 +980,7 @@ class UI {
         
         document.body.appendChild(dialog);
     }
-
+    
     /**
      * حفظ حالة طبقة جديدة
      */
@@ -1997,7 +992,7 @@ class UI {
             this.showLayerStatesDialog();
         }
     }
-
+    
     /**
      * حذف حالة طبقة
      */
@@ -2011,16 +1006,16 @@ class UI {
             this.showLayerStatesDialog();
         }
     }
-
+    
     /**
-     * تحديث toggleAllLayers لاستخدام cad مباشرة
+     * تحديث toggleAllLayers
      */
     toggleAllLayers(visible) {
         this.cad.toggleAllLayers(visible);
     }
-
+    
     /**
-     * إضافة دالة duplicateLayer
+     * تكرار الطبقة
      */
     duplicateLayer(layerId) {
         if (!this.cad.layerManager) return;
@@ -2050,9 +1045,9 @@ class UI {
         this.updateLayersList();
         this.cad.updateStatus(`Layer duplicated: ${newLayer.name}`);
     }
-
+    
     /**
-     * إضافة دالة mergeLayerDown
+     * دمج الطبقة لأسفل
      */
     mergeLayerDown(layerId) {
         if (!this.cad.layerManager || layerId === 0) return;
@@ -2069,9 +1064,9 @@ class UI {
             this.cad.layerManager.mergeLayers([layerId], targetLayer.id);
         }
     }
-
+    
     /**
-     * إضافة دالة showLayerPropertiesDialog
+     * عرض حوار خصائص الطبقة
      */
     showLayerPropertiesDialog(layerId) {
         const layer = this.cad.getLayer(layerId);
@@ -2136,7 +1131,7 @@ class UI {
             display.textContent = slider.value + '%';
         };
     }
-
+    
     /**
      * تطبيق خصائص الطبقة
      */
@@ -2173,7 +1168,7 @@ class UI {
         this.updateLayersList();
         this.cad.render();
     }
-
+    
     /**
      * عرض Layer Manager الجديد
      */
@@ -2396,7 +1391,7 @@ class UI {
         // تحديث الجدول
         this.updateLayerTable();
     }
-
+    
     /**
      * إغلاق Layer Manager
      */
@@ -2406,7 +1401,7 @@ class UI {
             panel.remove();
         }
     }
-
+    
     /**
      * جعل العنصر قابل للسحب
      */
@@ -2444,7 +1439,7 @@ class UI {
             };
         };
     }
-
+    
     /**
      * تحديث جدول الطبقات في Layer Manager Modal
      */
@@ -2560,7 +1555,7 @@ class UI {
         `;
         tbody.appendChild(statusRow);
     }
-
+    
     /**
      * تبديل جميع checkboxes الطبقات
      */
@@ -2573,7 +1568,7 @@ class UI {
         // تحديث info bar
         this.updateLayerTable();
     }
-
+    
     /**
      * حذف الطبقات المحددة
      */
@@ -2600,7 +1595,7 @@ class UI {
             this.cad.updateStatus(`${layerIds.length} layer(s) deleted`);
         }
     }
-
+    
     /**
      * تكرار الطبقات المحددة
      */
@@ -2619,7 +1614,7 @@ class UI {
         
         this.updateLayerTable();
     }
-
+    
     /**
      * دمج الطبقات المحددة
      */
@@ -2643,7 +1638,7 @@ class UI {
             this.updateLayerTable();
         }
     }
-
+    
     /**
      * عزل الطبقات المحددة
      */
@@ -2664,7 +1659,7 @@ class UI {
         this.cad.render();
         this.updateLayerTable();
     }
-
+    
     /**
      * تصفية الطبقات
      */
@@ -2685,7 +1680,7 @@ class UI {
             }
         });
     }
-
+    
     /**
      * مطابقة خصائص الطبقة
      */
@@ -2731,6 +1726,9 @@ class UI {
             this.cad.pickingPointCallback = null;
         };
     }
+    
+    // ==================== نظام Linetype ====================
+    
     /**
      * تهيئة نظام Linetype
      */
@@ -2749,7 +1747,7 @@ class UI {
         
         console.log('✅ Linetype System initialized');
     }
-
+    
     /**
      * تحديث قوائم أنواع الخطوط
      */
@@ -2778,7 +1776,7 @@ class UI {
             }
         });
     }
-
+    
     /**
      * تحديث قوائم أوزان الخطوط
      */
@@ -2807,7 +1805,7 @@ class UI {
             }
         });
     }
-
+    
     /**
      * تحديث عرض نوع الخط
      */
@@ -2820,8 +1818,8 @@ class UI {
             
             if (this.cad.linetypeManager) {
                 const currentType = this.cad.linetypeManager ? 
-            this.cad.linetypeManager.getCurrentLinetype() : 
-            { name: 'Continuous', pattern: [] };
+                    this.cad.linetypeManager.getCurrentLinetype() : 
+                    { name: 'Continuous', pattern: [] };
                 
                 if (display.tagName === 'LINE') {
                     // تحديث SVG line
@@ -2841,7 +1839,7 @@ class UI {
         // تحديث معاينة نوع الخط
         this.updateLinetypePreview();
     }
-
+    
     /**
      * تحديث عرض وزن الخط
      */
@@ -2862,7 +1860,7 @@ class UI {
             }
         });
     }
-
+    
     /**
      * تحديث معاينة نوع الخط
      */
@@ -2882,7 +1880,7 @@ class UI {
             </svg>
         `;
     }
-
+    
     /**
      * عرض حوار أنواع الخطوط المخصصة
      */
@@ -2941,7 +1939,7 @@ class UI {
             }
         };
     }
-
+    
     /**
      * إنشاء نوع خط مخصص
      */
@@ -2971,6 +1969,8 @@ class UI {
             alert('Invalid pattern format');
         }
     }
+    
+    // ==================== دوال أساسية أخرى ====================
     
     /**
      * إظهار لوحة الخصائص
@@ -3026,16 +2026,17 @@ class UI {
             input.style.display = 'none';
         }
     }
+    
     /**
- * تحديث قيمة حقل الإدخال الديناميكي
- * @param {string} value - القيمة المراد عرضها
- */
-updateDynamicInput(value) {
-    const field = this.elements.get('dynamicField') || document.getElementById('dynamicField');
-    if (field) {
-        field.value = value;
+     * تحديث قيمة حقل الإدخال الديناميكي
+     */
+    updateDynamicInput(value) {
+        const field = this.elements.get('dynamicField') || document.getElementById('dynamicField');
+        if (field) {
+            field.value = value;
+        }
     }
-}
+    
     /**
      * تحديث مؤشر الالتقاط
      */
@@ -3434,9 +2435,77 @@ updateDynamicInput(value) {
         loadingScreen.style.opacity = '0';
         setTimeout(() => loadingScreen.style.display = 'none', 500);
     }
-
-    // ==================== إضافات للتوافق مع الأدوات ====================
-
+    
+    // ==================== دوال مساعدة ====================
+    
+    /**
+     * عرض tooltip
+     */
+    showTooltip(element, text) {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip';
+        tooltip.textContent = text;
+        
+        const rect = element.getBoundingClientRect();
+        tooltip.style.left = rect.left + 'px';
+        tooltip.style.top = (rect.bottom + 5) + 'px';
+        
+        document.body.appendChild(tooltip);
+        
+        setTimeout(() => tooltip.remove(), 3000);
+    }
+    
+    /**
+     * عرض رسالة خطأ
+     */
+    showError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>${message}</span>
+        `;
+        
+        document.body.appendChild(errorDiv);
+        
+        setTimeout(() => {
+            errorDiv.classList.add('fade-out');
+            setTimeout(() => errorDiv.remove(), 300);
+        }, 3000);
+        
+        // تحديث الحالة
+        const originalStatus = document.getElementById('statusMode').textContent;
+        this.updateStatus(`ERROR: ${message}`);
+        
+        // إرجاع الحالة السابقة بعد 3 ثواني
+        setTimeout(() => {
+            document.getElementById('statusMode').textContent = originalStatus;
+        }, 3000);
+        
+        console.error(message);
+    }
+    
+    /**
+     * عرض رسالة نجاح
+     */
+    showSuccess(message) {
+        const successDiv = document.createElement('div');
+        successDiv.className = 'success-message';
+        successDiv.innerHTML = `
+            <i class="fas fa-check-circle"></i>
+            <span>${message}</span>
+        `;
+        
+        document.body.appendChild(successDiv);
+        
+        setTimeout(() => {
+            successDiv.classList.add('fade-out');
+            setTimeout(() => successDiv.remove(), 300);
+        }, 2000);
+    }
+    
+    // ==================== دوال التوافق مع الأدوات ====================
+    
     /**
      * عرض حوار إدخال عدد أضلاع المضلع
      */
@@ -3446,17 +2515,7 @@ updateDynamicInput(value) {
             if (callback) callback(sides);
         }
     }
-
-    /**
-     * تحديث معاينة Chamfer
-     */
-    updateChamferPreview() {
-        // Placeholder - سيتم تطويرها لاحقاً
-        if (this.cad.tempShapes && this.cad.tempShapes.length > 0) {
-            this.cad.render();
-        }
-    }
-
+    
     /**
      * عرض نتائج التحليل
      */
@@ -3501,16 +2560,7 @@ updateDynamicInput(value) {
         // يمكن تطوير هذا لعرض النتائج في panel مخصص
         this.updateStatus(message.split('\n')[0]);
     }
-
-    /**
-     * معالج إخفاء القائمة
-     */
-    hideContextMenuHandler = (e) => {
-        if (this.currentContextMenu && !this.currentContextMenu.contains(e.target)) {
-            this.hideContextMenu();
-        }
-    }
-
+    
     /**
      * عرض dialog خصائص Grips المتقدمة
      */
@@ -3562,7 +2612,7 @@ updateDynamicInput(value) {
             if (callback) callback(false);
         };
     }
-
+    
     /**
      * عرض شريط معلومات Grip
      */
@@ -3582,7 +2632,7 @@ updateDynamicInput(value) {
             infoBar.classList.remove('active');
         }, 3000);
     }
-
+    
     /**
      * عرض معلومات التحديد المحسنة
      */
@@ -3668,7 +2718,7 @@ updateDynamicInput(value) {
             totalArea
         });
     }
-
+    
     /**
      * عرض لوحة معلومات التحديد
      */
@@ -3715,7 +2765,7 @@ updateDynamicInput(value) {
         // إظهار/إخفاء اللوحة
         panel.style.display = info.count > 0 ? 'block' : 'none';
     }
-
+    
     /**
      * عرض شريط الإجراءات السريعة
      */
@@ -3789,7 +2839,7 @@ updateDynamicInput(value) {
         
         bar.style.display = 'flex';
     }
-
+    
     /**
      * إخفاء شريط الإجراءات السريعة
      */
@@ -3799,7 +2849,7 @@ updateDynamicInput(value) {
             bar.style.display = 'none';
         }
     }
-
+    
     /**
      * عرض مؤشر وضع التحديد
      */
@@ -3828,9 +2878,7 @@ updateDynamicInput(value) {
             indicator.style.display = 'none';
         }, 2000);
     }
-
-
-
+    
     /**
      * تغيير لون الطبقة من Modal
      */
@@ -3847,10 +2895,8 @@ updateDynamicInput(value) {
         };
         input.click();
     }
-
-
-
-        /**
+    
+    /**
      * تحديث إعدادات الرسم
      */
     updateDrawingSettings() {
@@ -3858,286 +2904,257 @@ updateDynamicInput(value) {
         this.updateLineWidthDisplay(this.cad.currentLineWidth);
         this.updateLinetypeDisplay();
         this.updateLineWeightDisplay();
-}
-/**
- * عرض لوحة اختيار نوع الخط
- */
-showLinetypePanel() {
-    // نفس الكود الذي أنشأناه
-}
-
-/**
- * عرض لوحة اختيار وزن الخط
- */
-showLineWeightPanel() {
-    // نفس الكود الذي أنشأناه
-}
-
-
-
-/**
- * عرض لوحة اختيار نوع الخط
- */
-showLinetypePanel() {
-    // إزالة أي panel سابق
-    const existing = document.querySelector('.linetype-panel-modal');
-    if (existing) existing.remove();
+    }
     
-    // إنشاء overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'linetype-panel-modal';
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.7);
-        z-index: 999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
-    
-    // إنشاء panel
-    const panel = document.createElement('div');
-    panel.style.cssText = `
-        background: #1a1a1a;
-        border: 2px solid #00d4aa;
-        border-radius: 8px;
-        padding: 20px;
-        min-width: 300px;
-        max-width: 90%;
-        max-height: 80vh;
-        overflow-y: auto;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-    `;
-    
-    const linetypes = [
-        { id: 'continuous', name: 'Continuous', preview: '———————————' },
-        { id: 'dashed', name: 'Dashed', preview: '- - - - - - -' },
-        { id: 'dotted', name: 'Dotted', preview: '· · · · · · ·' },
-        { id: 'dashdot', name: 'DashDot', preview: '—·—·—·—·' },
-        { id: 'center', name: 'Center', preview: '—— · —— · ——' },
-        { id: 'hidden', name: 'Hidden', preview: '— — — — — —' }
-    ];
-    
-    let html = '<h3 style="color: #00d4aa; margin: 0 0 15px 0;">Select Line Type</h3>';
-    
-    linetypes.forEach(type => {
-        html += `
-            <div class="linetype-option" 
-                 data-type="${type.id}"
-                 style="padding: 12px; 
-                        margin: 5px 0; 
-                        border: 1px solid #333; 
-                        border-radius: 4px; 
-                        cursor: pointer;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        transition: all 0.2s;"
-                 onmouseover="this.style.backgroundColor='#2a2a2a'; this.style.borderColor='#00d4aa';"
-                 onmouseout="this.style.backgroundColor='transparent'; this.style.borderColor='#333';">
-                <span style="color: #fff;">${type.name}</span>
-                <span style="color: #666; font-family: monospace;">${type.preview}</span>
-            </div>
+    /**
+     * عرض لوحة اختيار نوع الخط
+     */
+    showLinetypePanel() {
+        // إزالة أي panel سابق
+        const existing = document.querySelector('.linetype-panel-modal');
+        if (existing) existing.remove();
+        
+        // إنشاء overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'linetype-panel-modal';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         `;
-    });
-    
-    html += `
-        <button style="margin-top: 15px; 
-                       padding: 8px 20px; 
-                       background: #333; 
-                       color: #fff; 
-                       border: none; 
-                       border-radius: 4px; 
-                       cursor: pointer;
-                       width: 100%;"
-                onmouseover="this.style.backgroundColor='#444';"
-                onmouseout="this.style.backgroundColor='#333';"
-                onclick="document.querySelector('.linetype-panel-modal').remove();">
-            Cancel
-        </button>
-    `;
-    
-    panel.innerHTML = html;
-    overlay.appendChild(panel);
-    document.body.appendChild(overlay);
-    
-    // Event listeners
-    panel.querySelectorAll('.linetype-option').forEach(option => {
-        option.onclick = () => {
-            const type = option.getAttribute('data-type');
-            this.cad.setLineType(type);
-            overlay.remove();
-            
-            // تحديث العرض
-            const display = document.getElementById('propLinetype');
-            if (display) display.textContent = option.querySelector('span').textContent;
-        };
-    });
-    
-    // إغلاق عند النقر خارج Panel
-    overlay.onclick = (e) => {
-        if (e.target === overlay) {
-            overlay.remove();
-        }
-    };
-}
-
-/**
- * عرض لوحة اختيار وزن الخط
- */
-showLineWeightPanel() {
-    // إزالة أي panel سابق
-    const existing = document.querySelector('.lineweight-panel-modal');
-    if (existing) existing.remove();
-    
-    // إنشاء overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'lineweight-panel-modal';
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.7);
-        z-index: 999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
-    
-    // إنشاء panel
-    const panel = document.createElement('div');
-    panel.style.cssText = `
-        background: #1a1a1a;
-        border: 2px solid #00d4aa;
-        border-radius: 8px;
-        padding: 20px;
-        min-width: 250px;
-        max-width: 90%;
-        max-height: 70vh;
-        overflow-y: auto;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-    `;
-    
-    const weights = [
-        { value: -3, label: 'Default' },
-        { value: -2, label: 'ByLayer' },
-        { value: -1, label: 'ByBlock' },
-        { value: 0.00, label: '0.00 mm' },
-        { value: 0.05, label: '0.05 mm' },
-        { value: 0.09, label: '0.09 mm' },
-        { value: 0.13, label: '0.13 mm' },
-        { value: 0.15, label: '0.15 mm' },
-        { value: 0.18, label: '0.18 mm' },
-        { value: 0.20, label: '0.20 mm' },
-        { value: 0.25, label: '0.25 mm' },
-        { value: 0.30, label: '0.30 mm' },
-        { value: 0.35, label: '0.35 mm' },
-        { value: 0.40, label: '0.40 mm' },
-        { value: 0.50, label: '0.50 mm' },
-        { value: 0.53, label: '0.53 mm' },
-        { value: 0.60, label: '0.60 mm' },
-        { value: 0.70, label: '0.70 mm' },
-        { value: 0.80, label: '0.80 mm' },
-        { value: 0.90, label: '0.90 mm' },
-        { value: 1.00, label: '1.00 mm' },
-        { value: 1.06, label: '1.06 mm' },
-        { value: 1.20, label: '1.20 mm' },
-        { value: 1.40, label: '1.40 mm' },
-        { value: 1.58, label: '1.58 mm' },
-        { value: 2.00, label: '2.00 mm' },
-        { value: 2.11, label: '2.11 mm' }
-    ];
-    
-    let html = '<h3 style="color: #00d4aa; margin: 0 0 15px 0;">Select Line Weight</h3>';
-    
-    weights.forEach(weight => {
-        const thickness = weight.value > 0 ? Math.max(1, weight.value * 2) : 1;
-        html += `
-            <div class="weight-option" 
-                 data-weight="${weight.value}"
-                 style="padding: 8px 12px; 
-                        margin: 3px 0; 
-                        border: 1px solid #333; 
-                        border-radius: 4px; 
-                        cursor: pointer;
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                        transition: all 0.2s;"
-                 onmouseover="this.style.backgroundColor='#2a2a2a'; this.style.borderColor='#00d4aa';"
-                 onmouseout="this.style.backgroundColor='transparent'; this.style.borderColor='#333';">
-                <span style="color: #fff;">${weight.label}</span>
-                ${weight.value > 0 ? `<div style="height: ${thickness}px; 
-                                                  width: 60px; 
-                                                  background: #00d4aa;
-                                                  border-radius: ${thickness/2}px;"></div>` : ''}
-            </div>
+        
+        // إنشاء panel
+        const panel = document.createElement('div');
+        panel.style.cssText = `
+            background: #1a1a1a;
+            border: 2px solid #00d4aa;
+            border-radius: 8px;
+            padding: 20px;
+            min-width: 300px;
+            max-width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
         `;
-    });
-    
-    html += `
-        <button style="margin-top: 15px; 
-                       padding: 8px 20px; 
-                       background: #333; 
-                       color: #fff; 
-                       border: none; 
-                       border-radius: 4px; 
-                       cursor: pointer;
-                       width: 100%;"
-                onmouseover="this.style.backgroundColor='#444';"
-                onmouseout="this.style.backgroundColor='#333';"
-                onclick="document.querySelector('.lineweight-panel-modal').remove();">
-            Cancel
-        </button>
-    `;
-    
-    panel.innerHTML = html;
-    overlay.appendChild(panel);
-    document.body.appendChild(overlay);
-    
-    // Event listeners
-    panel.querySelectorAll('.weight-option').forEach(option => {
-        option.onclick = () => {
-            const weight = parseFloat(option.getAttribute('data-weight'));
-            this.cad.setLineWeight(weight);
-            overlay.remove();
-            
-            // تحديث العرض
-            const display = document.getElementById('propLineweight');
-            if (display) {
-                const label = weights.find(w => w.value === weight)?.label || weight + ' mm';
-                display.textContent = label;
+        
+        const linetypes = [
+            { id: 'continuous', name: 'Continuous', preview: '———————————' },
+            { id: 'dashed', name: 'Dashed', preview: '- - - - - - -' },
+            { id: 'dotted', name: 'Dotted', preview: '· · · · · · ·' },
+            { id: 'dashdot', name: 'DashDot', preview: '—·—·—·—·' },
+            { id: 'center', name: 'Center', preview: '—— · —— · ——' },
+            { id: 'hidden', name: 'Hidden', preview: '— — — — — —' }
+        ];
+        
+        let html = '<h3 style="color: #00d4aa; margin: 0 0 15px 0;">Select Line Type</h3>';
+        
+        linetypes.forEach(type => {
+            html += `
+                <div class="linetype-option" 
+                     data-type="${type.id}"
+                     style="padding: 12px; 
+                            margin: 5px 0; 
+                            border: 1px solid #333; 
+                            border-radius: 4px; 
+                            cursor: pointer;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            transition: all 0.2s;"
+                     onmouseover="this.style.backgroundColor='#2a2a2a'; this.style.borderColor='#00d4aa';"
+                     onmouseout="this.style.backgroundColor='transparent'; this.style.borderColor='#333';">
+                    <span style="color: #fff;">${type.name}</span>
+                    <span style="color: #666; font-family: monospace;">${type.preview}</span>
+                </div>
+            `;
+        });
+        
+        html += `
+            <button style="margin-top: 15px; 
+                           padding: 8px 20px; 
+                           background: #333; 
+                           color: #fff; 
+                           border: none; 
+                           border-radius: 4px; 
+                           cursor: pointer;
+                           width: 100%;"
+                    onmouseover="this.style.backgroundColor='#444';"
+                    onmouseout="this.style.backgroundColor='#333';"
+                    onclick="document.querySelector('.linetype-panel-modal').remove();">
+                Cancel
+            </button>
+        `;
+        
+        panel.innerHTML = html;
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+        
+        // Event listeners
+        panel.querySelectorAll('.linetype-option').forEach(option => {
+            option.onclick = () => {
+                const type = option.getAttribute('data-type');
+                this.cad.setLineType(type);
+                overlay.remove();
+                
+                // تحديث العرض
+                const display = document.getElementById('propLinetype');
+                if (display) display.textContent = option.querySelector('span').textContent;
+            };
+        });
+        
+        // إغلاق عند النقر خارج Panel
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
             }
         };
-    });
+    }
     
-    // إغلاق عند النقر خارج Panel
-    overlay.onclick = (e) => {
-        if (e.target === overlay) {
-            overlay.remove();
-        }
-    };
-}
-
-/**
- * تحديث إعدادات الرسم
- */
-updateDrawingSettings() {
-    this.updateColorDisplay(this.cad.currentColor);
-    this.updateLineWidthDisplay(this.cad.currentLineWidth);
-    this.updateLinetypeDisplay();
-    this.updateLineWeightDisplay();
-}
-
-
-
-
+    /**
+     * عرض لوحة اختيار وزن الخط
+     */
+    showLineWeightPanel() {
+        // إزالة أي panel سابق
+        const existing = document.querySelector('.lineweight-panel-modal');
+        if (existing) existing.remove();
+        
+        // إنشاء overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'lineweight-panel-modal';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        
+        // إنشاء panel
+        const panel = document.createElement('div');
+        panel.style.cssText = `
+            background: #1a1a1a;
+            border: 2px solid #00d4aa;
+            border-radius: 8px;
+            padding: 20px;
+            min-width: 250px;
+            max-width: 90%;
+            max-height: 70vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        `;
+        
+        const weights = [
+            { value: -3, label: 'Default' },
+            { value: -2, label: 'ByLayer' },
+            { value: -1, label: 'ByBlock' },
+            { value: 0.00, label: '0.00 mm' },
+            { value: 0.05, label: '0.05 mm' },
+            { value: 0.09, label: '0.09 mm' },
+            { value: 0.13, label: '0.13 mm' },
+            { value: 0.15, label: '0.15 mm' },
+            { value: 0.18, label: '0.18 mm' },
+            { value: 0.20, label: '0.20 mm' },
+            { value: 0.25, label: '0.25 mm' },
+            { value: 0.30, label: '0.30 mm' },
+            { value: 0.35, label: '0.35 mm' },
+            { value: 0.40, label: '0.40 mm' },
+            { value: 0.50, label: '0.50 mm' },
+            { value: 0.53, label: '0.53 mm' },
+            { value: 0.60, label: '0.60 mm' },
+            { value: 0.70, label: '0.70 mm' },
+            { value: 0.80, label: '0.80 mm' },
+            { value: 0.90, label: '0.90 mm' },
+            { value: 1.00, label: '1.00 mm' },
+            { value: 1.06, label: '1.06 mm' },
+            { value: 1.20, label: '1.20 mm' },
+            { value: 1.40, label: '1.40 mm' },
+            { value: 1.58, label: '1.58 mm' },
+            { value: 2.00, label: '2.00 mm' },
+            { value: 2.11, label: '2.11 mm' }
+        ];
+        
+        let html = '<h3 style="color: #00d4aa; margin: 0 0 15px 0;">Select Line Weight</h3>';
+        
+        weights.forEach(weight => {
+            const thickness = weight.value > 0 ? Math.max(1, weight.value * 2) : 1;
+            html += `
+                <div class="weight-option" 
+                     data-weight="${weight.value}"
+                     style="padding: 8px 12px; 
+                            margin: 3px 0; 
+                            border: 1px solid #333; 
+                            border-radius: 4px; 
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            transition: all 0.2s;"
+                     onmouseover="this.style.backgroundColor='#2a2a2a'; this.style.borderColor='#00d4aa';"
+                     onmouseout="this.style.backgroundColor='transparent'; this.style.borderColor='#333';">
+                    <span style="color: #fff;">${weight.label}</span>
+                    ${weight.value > 0 ? `<div style="height: ${thickness}px; 
+                                                      width: 60px; 
+                                                      background: #00d4aa;
+                                                      border-radius: ${thickness/2}px;"></div>` : ''}
+                </div>
+            `;
+        });
+        
+        html += `
+            <button style="margin-top: 15px; 
+                           padding: 8px 20px; 
+                           background: #333; 
+                           color: #fff; 
+                           border: none; 
+                           border-radius: 4px; 
+                           cursor: pointer;
+                           width: 100%;"
+                    onmouseover="this.style.backgroundColor='#444';"
+                    onmouseout="this.style.backgroundColor='#333';"
+                    onclick="document.querySelector('.lineweight-panel-modal').remove();">
+                Cancel
+            </button>
+        `;
+        
+        panel.innerHTML = html;
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+        
+        // Event listeners
+        panel.querySelectorAll('.weight-option').forEach(option => {
+            option.onclick = () => {
+                const weight = parseFloat(option.getAttribute('data-weight'));
+                this.cad.setLineWeight(weight);
+                overlay.remove();
+                
+                // تحديث العرض
+                const display = document.getElementById('propLineweight');
+                if (display) {
+                    const label = weights.find(w => w.value === weight)?.label || weight + ' mm';
+                    display.textContent = label;
+                }
+            };
+        });
+        
+        // إغلاق عند النقر خارج Panel
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+            }
+        };
+    }
 }
 
 // دالة إغلاق Layer Manager
