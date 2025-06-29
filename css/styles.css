@@ -3308,3 +3308,661 @@ option:disabled {
     }
 }
 
+/* أنماط الأزرار الصغيرة */
+.btn-mini {
+    padding: 2px 6px;
+    font-size: 10px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-mini:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.section-title-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+/* Layer Select في Bottom Bar */
+.layer-select {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    min-width: 120px;
+}
+
+/* Layer Manager Modal */
+.layer-manager {
+    max-width: 800px;
+    width: 90%;
+}
+
+.layer-manager-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+}
+
+.toolbar-separator {
+    width: 1px;
+    background: var(--border-color);
+    margin: 0 8px;
+}
+
+.layer-manager-content {
+    max-height: 400px;
+    overflow-y: auto;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.layer-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.layer-table th {
+    background: var(--bg-secondary);
+    padding: 8px;
+    text-align: left;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.layer-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.layer-table tr:hover {
+    background: var(--bg-hover);
+}
+
+.layer-table input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.layer-table .color-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    display: inline-block;
+}
+
+.layer-table input[type="text"] {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-primary);
+    padding: 4px;
+    width: 100%;
+}
+
+.layer-table input[type="text"]:focus {
+    background: var(--bg-primary);
+    border-color: var(--accent-primary);
+    outline: none;
+}
+
+.layer-table .transparency-input {
+    width: 60px;
+    text-align: center;
+}
+
+/* إضافة أنماط CSS للـ current layer */
+.layer-table tr.current-layer {
+    background: rgba(0, 212, 170, 0.1);
+    border-left: 3px solid var(--accent-primary);
+}
+
+/* إصلاح أنماط القائمة السياقية */
+.grips-context-menu {
+    position: fixed;
+    background: var(--bg-panel);
+    border: 1px solid var(--accent-primary);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 212, 170, 0.15);
+    min-width: 180px;
+    padding: 4px 0;
+    font-size: 14px;
+    z-index: 1000;
+}
+
+.grips-context-menu .context-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+}
+
+.grips-context-menu .context-menu-item:hover {
+    background: rgba(0, 212, 170, 0.1);
+    color: var(--accent-primary);
+}
+
+.grips-context-menu .context-menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.grips-context-menu .context-menu-separator {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+}
+
+/* أنماط CSS إضافية للوحة الأوزان */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: var(--bg-panel);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 90%;
+    max-height: 90%;
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--text-primary);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+.modal-body {
+    padding: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.weight-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+}
+
+.weight-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.weight-item:hover {
+    background: var(--bg-hover);
+}
+
+.weight-item.active {
+    background: var(--bg-hover);
+    border: 1px solid var(--accent-primary);
+}
+
+.weight-preview {
+    width: 100px;
+    margin-right: 16px;
+}
+
+.weight-line {
+    width: 100%;
+    background: var(--text-primary);
+    border-radius: 1px;
+}
+
+.weight-label {
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.weight-display,
+.weight-scale {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.weight-display label,
+.weight-scale label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.weight-scale input[type="range"] {
+    width: 150px;
+    margin: 0 12px;
+}
+
+.match-info {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-panel);
+    border: 1px solid var(--accent-primary);
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--text-primary);
+    z-index: 100;
+}
+
+/* تكامل مع أدوات الرسم */
+.drawing-toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.drawing-toolbar .tool-separator {
+    width: 1px;
+    background: var(--border-color);
+    margin: 0 4px;
+}
+
+.quick-linetype {
+    display: flex;
+    gap: 4px;
+}
+
+.quick-linetype button {
+    width: 32px;
+    height: 32px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.quick-linetype button:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+}
+
+.quick-linetype button.active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+/* Input group style */
+.input-group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+/* إصلاح مظهر Layer Manager Panel */
+.layer-manager-panel {
+    backdrop-filter: blur(10px);
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* تحسين جدول الطبقات */
+.layer-table th {
+    background: var(--bg-secondary);
+    padding: 8px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--accent-primary);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.layer-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    vertical-align: middle;
+    text-align: center;
+}
+
+.layer-table tr:hover {
+    background: rgba(0, 212, 170, 0.05);
+}
+
+.layer-table tr.current-layer {
+    background: rgba(0, 212, 170, 0.1);
+    border-left: 3px solid var(--accent-primary);
+}
+
+/* Color Swatch */
+.color-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    display: inline-block;
+    transition: all 0.2s ease;
+    margin: 0 auto;
+}
+
+.color-swatch:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.3);
+}
+
+/* Transparency Input */
+.transparency-input {
+    width: 50px;
+    text-align: center;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+/* Linetype Panel Styles */
+.linetype-list, .lineweight-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.linetype-item, .lineweight-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.linetype-item:hover, .lineweight-item:hover {
+    background: rgba(0, 212, 170, 0.1);
+    border: 1px solid var(--accent-primary);
+}
+
+.linetype-item svg, .lineweight-item svg {
+    flex-shrink: 0;
+}
+
+.linetype-item span, .lineweight-item span {
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+/* تحسين أزرار الأدوات */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.btn-primary {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+    border-color: var(--accent-primary);
+}
+
+.btn-primary:hover {
+    background: #00ffcc;
+    box-shadow: 0 0 10px rgba(0, 212, 170, 0.5);
+}
+
+/* أزرار صغيرة للحذف */
+.btn-mini {
+    padding: 2px 6px;
+    font-size: 10px;
+}
+
+/* تحسين Checkboxes */
+.layer-table input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent-primary);
+}
+
+/* تحسين Text Inputs */
+.layer-table input[type="text"] {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-primary);
+    padding: 4px 8px;
+    width: 100%;
+    transition: all 0.2s ease;
+}
+
+.layer-table input[type="text"]:hover {
+    background: var(--bg-tertiary);
+}
+
+.layer-table input[type="text"]:focus {
+    background: var(--bg-primary);
+    border-color: var(--accent-primary);
+    outline: none;
+}
+
+.layer-table input[type="text"][readonly] {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* تحسين Modal Close Button */
+.modal-close {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--accent-primary);
+}
+
+/* Scrollbar Styling */
+.layer-manager-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.layer-manager-content::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+}
+
+.layer-manager-content::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.layer-manager-content::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+}
+
+/* إضافة أنماط لـ dialogs الجديدة */
+.layer-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.dialog-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.dialog-content {
+    position: relative;
+    background: var(--bg-panel);
+    border: 1px solid var(--accent-primary);
+    border-radius: 8px;
+    padding: 24px;
+    min-width: 350px;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.dialog-content h3 {
+    margin: 0 0 16px 0;
+    color: var(--accent-primary);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.btn-cancel {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-cancel:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+.btn-primary {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+    border-color: var(--accent-primary);
+}
+
+.btn-primary:hover {
+    background: #00ffcc;
+    box-shadow: 0 0 10px rgba(0, 212, 170, 0.5);
+}
+
+/* Form Group Style */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"] {
+    width: 100%;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    background: var(--bg-primary);
+}

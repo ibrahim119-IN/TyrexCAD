@@ -2552,151 +2552,149 @@ class TyrexCAD {
     }
     
     // Rendering - محدثة لدعم Grips والطبقات المتقدمة
-    render() {
-        if (this.mode === '3D') {
-            this.render3D();
-            return;
+render() {
+    if (this.mode === '3D') {
+        this.render3D();
+        return;
+    }
+    
+    // Clear canvas
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Save context state
+    this.ctx.save();
+    
+    // Apply transformations
+    this.ctx.translate(this.panX, this.panY);
+    this.ctx.scale(this.zoom, this.zoom);
+    
+    // Draw grid
+    if (this.gridEnabled) {
+        this.drawGrid();
+    }
+    
+    // ترتيب رسم الأشكال حسب الطبقات
+    const layerGroups = new Map();
+    
+    // تجميع الأشكال حسب الطبقات
+    this.shapes.forEach(shape => {
+        const layerId = shape.layerId || 0;
+        if (!layerGroups.has(layerId)) {
+            layerGroups.set(layerId, []);
         }
+        layerGroups.get(layerId).push(shape);
+    });
+    
+    // رسم الطبقات بالترتيب
+    const sortedLayerIds = Array.from(layerGroups.keys()).sort((a, b) => a - b);
+    
+    sortedLayerIds.forEach(layerId => {
+        const layer = this.getLayer(layerId);
+        if (!layer || !layer.visible) return;
         
-        // Clear canvas
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        const shapes = layerGroups.get(layerId);
         
-        // Save context state
-        this.ctx.save();
-        
-        // Apply transformations
-        this.ctx.translate(this.panX, this.panY);
-        this.ctx.scale(this.zoom, this.zoom);
-        
-        // Draw grid
-        if (this.gridEnabled) {
-            this.drawGrid();
-        }
-        
-        this.drawShape(this.ctx, shape);
-
-        // ترتيب رسم الأشكال حسب الطبقات
-        const layerGroups = new Map();
-        
-        // تجميع الأشكال حسب الطبقات
-        this.shapes.forEach(shape => {
-            const layerId = shape.layerId || 0;
-            if (!layerGroups.has(layerId)) {
-                layerGroups.set(layerId, []);
-            }
-            layerGroups.get(layerId).push(shape);
-        });
-        
-        // رسم الطبقات بالترتيب
-        const sortedLayerIds = Array.from(layerGroups.keys()).sort((a, b) => a - b);
-        
-        sortedLayerIds.forEach(layerId => {
-            const layer = this.getLayer(layerId);
-            if (!layer || !layer.visible) return;
+        shapes.forEach(shape => {
+            const isSelected = this.selectedShapes.has(shape);
+            const isHovered = shape === this.hoveredShape && !isSelected;
+            const isPreview = this.previewShapes.has(shape);
             
-            const shapes = layerGroups.get(layerId);
-            
-            shapes.forEach(shape => {
-                const isSelected = this.selectedShapes.has(shape);
-                const isHovered = shape === this.hoveredShape && !isSelected;
-                const isPreview = this.previewShapes.has(shape);
-                
-                this.ctx.save();
-                
-                // تطبيق خصائص الطبقة
-                const layerTransparency = layer.transparency || 0;
-                const alpha = 1 - (layerTransparency / 100);
-                
-                // Apply layer properties
-                this.ctx.globalAlpha = alpha;
-                
-                // Locked layer fading
-                if (layer.locked && layer.lockedFading !== false) {
-                    this.ctx.globalAlpha *= 0.5;
-                }
-                
-                // Apply shape properties (مع أولوية لخصائص الشكل)
-                this.ctx.strokeStyle = shape.color || layer.color || this.currentColor;
-                this.ctx.lineWidth = (shape.lineWidth || layer.lineWidth || this.currentLineWidth) / this.zoom;
-                this.ctx.fillStyle = shape.fillColor || 'transparent';
-                
-                // Apply line type
-                const lineType = shape.lineType || layer.lineType || 'solid';
-                if (lineType === 'dashed') {
-                    this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
-                } else if (lineType === 'dotted') {
-                    this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
-                } else {
-                    this.ctx.setLineDash([]);
-                }
-                
-                // Selection/hover effects
-                if (isSelected) {
-                    this.ctx.strokeStyle = this.selectionColor;
-                    this.ctx.lineWidth = (shape.lineWidth + 1) / this.zoom;
-                    this.ctx.shadowColor = this.selectionColor;
-                    this.ctx.shadowBlur = 10 / this.zoom;
-                } else if (isHovered && !layer.locked) {
-                    this.ctx.lineWidth = (shape.lineWidth + 0.5) / this.zoom;
-                    this.ctx.globalAlpha *= 0.8;
-                } else if (isPreview) {
-                    this.ctx.globalAlpha *= 0.5;
-                    this.ctx.strokeStyle = this.previewColor;
-                }
-                
-                // Draw the shape
-                this.drawShape(shape);
-                
-                this.ctx.restore();
-                
-                // رسم Grips للأشكال المحددة (فقط للطبقات غير المقفولة)
-                if (isSelected && !layer.locked && this.gripsController && 
-                    this.gripsVisible && this.currentTool === 'select') {
-                    this.gripsController.drawGrips(shape);
-                }
-            });
-        });
-        
-        // Draw temporary shape (معاينة)
-        if (this.tempShape) {
             this.ctx.save();
-            this.ctx.strokeStyle = this.tempShape.color || this.currentColor;
-            this.ctx.lineWidth = (this.tempShape.lineWidth || this.currentLineWidth) / this.zoom;
             
-            if (this.tempShape.lineType === 'dashed') {
-                this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
+            // تطبيق خصائص الطبقة
+            const layerTransparency = layer.transparency || 0;
+            const alpha = 1 - (layerTransparency / 100);
+            
+            // Apply layer properties
+            this.ctx.globalAlpha = alpha;
+            
+            // Locked layer fading
+            if (layer.locked && layer.lockedFading !== false) {
+                this.ctx.globalAlpha *= 0.5;
             }
             
-            this.ctx.globalAlpha = 0.7;
-            this.drawShape(this.tempShape);
+            // Apply shape properties (مع أولوية لخصائص الشكل)
+            this.ctx.strokeStyle = shape.color || layer.color || this.currentColor;
+            this.ctx.lineWidth = (shape.lineWidth || layer.lineWidth || this.currentLineWidth) / this.zoom;
+            this.ctx.fillStyle = shape.fillColor || 'transparent';
+            
+            // Apply line type
+            const lineType = shape.lineType || layer.lineType || 'solid';
+            if (lineType === 'dashed') {
+                this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
+            } else if (lineType === 'dotted') {
+                this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
+            } else {
+                this.ctx.setLineDash([]);
+            }
+            
+            // Selection/hover effects
+            if (isSelected) {
+                this.ctx.strokeStyle = this.selectionColor || '#00d4aa';
+                this.ctx.lineWidth = ((shape.lineWidth || 2) + 1) / this.zoom;
+                this.ctx.shadowColor = this.selectionColor || '#00d4aa';
+                this.ctx.shadowBlur = 10 / this.zoom;
+            } else if (isHovered && !layer.locked) {
+                this.ctx.lineWidth = ((shape.lineWidth || 2) + 0.5) / this.zoom;
+                this.ctx.globalAlpha *= 0.8;
+            } else if (isPreview) {
+                this.ctx.globalAlpha *= 0.5;
+                this.ctx.strokeStyle = this.previewColor || '#ffaa00';
+            }
+            
+            // Draw the shape - معامل واحد فقط
+            this.drawShape(shape);
+            
             this.ctx.restore();
+            
+            // رسم Grips للأشكال المحددة (فقط للطبقات غير المقفولة)
+            if (isSelected && !layer.locked && this.gripsController && 
+                this.gripsVisible && this.currentTool === 'select') {
+                this.gripsController.drawGrips(shape);
+            }
+        });
+    });
+    
+    // Draw temporary shape (معاينة)
+    if (this.tempShape) {
+        this.ctx.save();
+        this.ctx.strokeStyle = this.tempShape.color || this.currentColor;
+        this.ctx.lineWidth = (this.tempShape.lineWidth || this.currentLineWidth) / this.zoom;
+        
+        if (this.tempShape.lineType === 'dashed') {
+            this.ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
         }
         
-        // Draw temporary shapes من الأدوات
-        if (this.tempShapes && this.tempShapes.length > 0) {
-            this.tempShapes.forEach(shape => {
-                this.ctx.save();
-                this.ctx.strokeStyle = shape.color || '#00d4aa';
-                this.ctx.lineWidth = (shape.lineWidth || 2) / this.zoom;
-                
-                if (shape.lineType === 'dashed') {
-                    this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
-                }
-                
-                this.ctx.globalAlpha = 0.6;
-                this.drawShape(shape);
-                this.ctx.restore();
-            });
-        }
-        
-        // Draw selection box
-        if (this.isSelecting) {
-            this.drawSelectionBox();
-        }
-        
-        // Restore context
+        this.ctx.globalAlpha = 0.7;
+        this.drawShape(this.tempShape);
         this.ctx.restore();
     }
+    
+    // Draw temporary shapes من الأدوات
+    if (this.tempShapes && this.tempShapes.length > 0) {
+        this.tempShapes.forEach(shape => {
+            this.ctx.save();
+            this.ctx.strokeStyle = shape.color || '#00d4aa';
+            this.ctx.lineWidth = (shape.lineWidth || 2) / this.zoom;
+            
+            if (shape.lineType === 'dashed') {
+                this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
+            }
+            
+            this.ctx.globalAlpha = 0.6;
+            this.drawShape(shape);
+            this.ctx.restore();
+        });
+    }
+    
+    // Draw selection box
+    if (this.isSelecting) {
+        this.drawSelectionBox();
+    }
+    
+    // Restore context
+    this.ctx.restore();
+}
     
     render3D() {
         if (this.renderer3D && this.scene3D && this.camera3D) {

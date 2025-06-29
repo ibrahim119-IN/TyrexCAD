@@ -176,6 +176,34 @@ function bindHTMLMethods(cad) {
             document.getElementById(`ribbon-${tab}`).classList.add('active');
         }
     };
+
+
+    // تهيئة TyrexCAD
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('🚀 Initializing TyrexCAD...');
+    
+    try {
+        // إنشاء مثيل TyrexCAD
+        const cad = new TyrexCAD();
+        
+        // جعله متاحاً عالمياً
+        window.cad = cad;
+        
+        // تهيئة مدير الأدوات
+        const toolsManager = new ToolsManager(cad);
+        await toolsManager.init();
+        
+        // ربط مدير الأدوات
+        cad.setToolsManager(toolsManager);
+        
+        // تحديث UI
+        cad.updateUI();
+        
+        console.log('✅ TyrexCAD ready!');
+    } catch (error) {
+        console.error('❌ Failed to initialize TyrexCAD:', error);
+    }
+});
     
     // Keyboard shortcuts
     document.addEventListener('keypress', (e) => {

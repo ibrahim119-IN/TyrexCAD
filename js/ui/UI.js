@@ -31,6 +31,11 @@ class UI {
                 path: { count: 10, align: true, method: 'divide' }
             }
         };
+        
+        // متغيرات إضافية
+        this.gripInfoTimeout = null;
+        this.modeIndicatorTimeout = null;
+        this._updatingLayersList = false;
     }
     
     /**
@@ -1384,11 +1389,38 @@ class UI {
     getShapeProperties(shape) {
         let html = '';
         
+        // دالة مساعدة للتنسيق
+        const formatValue = (value) => {
+            if (this.cad.formatValue) {
+                return this.cad.formatValue(value);
+            }
+            return typeof value === 'number' ? value.toFixed(2) : value;
+        };
+        
+        // دالة مساعدة لحساب المسافة
+        const calculateDistance = (x1, y1, x2, y2) => {
+            if (this.cad.distance) {
+                return this.cad.distance(x1, y1, x2, y2);
+            }
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            return Math.sqrt(dx * dx + dy * dy);
+        };
+        
+        // الحصول على معلومات الطبقة
+        const getLayerName = (layerId) => {
+            if (this.cad.getLayer) {
+                const layer = this.cad.getLayer(layerId);
+                return layer ? layer.name : 'Default';
+            }
+            return 'Layer ' + layerId;
+        };
+        
         // خصائص عامة لجميع الأشكال
         const commonProps = `
             <div class="property-row">
                 <span class="property-label">Layer:</span>
-                <span class="property-value">${this.cad.getLayer(shape.layerId)?.name || 'Default'}</span>
+                <span class="property-value">${getLayerName(shape.layerId)}</span>
             </div>
             <div class="property-row">
                 <span class="property-label">Color:</span>
@@ -1413,101 +1445,109 @@ class UI {
         
         switch (shape.type) {
             case 'line':
-                const length = this.cad.distance(
-                    shape.start.x, shape.start.y,
-                    shape.end.x, shape.end.y
-                );
-                const angle = Math.atan2(
-                    shape.end.y - shape.start.y,
-                    shape.end.x - shape.start.x
-                ) * 180 / Math.PI;
-                
-                html = `
-                    ${commonProps}
-                    <div class="property-row">
-                        <span class="property-label">Length:</span>
-                        <span class="property-value">${this.cad.formatValue(length)}</span>
-                    </div>
-                    <div class="property-row">
-                        <span class="property-label">Angle:</span>
-                        <span class="property-value">${angle.toFixed(1)}°</span>
-                    </div>
-                    <div class="property-row">
-                        <span class="property-label">Start:</span>
-                        <span class="property-value">${this.cad.formatValue(shape.start.x)}, ${this.cad.formatValue(shape.start.y)}</span>
-                    </div>
-                    <div class="property-row">
-                        <span class="property-label">End:</span>
-                        <span class="property-value">${this.cad.formatValue(shape.end.x)}, ${this.cad.formatValue(shape.end.y)}</span>
-                    </div>
-                `;
+                if (shape.start && shape.end) {
+                    const length = calculateDistance(
+                        shape.start.x, shape.start.y,
+                        shape.end.x, shape.end.y
+                    );
+                    const angle = Math.atan2(
+                        shape.end.y - shape.start.y,
+                        shape.end.x - shape.start.x
+                    ) * 180 / Math.PI;
+                    
+                    html = `
+                        ${commonProps}
+                        <div class="property-row">
+                            <span class="property-label">Length:</span>
+                            <span class="property-value">${formatValue(length)}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Angle:</span>
+                            <span class="property-value">${angle.toFixed(1)}°</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Start:</span>
+                            <span class="property-value">${formatValue(shape.start.x)}, ${formatValue(shape.start.y)}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">End:</span>
+                            <span class="property-value">${formatValue(shape.end.x)}, ${formatValue(shape.end.y)}</span>
+                        </div>
+                    `;
+                }
                 break;
                 
             case 'circle':
-                html = `
-                    ${commonProps}
-                    <div class="property-row">
-                        <span class="property-label">Center:</span>
-                        <span class="property-value">${this.cad.formatValue(shape.center.x)}, ${this.cad.formatValue(shape.center.y)}</span>
-                    </div>
-                    <div class="property-row">
-                        <span class="property-label">Radius:</span>
-                        <span class="property-value">${this.cad.formatValue(shape.radius)}</span>
-                    </div>
-                    <div class="property-row">
-                        <span class="property-label">Circumference:</span>
-                        <span class="property-value">${this.cad.formatValue(2 * Math.PI * shape.radius)}</span>
-                    </div>
-                    <div class="property-row">
-                        <span class="property-label">Area:</span>
-                        <span class="property-value">${this.cad.formatValue(Math.PI * shape.radius * shape.radius)}</span>
-                    </div>
-                `;
+                if (shape.center && shape.radius !== undefined) {
+                    html = `
+                        ${commonProps}
+                        <div class="property-row">
+                            <span class="property-label">Center:</span>
+                            <span class="property-value">${formatValue(shape.center.x)}, ${formatValue(shape.center.y)}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Radius:</span>
+                            <span class="property-value">${formatValue(shape.radius)}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Circumference:</span>
+                            <span class="property-value">${formatValue(2 * Math.PI * shape.radius)}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Area:</span>
+                            <span class="property-value">${formatValue(Math.PI * shape.radius * shape.radius)}</span>
+                        </div>
+                    `;
+                }
                 break;
                 
             case 'rectangle':
-                const width = Math.abs(shape.end.x - shape.start.x);
-                const height = Math.abs(shape.end.y - shape.start.y);
-                html = `
-                    ${commonProps}
-                    <div class="property-row">
-                        <span class="property-label">Width:</span>
-                        <span class="property-value">${this.cad.formatValue(width)}</span>
-                    </div>
-                    <div class="property-row">
-                        <span class="property-label">Height:</span>
-                        <span class="property-value">${this.cad.formatValue(height)}</span>
-                    </div>
-                    <div class="property-row">
-                        <span class="property-label">Area:</span>
-                        <span class="property-value">${this.cad.formatValue(width * height)}</span>
-                    </div>
-                    <div class="property-row">
-                        <span class="property-label">Perimeter:</span>
-                        <span class="property-value">${this.cad.formatValue(2 * (width + height))}</span>
-                    </div>
-                `;
+                if (shape.start && shape.end) {
+                    const width = Math.abs(shape.end.x - shape.start.x);
+                    const height = Math.abs(shape.end.y - shape.start.y);
+                    html = `
+                        ${commonProps}
+                        <div class="property-row">
+                            <span class="property-label">Width:</span>
+                            <span class="property-value">${formatValue(width)}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Height:</span>
+                            <span class="property-value">${formatValue(height)}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Area:</span>
+                            <span class="property-value">${formatValue(width * height)}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Perimeter:</span>
+                            <span class="property-value">${formatValue(2 * (width + height))}</span>
+                        </div>
+                    `;
+                }
                 break;
                 
             case 'polyline':
-                let totalLength = 0;
-                for (let i = 0; i < shape.points.length - 1; i++) {
-                    totalLength += this.cad.distance(
-                        shape.points[i].x, shape.points[i].y,
-                        shape.points[i + 1].x, shape.points[i + 1].y
-                    );
+                if (shape.points && shape.points.length > 0) {
+                    let totalLength = 0;
+                    for (let i = 0; i < shape.points.length - 1; i++) {
+                        totalLength += calculateDistance(
+                            shape.points[i].x, shape.points[i].y,
+                            shape.points[i + 1].x, shape.points[i + 1].y
+                        );
+                    }
+                    html = `
+                        ${commonProps}
+                        <div class="property-row">
+                            <span class="property-label">Points:</span>
+                            <span class="property-value">${shape.points.length}</span>
+                        </div>
+                        <div class="property-row">
+                            <span class="property-label">Total Length:</span>
+                            <span class="property-value">${formatValue(totalLength)}</span>
+                        </div>
+                    `;
                 }
-                html = `
-                    ${commonProps}
-                    <div class="property-row">
-                        <span class="property-label">Points:</span>
-                        <span class="property-value">${shape.points.length}</span>
-                    </div>
-                    <div class="property-row">
-                        <span class="property-label">Total Length:</span>
-                        <span class="property-value">${this.cad.formatValue(totalLength)}</span>
-                    </div>
-                `;
                 break;
         }
         
@@ -1564,7 +1604,7 @@ class UI {
      * إنشاء عنصر طبقة محسّن
      */
     createLayerItem(layer) {
-        const currentLayerId = this.cad.getCurrentLayerId();
+        const currentLayerId = this.cad.getCurrentLayerId ? this.cad.getCurrentLayerId() : this.cad.currentLayerId;
         
         const item = document.createElement('div');
         item.className = 'layer-item';
@@ -1573,7 +1613,7 @@ class UI {
         }
         
         // عدد الأشكال في الطبقة
-        const shapeCount = this.cad.shapes.filter(s => s.layerId === layer.id).length;
+        const shapeCount = this.cad.shapes ? this.cad.shapes.filter(s => s.layerId === layer.id).length : 0;
         
         // إنشاء HTML
         item.innerHTML = `
@@ -2416,14 +2456,14 @@ class UI {
         
         const layers = this.cad.layerManager ? 
             Array.from(this.cad.layerManager.layers.values()) : 
-            Array.from(this.cad.layers.values());
+            (this.cad.layers ? Array.from(this.cad.layers.values()) : []);
         
         layers.sort((a, b) => b.id - a.id);
         
-        const currentLayerId = this.cad.getCurrentLayerId();
+        const currentLayerId = this.cad.getCurrentLayerId ? this.cad.getCurrentLayerId() : this.cad.currentLayerId;
         
         layers.forEach(layer => {
-            const shapeCount = this.cad.shapes.filter(s => s.layerId === layer.id).length;
+            const shapeCount = this.cad.shapes ? this.cad.shapes.filter(s => s.layerId === layer.id).length : 0;
             const row = document.createElement('tr');
             
             if (layer.id === currentLayerId) {
@@ -2502,7 +2542,7 @@ class UI {
         
         // تحديث عدد الطبقات في status
         const layerCount = layers.length;
-        const totalObjects = this.cad.shapes.length;
+        const totalObjects = this.cad.shapes ? this.cad.shapes.length : 0;
         const selectedCount = tbody.querySelectorAll('.layer-checkbox:checked').length;
         
         // تحديث Info Bar
@@ -3297,17 +3337,27 @@ class UI {
      * تحديث أزرار الشريط السفلي
      */
     updateBottomToolbar() {
-        this.elements.get('statusSnap').textContent = this.cad.snapEnabled ? 'ON' : 'OFF';
-        this.elements.get('statusGrid').textContent = this.cad.gridEnabled ? 'ON' : 'OFF';
-        this.elements.get('statusOrtho').textContent = this.cad.orthoEnabled ? 'ON' : 'OFF';
-        this.elements.get('statusPolar').textContent = this.cad.polarEnabled ? 'ON' : 'OFF';
-        this.elements.get('orthoButton').classList.toggle('active', this.cad.orthoEnabled);
-        this.elements.get('polarButton').classList.toggle('active', this.cad.polarEnabled);
-        this.elements.get('gridButton').classList.toggle('active', this.cad.gridEnabled);
+        const statusSnap = this.elements.get('statusSnap');
+        const statusGrid = this.elements.get('statusGrid');
+        const statusOrtho = this.elements.get('statusOrtho');
+        const statusPolar = this.elements.get('statusPolar');
+        const orthoButton = this.elements.get('orthoButton');
+        const polarButton = this.elements.get('polarButton');
+        const gridButton = this.elements.get('gridButton');
+        const snapButton = this.elements.get('snapButton');
+        
+        if (statusSnap) statusSnap.textContent = this.cad.snapEnabled ? 'ON' : 'OFF';
+        if (statusGrid) statusGrid.textContent = this.cad.gridEnabled ? 'ON' : 'OFF';
+        if (statusOrtho) statusOrtho.textContent = this.cad.orthoEnabled ? 'ON' : 'OFF';
+        if (statusPolar) statusPolar.textContent = this.cad.polarEnabled ? 'ON' : 'OFF';
+        
+        if (orthoButton) orthoButton.classList.toggle('active', this.cad.orthoEnabled);
+        if (polarButton) polarButton.classList.toggle('active', this.cad.polarEnabled);
+        if (gridButton) gridButton.classList.toggle('active', this.cad.gridEnabled);
         
         // Update snap button
         const anySnapActive = Object.values(this.cad.snapSettings).some(v => v);
-        this.elements.get('snapButton').classList.toggle('active', anySnapActive);
+        if (snapButton) snapButton.classList.toggle('active', anySnapActive);
         
         // Update linetype status
         const linetypeStatus = this.elements.get('statusLinetype');
@@ -3540,49 +3590,61 @@ class UI {
             // حساب الطول
             switch (shape.type) {
                 case 'line':
-                    totalLength += this.cad.distance(
-                        shape.start.x, shape.start.y,
-                        shape.end.x, shape.end.y
-                    );
-                    break;
-                case 'circle':
-                    totalLength += 2 * Math.PI * shape.radius;
-                    totalArea += Math.PI * shape.radius * shape.radius;
-                    break;
-                case 'rectangle':
-                    const width = Math.abs(shape.end.x - shape.start.x);
-                    const height = Math.abs(shape.end.y - shape.start.y);
-                    totalLength += 2 * (width + height);
-                    totalArea += width * height;
-                    break;
-                case 'polyline':
-                    for (let i = 1; i < shape.points.length; i++) {
+                    if (shape.start && shape.end) {
                         totalLength += this.cad.distance(
-                            shape.points[i-1].x, shape.points[i-1].y,
-                            shape.points[i].x, shape.points[i].y
+                            shape.start.x, shape.start.y,
+                            shape.end.x, shape.end.y
                         );
                     }
-                    if (shape.closed && shape.points.length > 2) {
-                        totalLength += this.cad.distance(
-                            shape.points[shape.points.length-1].x,
-                            shape.points[shape.points.length-1].y,
-                            shape.points[0].x,
-                            shape.points[0].y
-                        );
+                    break;
+                case 'circle':
+                    if (shape.radius) {
+                        totalLength += 2 * Math.PI * shape.radius;
+                        totalArea += Math.PI * shape.radius * shape.radius;
+                    }
+                    break;
+                case 'rectangle':
+                    if (shape.start && shape.end) {
+                        const width = Math.abs(shape.end.x - shape.start.x);
+                        const height = Math.abs(shape.end.y - shape.start.y);
+                        totalLength += 2 * (width + height);
+                        totalArea += width * height;
+                    }
+                    break;
+                case 'polyline':
+                    if (shape.points && shape.points.length > 1) {
+                        for (let i = 1; i < shape.points.length; i++) {
+                            totalLength += this.cad.distance(
+                                shape.points[i-1].x, shape.points[i-1].y,
+                                shape.points[i].x, shape.points[i].y
+                            );
+                        }
+                        if (shape.closed && shape.points.length > 2) {
+                            totalLength += this.cad.distance(
+                                shape.points[shape.points.length-1].x,
+                                shape.points[shape.points.length-1].y,
+                                shape.points[0].x,
+                                shape.points[0].y
+                            );
+                        }
                     }
                     break;
                 case 'arc':
-                    const arcLength = shape.radius * Math.abs(shape.endAngle - shape.startAngle);
-                    totalLength += arcLength;
+                    if (shape.radius && shape.startAngle !== undefined && shape.endAngle !== undefined) {
+                        const arcLength = shape.radius * Math.abs(shape.endAngle - shape.startAngle);
+                        totalLength += arcLength;
+                    }
                     break;
                 case 'ellipse':
-                    // تقريب محيط القطع الناقص
-                    const h = Math.pow((shape.radiusX - shape.radiusY), 2) / 
-                             Math.pow((shape.radiusX + shape.radiusY), 2);
-                    const perimeter = Math.PI * (shape.radiusX + shape.radiusY) * 
-                                     (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
-                    totalLength += perimeter;
-                    totalArea += Math.PI * shape.radiusX * shape.radiusY;
+                    if (shape.radiusX && shape.radiusY) {
+                        // تقريب محيط القطع الناقص
+                        const h = Math.pow((shape.radiusX - shape.radiusY), 2) / 
+                                 Math.pow((shape.radiusX + shape.radiusY), 2);
+                        const perimeter = Math.PI * (shape.radiusX + shape.radiusY) * 
+                                         (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+                        totalLength += perimeter;
+                        totalArea += Math.PI * shape.radiusX * shape.radiusY;
+                    }
                     break;
             }
         });
@@ -3756,207 +3818,7 @@ class UI {
         }, 2000);
     }
 
-    /**
-     * عرض لوحة أنواع الخطوط
-     */
-    showLinetypePanel() {
-        if (!this.cad.linetypeManager) {
-            console.error('LinetypeManager not available');
-            return;
-        }
-        
-        const dialog = document.createElement('div');
-        dialog.className = 'layer-dialog';
-        dialog.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 2000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
-        
-        const linetypes = Array.from(this.cad.linetypeManager.linetypes.entries());
-        const currentLinetype = this.cad.linetypeManager.currentLinetype;
-        
-        dialog.innerHTML = `
-            <div class="dialog-overlay" onclick="this.parentElement.remove()"></div>
-            <div class="dialog-content" style="max-width: 500px; width: 90%;">
-                <h3>Line Type Manager</h3>
-                <div class="dialog-body">
-                    <div class="linetype-list" style="max-height: 400px; overflow-y: auto;">
-                        ${linetypes.map(([id, type]) => `
-                            <div class="linetype-item ${id === currentLinetype ? 'selected' : ''}" 
-                                 onclick="window.cad.setLinetype('${id}'); window.cad.ui.updateLinetypeDisplay(); this.closest('.layer-dialog').remove();"
-                                 style="
-                                     display: flex;
-                                     align-items: center;
-                                     gap: 16px;
-                                     padding: 12px;
-                                     margin-bottom: 8px;
-                                     background: var(--bg-tertiary);
-                                     border-radius: 4px;
-                                     cursor: pointer;
-                                     transition: all 0.2s ease;
-                                     border: 2px solid ${id === currentLinetype ? 'var(--accent-primary)' : 'transparent'};
-                                 "
-                                 onmouseover="if('${id}' !== '${currentLinetype}') this.style.background='var(--bg-hover)'; this.style.borderColor='rgba(0,212,170,0.3)';"
-                                 onmouseout="if('${id}' !== '${currentLinetype}') this.style.background='var(--bg-tertiary)'; this.style.borderColor='transparent';">
-                                <svg width="120" height="20">
-                                    <line x1="10" y1="10" x2="110" y2="10" 
-                                          stroke="${id === currentLinetype ? 'var(--accent-primary)' : 'white'}" 
-                                          stroke-width="2"
-                                          ${type.pattern ? `stroke-dasharray="${type.pattern.map(v => v * 2).join(',')}"` : ''}>
-                                    </line>
-                                </svg>
-                                <div style="flex: 1;">
-                                    <div style="font-weight: 500; color: var(--text-primary);">${type.name}</div>
-                                    <div style="font-size: 11px; color: var(--text-secondary);">${type.description}</div>
-                                </div>
-                                ${id === currentLinetype ? '<i class="fas fa-check" style="color: var(--accent-primary);"></i>' : ''}
-                            </div>
-                        `).join('')}
-                    </div>
-                    
-                    <!-- Linetype Scale Control -->
-                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
-                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 13px;">
-                            Global Linetype Scale:
-                        </label>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <input type="range" id="globalLinetypeScale" 
-                                   min="0.1" max="5" step="0.1" 
-                                   value="${this.cad.linetypeManager.globalLinetypeScale}"
-                                   oninput="window.cad.linetypeManager.setGlobalLinetypeScale(this.value); document.getElementById('scaleValue').textContent = this.value;"
-                                   style="flex: 1;">
-                            <span id="scaleValue" style="min-width: 40px; text-align: right; font-family: monospace;">
-                                ${this.cad.linetypeManager.globalLinetypeScale}
-                            </span>
-                        </div>
-                    </div>
-                    
-                    <!-- Custom Linetype Button -->
-                    <div style="margin-top: 16px;">
-                        <button class="btn" onclick="window.cad.ui.showCustomLinetypeDialog()">
-                            <i class="fas fa-plus"></i> Create Custom Linetype
-                        </button>
-                    </div>
-                </div>
-                <div class="dialog-buttons">
-                    <button class="btn-cancel" onclick="this.closest('.layer-dialog').remove()">Close</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(dialog);
-    }
 
-    /**
-     * عرض لوحة أوزان الخطوط
-     */
-    showLineWeightPanel() {
-        if (!this.cad.linetypeManager) {
-            console.error('LinetypeManager not available');
-            return;
-        }
-        
-        const dialog = document.createElement('div');
-        dialog.className = 'layer-dialog';
-        dialog.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 2000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
-        
-        const weights = this.cad.linetypeManager.lineWeights;
-        const currentWeight = this.cad.linetypeManager.currentLineWeight;
-        
-        dialog.innerHTML = `
-            <div class="dialog-overlay" onclick="this.parentElement.remove()"></div>
-            <div class="dialog-content" style="max-width: 400px; width: 90%;">
-                <h3>Line Weight Settings</h3>
-                <div class="dialog-body">
-                    <div class="lineweight-list" style="max-height: 400px; overflow-y: auto;">
-                        ${weights.map(weight => {
-                            const lineHeight = weight.mm === 0 ? 0.5 : 
-                                             weight.mm < 0 ? 1 : 
-                                             Math.min(weight.mm * 3, 10);
-                            
-                            return `
-                                <div class="lineweight-item ${weight.value === currentWeight ? 'selected' : ''}" 
-                                     onclick="window.cad.setLineWeight('${weight.value}'); window.cad.ui.updateLineWeightDisplay(); this.closest('.layer-dialog').remove();"
-                                     style="
-                                         display: flex;
-                                         align-items: center;
-                                         gap: 16px;
-                                         padding: 8px 12px;
-                                         margin-bottom: 4px;
-                                         background: var(--bg-tertiary);
-                                         border-radius: 4px;
-                                         cursor: pointer;
-                                         transition: all 0.2s ease;
-                                         border: 2px solid ${weight.value === currentWeight ? 'var(--accent-primary)' : 'transparent'};
-                                     "
-                                     onmouseover="if('${weight.value}' !== '${currentWeight}') this.style.background='var(--bg-hover)'; this.style.borderColor='rgba(0,212,170,0.3)';"
-                                     onmouseout="if('${weight.value}' !== '${currentWeight}') this.style.background='var(--bg-tertiary)'; this.style.borderColor='transparent';">
-                                    <div style="width: 100px;">
-                                        <div style="
-                                            height: ${lineHeight}px;
-                                            background: ${weight.value === currentWeight ? 'var(--accent-primary)' : 'white'};
-                                            border-radius: ${lineHeight/2}px;
-                                        "></div>
-                                    </div>
-                                    <div style="flex: 1; font-size: 13px; color: var(--text-primary);">
-                                        ${weight.label}
-                                    </div>
-                                    ${weight.value === currentWeight ? '<i class="fas fa-check" style="color: var(--accent-primary);"></i>' : ''}
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                    
-                    <!-- Display Options -->
-                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
-                        <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer;">
-                            <input type="checkbox" id="displayLineWeights" 
-                                   ${this.cad.linetypeManager.displayLineWeights ? 'checked' : ''}
-                                   onchange="window.cad.linetypeManager.displayLineWeights = this.checked; window.cad.render();">
-                            <span style="color: var(--text-secondary); font-size: 13px;">Display line weights in drawing</span>
-                        </label>
-                        
-                        <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 13px;">
-                            Display Scale:
-                        </label>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <input type="range" id="weightDisplayScale" 
-                                   min="0.5" max="3" step="0.1" 
-                                   value="${this.cad.linetypeManager.weightDisplayScale}"
-                                   oninput="window.cad.linetypeManager.weightDisplayScale = parseFloat(this.value); document.getElementById('weightScaleValue').textContent = this.value; window.cad.render();"
-                                   style="flex: 1;">
-                            <span id="weightScaleValue" style="min-width: 40px; text-align: right; font-family: monospace;">
-                                ${this.cad.linetypeManager.weightDisplayScale}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div class="dialog-buttons">
-                    <button class="btn btn-primary" onclick="this.closest('.layer-dialog').remove()">OK</button>
-                    <button class="btn" onclick="this.closest('.layer-dialog').remove()">Cancel</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(dialog);
-    }
 
     /**
      * تغيير لون الطبقة من Modal
