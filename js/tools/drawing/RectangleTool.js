@@ -75,7 +75,8 @@ export class RectangleTool extends DrawingToolBase {
         const shape = this.createShape({
             type: 'rectangle',
             start: start,
-            end: end
+            end: end,
+            filled: false  // إضافة قيمة افتراضية
         });
         
         this.cad.addShape(shape);

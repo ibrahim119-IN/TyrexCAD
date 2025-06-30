@@ -89,6 +89,7 @@ export class PolygonTool extends DrawingToolBase {
         if (this.cad.geometryAdvanced) {
             const polygon = this.cad.geometryAdvanced.createPolygon(center, radius, this.options.sides);
             const shape = this.createShape(polygon);
+            shape.filled = false;  // إضافة قيمة افتراضية
             this.cad.addShape(shape);
             this.updateStatus('Polygon created');
         } else {
@@ -107,7 +108,8 @@ export class PolygonTool extends DrawingToolBase {
             const shape = this.createShape({
                 type: 'polygon',
                 points: points,
-                closed: true
+                closed: true,
+                filled: false  // إضافة قيمة افتراضية
             });
             
             this.cad.addShape(shape);

@@ -994,6 +994,7 @@ class UITools {
             this.cad.smoothPolyline(iterations);
         }
     }
+    
 }
 
 // تصدير النظام

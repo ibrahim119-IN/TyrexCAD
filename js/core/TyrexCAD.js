@@ -1832,6 +1832,42 @@ class TyrexCAD {
         
         return null;
     }
+
+
+
+
+    /**
+ * الحصول على الشكل عند نقطة شاشة مع tolerance ثابت
+ * @param {number} screenX - إحداثي X على الشاشة
+ * @param {number} screenY - إحداثي Y على الشاشة
+ * @param {number} screenTolerance - التسامح بالبكسلات (افتراضي 10)
+ * @returns {Object|null} الشكل الموجود أو null
+ */
+getShapeAtScreen(screenX, screenY, screenTolerance = 10) {
+    // تحويل من إحداثيات الشاشة إلى العالم
+    const worldPoint = this.screenToWorld(screenX, screenY);
+    
+    // حساب tolerance في world coordinates بناءً على الزوم الحالي
+    const worldTolerance = screenTolerance / this.zoom;
+    
+    // البحث من الأعلى للأسفل (آخر شكل مرسوم يكون في الأعلى)
+    for (let i = this.shapes.length - 1; i >= 0; i--) {
+        const shape = this.shapes[i];
+        
+        // التحقق من الطبقة
+        const layer = this.getLayer(shape.layerId);
+        if (layer && (!layer.visible || layer.locked || layer.frozen)) {
+            continue;
+        }
+        
+        if (this.isPointInShape(worldPoint, shape, worldTolerance)) {
+            return shape;
+        }
+    }
+    return null;
+}
+
+
     
     /**
      * التحقق من وقوع نقطة على شكل
@@ -1893,6 +1929,123 @@ class TyrexCAD {
         return this.distance(px, py, projX, projY) < tolerance;
     }
     
+
+
+    /**
+ * التحقق من وقوع نقطة داخل شكل
+ */
+isPointInShape(point, shape, customTolerance = null) {
+    const tolerance = customTolerance !== null ? customTolerance : (5 / this.zoom);
+    
+    switch (shape.type) {
+        case 'line':
+            return this.isPointOnLine(point.x, point.y, shape.start, shape.end, tolerance);
+            
+        case 'rectangle':
+            // 🆕 إذا كان المستطيل مدور
+            if (shape.rotation && shape.rotation !== 0) {
+                const centerX = shape.center ? shape.center.x : (shape.start.x + shape.end.x) / 2;
+                const centerY = shape.center ? shape.center.y : (shape.start.y + shape.end.y) / 2;
+                const width = Math.abs(shape.end.x - shape.start.x);
+                const height = Math.abs(shape.end.y - shape.start.y);
+                
+                // تحويل النقطة إلى إحداثيات محلية (عكس الدوران)
+                const cos = Math.cos(-shape.rotation);
+                const sin = Math.sin(-shape.rotation);
+                const dx = point.x - centerX;
+                const dy = point.y - centerY;
+                const localX = dx * cos - dy * sin;
+                const localY = dx * sin + dy * cos;
+                
+                // التحقق من الحدود في الإحداثيات المحلية
+                const halfWidth = width / 2;
+                const halfHeight = height / 2;
+                
+                // Check if on border (with tolerance)
+                if (Math.abs(Math.abs(localX) - halfWidth) < tolerance && 
+                    Math.abs(localY) <= halfHeight + tolerance) {
+                    return true;
+                }
+                if (Math.abs(Math.abs(localY) - halfHeight) < tolerance && 
+                    Math.abs(localX) <= halfWidth + tolerance) {
+                    return true;
+                }
+                return false;
+            } else {
+                // المستطيل غير المدور (الكود الأصلي)
+                const minX = Math.min(shape.start.x, shape.end.x);
+                const minY = Math.min(shape.start.y, shape.end.y);
+                const maxX = Math.max(shape.start.x, shape.end.x);
+                const maxY = Math.max(shape.start.y, shape.end.y);
+                
+                // Check if on border
+                if (Math.abs(point.x - minX) < tolerance || Math.abs(point.x - maxX) < tolerance) {
+                    if (point.y >= minY - tolerance && point.y <= maxY + tolerance) return true;
+                }
+                if (Math.abs(point.y - minY) < tolerance || Math.abs(point.y - maxY) < tolerance) {
+                    if (point.x >= minX - tolerance && point.x <= maxX + tolerance) return true;
+                }
+                return false;
+            }
+
+            
+        case 'circle':
+            const dist = this.distance(point.x, point.y, shape.center.x, shape.center.y);
+            return Math.abs(dist - shape.radius) < tolerance;
+            
+        case 'arc':
+            const arcDist = this.distance(point.x, point.y, shape.center.x, shape.center.y);
+            if (Math.abs(arcDist - shape.radius) > tolerance) return false;
+            
+            // Check angle
+            let angle = Math.atan2(point.y - shape.center.y, point.x - shape.center.x);
+            if (angle < 0) angle += Math.PI * 2;
+            
+            let start = shape.startAngle;
+            let end = shape.endAngle;
+            if (start < 0) start += Math.PI * 2;
+            if (end < 0) end += Math.PI * 2;
+            
+            if (start > end) {
+                return angle >= start || angle <= end;
+            } else {
+                return angle >= start && angle <= end;
+            }
+            
+        case 'polyline':
+            for (let i = 0; i < shape.points.length - 1; i++) {
+                if (this.isPointOnLine(point.x, point.y, shape.points[i], shape.points[i + 1], tolerance)) {
+                    return true;
+                }
+            }
+            return false;
+            
+        case 'polygon':
+            // Check edges
+            for (let i = 0; i < shape.points.length; i++) {
+                const next = (i + 1) % shape.points.length;
+                if (this.isPointOnLine(point.x, point.y, shape.points[i], shape.points[next], tolerance)) {
+                    return true;
+                }
+            }
+            return false;
+            
+        case 'text':
+            // Approximate text bounds
+            const textWidth = (shape.text || '').length * (shape.fontSize || 12) * 0.6;
+            const textHeight = shape.fontSize || 12;
+            
+            return point.x >= shape.position.x - tolerance &&
+                   point.x <= shape.position.x + textWidth + tolerance &&
+                   point.y >= shape.position.y - textHeight - tolerance &&
+                   point.y <= shape.position.y + tolerance;
+            
+        default:
+            return false;
+    }
+}
+
+
     /**
      * التحقق من وقوع نقطة على مستطيل
      */
@@ -2661,7 +2814,6 @@ class TyrexCAD {
     }
     
     // Rendering - محدثة لدعم Grips والطبقات المتقدمة
-// Rendering - محدثة لدعم Grips والطبقات المتقدمة
 render() {
     if (this.mode === '3D') {
         this.render3D();
@@ -2758,8 +2910,12 @@ render() {
             this.ctx.restore();
             
             // رسم Grips للأشكال المحددة (فقط للطبقات غير المقفولة)
+            // 🔴 التعديل: إضافة فحص showSelectionGrips
+            const canShowGrips = this.currentTool === 'select' || 
+                (this.toolsManager?.activeTool?.showSelectionGrips === true);
+
             if (isSelected && !layer.locked && this.gripsController && 
-                this.gripsVisible && this.currentTool === 'select') {
+                this.gripsVisible && canShowGrips) {
                 this.gripsController.drawGrips(shape);
             }
         });
@@ -3278,7 +3434,8 @@ drawPolygon(ctx, shape) {
     
     ctx.closePath();
     
-    if (shape.filled !== false || shape.fillColor) {
+    //  التعديل هنا: تغيير الشرط من !== false إلى === true
+    if (shape.filled === true || shape.fillColor) {
         ctx.fillStyle = shape.fillColor || shape.color || this.currentColor;
         ctx.fill();
     }

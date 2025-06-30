@@ -358,6 +358,7 @@
         /**
          * إضافة vertex عند edge - محدث
          */
+            
         addVertexAtEdge(edgeGrip, clickPoint) {
             if (!edgeGrip) return;
             
@@ -381,6 +382,16 @@
                     break;
                     
                 case 'rectangle':
+                    // حفظ الخصائص المهمة قبل التحويل
+                    const preservedProps = {
+                        filled: shape.filled,
+                        fillColor: shape.fillColor,
+                        color: shape.color,
+                        lineWidth: shape.lineWidth,
+                        lineType: shape.lineType,
+                        layerId: shape.layerId
+                    };
+                    
                     // تحويل المستطيل إلى polygon
                     const corners = this.getRectangleCorners(shape);
                     const points = [...corners];
@@ -391,6 +402,11 @@
                     shape.type = 'polygon';
                     shape.points = points;
                     shape.closed = true;
+                    
+                    // استعادة الخصائص المحفوظة
+                    Object.assign(shape, preservedProps);
+                    
+                    // حذف الخصائص القديمة للمستطيل
                     delete shape.start;
                     delete shape.end;
                     delete shape.x;

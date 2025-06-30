@@ -152,10 +152,15 @@ export class BreakTool extends BaseTool {
     }
     
     /**
-     * البحث عن شكل في نقطة معينة
+     * البحث عن شكل باستخدام screen coordinates
      */
     findShapeAtPoint(point) {
-        // استخدم الدالة الموجودة في CAD أو اكتب دالة بديلة
+        // استخدام إحداثيات الشاشة الفعلية مع getShapeAtScreen
+        if (this.cad.getShapeAtScreen) {
+            return this.cad.getShapeAtScreen(this.cad.mouseX, this.cad.mouseY);
+        }
+        
+        // Fallback للدالة القديمة إذا لم تكن getShapeAtScreen متاحة
         if (this.cad.getShapeAt) {
             return this.cad.getShapeAt(point.x, point.y);
         }
