@@ -2058,11 +2058,11 @@ class UI {
      * تحديث المؤشر التقاطعي
      */
     updateCrosshair(x, y) {
-        const crosshair = this.elements.get('crosshair');
-        if (this.cad.mode === '2D') {
-            crosshair.style.display = 'block';
-            crosshair.style.left = x + 'px';
-            crosshair.style.top = y + 'px';
+    const crosshair = document.getElementById('crosshair');
+    if (crosshair) {
+        // تأكد أنها تستخدم الإحداثيات مباشرة بدون تحويل
+        crosshair.style.left = x + 'px';
+        crosshair.style.top = y + 'px';
         } else {
             crosshair.style.display = 'none';
         }
