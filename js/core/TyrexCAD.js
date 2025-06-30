@@ -103,6 +103,9 @@ class TyrexCAD {
         this.units = new UnitsSystem();
         this.currentUnit = 'mm'; // الوحدة الافتراضية
         
+        // إضافة device pixel ratio
+        this.devicePixelRatio = window.devicePixelRatio || 1;
+        
         // 3D Scene
         this.scene3D = null;
         this.camera3D = null;
@@ -326,14 +329,28 @@ class TyrexCAD {
         const container = document.getElementById('canvasContainer');
         const rect = container.getBoundingClientRect();
         
-        this.canvas.width = rect.width;
-        this.canvas.height = rect.height;
-        this.canvas3D.width = rect.width;
-        this.canvas3D.height = rect.height;
+        // دعم Device Pixel Ratio
+        const dpr = window.devicePixelRatio || 1;
+        this.devicePixelRatio = dpr;
+        
+        // الحجم الفعلي للـ canvas
+        this.canvas.width = rect.width * dpr;
+        this.canvas.height = rect.height * dpr;
+        this.canvas3D.width = rect.width * dpr;
+        this.canvas3D.height = rect.height * dpr;
+        
+        // حجم CSS
+        this.canvas.style.width = rect.width + 'px';
+        this.canvas.style.height = rect.height + 'px';
+        this.canvas3D.style.width = rect.width + 'px';
+        this.canvas3D.style.height = rect.height + 'px';
+        
+        // تطبيق scale للـ context
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         
         // Center the view
-        this.panX = this.canvas.width / 2;
-        this.panY = this.canvas.height / 2;
+        this.panX = rect.width / 2;
+        this.panY = rect.height / 2;
         
         if (this.renderer3D) {
             this.renderer3D.setSize(rect.width, rect.height);
@@ -565,156 +582,162 @@ class TyrexCAD {
     
     // Coordinate transformations
     screenToWorld(x, y) {
-    // إزالة التقريب لتحسين الدقة
-    const worldX = (x - this.panX) / this.zoom;
-    const worldY = (y - this.panY) / this.zoom;
-    
-    return {
-        x: worldX,
-        y: worldY
-    };
-}
+        const worldX = (x - this.panX) / this.zoom;
+        const worldY = (y - this.panY) / this.zoom;
+        
+        return {
+            x: worldX,
+            y: worldY
+        };
+    }
     
     worldToScreen(x, y) {
-    // إزالة التقريب لتحسين الدقة
-    const screenX = x * this.zoom + this.panX;
-    const screenY = y * this.zoom + this.panY;
-    
-    return {
-        x: screenX,
-        y: screenY
-    };
-}
+        const screenX = x * this.zoom + this.panX;
+        const screenY = y * this.zoom + this.panY;
+        
+        return {
+            x: screenX,
+            y: screenY
+        };
+    }
     
     onMouseDown(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    // حدث إحداثيات الماوس فوراً
-    this.mouseX = x;
-    this.mouseY = y;
-    
-    this.mouseDown = true;
-    
-    if (e.button === 0) { // Left click
-        if (this.currentTool === 'pan') {
+        const rect = this.canvas.getBoundingClientRect();
+        const dpr = this.devicePixelRatio || 1;
+        
+        // حساب دقيق للإحداثيات
+        const x = ((e.clientX - rect.left) * this.canvas.width) / (rect.width * dpr);
+        const y = ((e.clientY - rect.top) * this.canvas.height) / (rect.height * dpr);
+        
+        // حدث إحداثيات الماوس فوراً
+        this.mouseX = x;
+        this.mouseY = y;
+        
+        this.mouseDown = true;
+        
+        if (e.button === 0) { // Left click
+            if (this.currentTool === 'pan') {
+                this.startPanning(x, y);
+            } else if (this.currentTool === 'select') {
+                // في أداة select - السلوك الجديد
+                if (e.shiftKey && !this.isSelecting) {
+                    this.startPanning(x, y);
+                } else {
+                    // استخدم الإحداثيات المحدثة
+                    const coords = this.getMouseCoordinates(e);
+                    this.handleSelection(coords.screenX, coords.screenY, e.ctrlKey, coords.world);
+                }
+            } else {
+                // في الأدوات الأخرى
+                if (e.shiftKey) {
+                    this.startPanning(x, y);
+                } else {
+                    this.handleDrawing(x, y);
+                }
+            }
+        } else if (e.button === 1) { // Middle click
             this.startPanning(x, y);
-        } else if (this.currentTool === 'select') {
-            // في أداة select - السلوك الجديد
-            if (e.shiftKey && !this.isSelecting) {
-                this.startPanning(x, y);
-            } else {
-                // استخدم الإحداثيات المحدثة
-                const coords = this.getMouseCoordinates(e);
-                this.handleSelection(coords.screenX, coords.screenY, e.ctrlKey, coords.world);
+        } else if (e.button === 2) { // Right click
+            if (this.isDrawing && this.currentTool === 'polyline') {
+                this.delegateToTool('finishPolyline');
+            } else if (this.isSelecting) {
+                // إلغاء selection box بالنقر الأيمن
+                this.cancelSelection();
             }
-        } else {
-            // في الأدوات الأخرى
-            if (e.shiftKey) {
-                this.startPanning(x, y);
-            } else {
-                this.handleDrawing(x, y);
-            }
-        }
-    } else if (e.button === 1) { // Middle click
-        this.startPanning(x, y);
-    } else if (e.button === 2) { // Right click
-        if (this.isDrawing && this.currentTool === 'polyline') {
-            this.delegateToTool('finishPolyline');
-        } else if (this.isSelecting) {
-            // إلغاء selection box بالنقر الأيمن
-            this.cancelSelection();
         }
     }
-}
     
     onMouseMove(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    this.mouseX = e.clientX - rect.left;
-    this.mouseY = e.clientY - rect.top;
-    
-    const world = this.screenToWorld(this.mouseX, this.mouseY);
-    this.worldX = world.x;
-    this.worldY = world.y;
-    
-    // حفظ موقع الماوس للـ GripsController
-    if (this.gripsController) {
-        this.gripsController.lastMouseScreen = { x: this.mouseX, y: this.mouseY };
-        this.gripsController.lastMouseWorld = world;
-    }
-    
-    // Update coordinates display
-    this.ui.updateCoordinates(this.worldX, this.worldY, 0);
-    
-    // Update crosshair only in 2D mode
-    if (this.mode === '2D') {
-        this.ui.updateCrosshair(this.mouseX, this.mouseY);
-    }
-    
-    // معالجة Grips في وضع التحديد - محدث
-    if (this.currentTool === 'select' && this.gripsController && !this.isSelecting && !this.isPanning) {
-        if (this.gripsController.draggedGrip) {
-            // تحديث السحب
-            this.gripsController.updateDrag(world);
-        } else if (this.selectedShapes.size > 0) {
-            // تحديث hover - تمرير world point
-            this.gripsController.updateHover(world, this.selectedShapes);
-            
-            // تحديث المؤشر بناءً على الحالة
-            if (this.gripsController.hoveredGrip) {
-                this.canvas.style.cursor = 'move';
+        const rect = this.canvas.getBoundingClientRect();
+        const dpr = this.devicePixelRatio || 1;
+        
+        // حساب دقيق للإحداثيات
+        this.mouseX = ((e.clientX - rect.left) * this.canvas.width) / (rect.width * dpr);
+        this.mouseY = ((e.clientY - rect.top) * this.canvas.height) / (rect.height * dpr);
+        
+        const world = this.screenToWorld(this.mouseX, this.mouseY);
+        this.worldX = world.x;
+        this.worldY = world.y;
+        
+        // حفظ موقع الماوس للـ GripsController
+        if (this.gripsController) {
+            this.gripsController.lastMouseScreen = { x: this.mouseX, y: this.mouseY };
+            this.gripsController.lastMouseWorld = world;
+        }
+        
+        // Update coordinates display
+        this.ui.updateCoordinates(this.worldX, this.worldY, 0);
+        
+        // Update crosshair only in 2D mode
+        if (this.mode === '2D') {
+            this.ui.updateCrosshair(this.mouseX, this.mouseY);
+        }
+        
+        // معالجة Grips في وضع التحديد - محدث
+        if (this.currentTool === 'select' && this.gripsController && !this.isSelecting && !this.isPanning) {
+            if (this.gripsController.draggedGrip) {
+                // تحديث السحب
+                this.gripsController.updateDrag(world);
+            } else if (this.selectedShapes.size > 0) {
+                // تحديث hover - تمرير world point
+                this.gripsController.updateHover(world, this.selectedShapes);
+                
+                // تحديث المؤشر بناءً على الحالة
+                if (this.gripsController.hoveredGrip) {
+                    this.canvas.style.cursor = 'move';
+                } else {
+                    // لا يوجد grip - تحقق من الشكل
+                    const shape = this.getShapeAt(world.x, world.y);
+                    this.canvas.style.cursor = shape ? 'pointer' : 'default';
+                }
             } else {
-                // لا يوجد grip - تحقق من الشكل
+                // لا توجد أشكال محددة - عرض pointer للأشكال
                 const shape = this.getShapeAt(world.x, world.y);
                 this.canvas.style.cursor = shape ? 'pointer' : 'default';
             }
-        } else {
-            // لا توجد أشكال محددة - عرض pointer للأشكال
-            const shape = this.getShapeAt(world.x, world.y);
-            this.canvas.style.cursor = shape ? 'pointer' : 'default';
         }
-    }
-    
-    // باقي معالجة الأحداث...
-    if (this.isPanning) {
-        this.updatePanning();
-    } else if (this.isSelecting) {
-        // تحديث selection box
-        this.updateSelection();
-    } else if (this.toolsManager && this.toolsManager.activeTool) {
-        // دع ToolsManager يتعامل مع حركة الماوس
-        const snapPoint = this.getSnapPoint(world.x, world.y);
-        this.toolsManager.handleMouseMove(snapPoint);
-    }
-    
-    // تتبع الشكل تحت الماوس (للـ hover effect)
-    if (this.currentTool === 'select' && !this.isSelecting && !this.isPanning && !this.gripsController?.draggedGrip) {
-        const newHoveredShape = this.getShapeAt(world.x, world.y);
-        if (newHoveredShape !== this.hoveredShape) {
-            this.hoveredShape = newHoveredShape;
-            this.render();
+        
+        // باقي معالجة الأحداث...
+        if (this.isPanning) {
+            this.updatePanning();
+        } else if (this.isSelecting) {
+            // تحديث selection box
+            this.updateSelection();
+        } else if (this.toolsManager && this.toolsManager.activeTool) {
+            // دع ToolsManager يتعامل مع حركة الماوس
+            const snapPoint = this.getSnapPoint(world.x, world.y);
+            this.toolsManager.handleMouseMove(snapPoint);
         }
-    }
-    
-    // Update snap indicator
-    if (this.snapEnabled && this.mode === '2D') {
-        const snapPoint = this.getSnapPoint(world.x, world.y);
-        if (snapPoint.type) {
-            const screen = this.worldToScreen(snapPoint.x, snapPoint.y);
-            this.ui.updateSnapIndicator(snapPoint, screen);
-        } else {
-            this.ui.updateSnapIndicator(null, null);
+        
+        // تتبع الشكل تحت الماوس (للـ hover effect)
+        if (this.currentTool === 'select' && !this.isSelecting && !this.isPanning && !this.gripsController?.draggedGrip) {
+            const newHoveredShape = this.getShapeAt(world.x, world.y);
+            if (newHoveredShape !== this.hoveredShape) {
+                this.hoveredShape = newHoveredShape;
+                this.render();
+            }
         }
+        
+        // Update snap indicator
+        if (this.snapEnabled && this.mode === '2D') {
+            const snapPoint = this.getSnapPoint(world.x, world.y);
+            if (snapPoint.type) {
+                const screen = this.worldToScreen(snapPoint.x, snapPoint.y);
+                this.ui.updateSnapIndicator(snapPoint, screen);
+            } else {
+                this.ui.updateSnapIndicator(null, null);
+            }
+        }
+        
+        this.render();
     }
-    
-    this.render();
-}
     
     onMouseUp(e) {
         const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const dpr = this.devicePixelRatio || 1;
+        
+        const x = ((e.clientX - rect.left) * this.canvas.width) / (rect.width * dpr);
+        const y = ((e.clientY - rect.top) * this.canvas.height) / (rect.height * dpr);
         const world = this.screenToWorld(x, y);
         
         // إنهاء سحب Grip إذا كان موجوداً
@@ -1843,14 +1866,14 @@ getShapeAtScreen(screenX, screenY, screenTolerance = 10) {
     // تحويل من إحداثيات الشاشة إلى العالم
     const worldPoint = this.screenToWorld(screenX, screenY);
     
-    // حساب tolerance في world coordinates بناءً على الزوم الحالي
-    const worldTolerance = screenTolerance / this.zoom;
+    // حساب tolerance مع مراعاة DPR والزووم
+    const dpr = this.devicePixelRatio || 1;
+    const worldTolerance = (screenTolerance / dpr) / this.zoom;
     
-    // البحث من الأعلى للأسفل (آخر شكل مرسوم يكون في الأعلى)
+    // البحث من الأعلى للأسفل
     for (let i = this.shapes.length - 1; i >= 0; i--) {
         const shape = this.shapes[i];
         
-        // التحقق من الطبقة
         const layer = this.getLayer(shape.layerId);
         if (layer && (!layer.visible || layer.locked || layer.frozen)) {
             continue;
@@ -1873,21 +1896,20 @@ getMouseCoordinates(event = null) {
     let screenX, screenY;
     
     if (event) {
-        // استخدم الإحداثيات من الحدث مباشرة
         const rect = this.canvas.getBoundingClientRect();
-        screenX = event.clientX - rect.left;
-        screenY = event.clientY - rect.top;
+        const dpr = this.devicePixelRatio || 1;
         
-        // حدث القيم المحفوظة أيضاً
+        // حساب دقيق مع مراعاة DPR
+        screenX = ((event.clientX - rect.left) * this.canvas.width) / (rect.width * dpr);
+        screenY = ((event.clientY - rect.top) * this.canvas.height) / (rect.height * dpr);
+        
         this.mouseX = screenX;
         this.mouseY = screenY;
     } else {
-        // استخدم القيم المحفوظة
         screenX = this.mouseX || 0;
         screenY = this.mouseY || 0;
     }
     
-    // تحويل دقيق للعالم
     const world = this.screenToWorld(screenX, screenY);
     
     return {
@@ -2849,7 +2871,7 @@ render() {
     if (this.mode === '3D') {
         this.render3D();
         return;
-    }
+        }
     
     // Clear canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -2857,7 +2879,11 @@ render() {
     // Save context state
     this.ctx.save();
     
-    // Apply transformations
+    // Apply DPR and transformations
+    const dpr = this.devicePixelRatio || 1;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    
+    // Apply view transformations
     this.ctx.translate(this.panX, this.panY);
     this.ctx.scale(this.zoom, this.zoom);
     
@@ -3230,13 +3256,13 @@ drawShape(ctx, shape) {
             // Fallback للنظام القديم
             switch (shape.lineType) {
                 case 'dashed':
-                    ctx.setLineDash([10 * this.zoom, 5 * this.zoom]);
+                    ctx.setLineDash([10 / this.zoom, 5 / this.zoom]);
                     break;
                 case 'dotted':
-                    ctx.setLineDash([2 * this.zoom, 3 * this.zoom]);
+                    ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
                     break;
                 case 'dashdot':
-                    ctx.setLineDash([10 * this.zoom, 5 * this.zoom, 2 * this.zoom, 5 * this.zoom]);
+                    ctx.setLineDash([10 / this.zoom, 5 / this.zoom, 2 / this.zoom, 5 / this.zoom]);
                     break;
                 default:
                     ctx.setLineDash([]);
@@ -3245,14 +3271,12 @@ drawShape(ctx, shape) {
         
         // تطبيق وزن الخط (Line Weight)
         if (this.linetypeManager && this.linetypeManager.displayLineWeights) {
-            // استخدام نظام أوزان الخطوط
             const lineWeight = shape.lineWeight !== undefined ? shape.lineWeight : this.currentLineWeight;
             const actualWeight = this.linetypeManager.getActualLineWeight(lineWeight);
-            ctx.lineWidth = actualWeight * this.zoom * this.linetypeManager.weightDisplayScale;
+            ctx.lineWidth = (actualWeight * this.linetypeManager.weightDisplayScale) / this.zoom;
         } else {
-            // النظام القديم أو عند إيقاف عرض الأوزان
             const width = shape.lineWidth || shape.lineWeight || this.currentLineWidth || 2;
-            ctx.lineWidth = width * this.zoom;
+            ctx.lineWidth = width / this.zoom;
         }
         
         // إعدادات إضافية للرسم
@@ -3477,7 +3501,7 @@ drawPolygon(ctx, shape) {
 drawText(ctx, shape) {
     const position = shape.position || shape.point;
     const text = shape.text || '';
-    const fontSize = (shape.fontSize || 14) * this.zoom;
+    const fontSize = (shape.fontSize || 14); // لا نضرب في الزووم للنص
     const fontFamily = shape.fontFamily || 'Arial';
     const align = shape.align || 'left';
     const baseline = shape.baseline || 'alphabetic';
@@ -3504,7 +3528,7 @@ drawText(ctx, shape) {
         if (shape.background) {
             // رسم خلفية للنص
             const metrics = ctx.measureText(line);
-            const padding = 4 * this.zoom;
+            const padding = 4 / this.zoom;
             
             ctx.save();
             ctx.fillStyle = shape.background;
@@ -3522,8 +3546,8 @@ drawText(ctx, shape) {
         if (shape.underline) {
             const metrics = ctx.measureText(line);
             ctx.beginPath();
-            ctx.moveTo(position.x, y + 2 * this.zoom);
-            ctx.lineTo(position.x + metrics.width, y + 2 * this.zoom);
+            ctx.moveTo(position.x, y + 2 / this.zoom);
+            ctx.lineTo(position.x + metrics.width, y + 2 / this.zoom);
             ctx.stroke();
         }
     });
@@ -3603,14 +3627,14 @@ drawHatch(ctx, shape) {
     
     // رسم خطوط التظليل
     const pattern = shape.pattern || 'horizontal';
-    const spacing = (shape.spacing || 5) * this.zoom;
+    const spacing = (shape.spacing || 5) / this.zoom;
     const angle = shape.angle || 0;
     
     // حساب حدود المنطقة
     const bounds = this.getBounds(shape.boundary);
     
     ctx.strokeStyle = shape.color || this.currentColor;
-    ctx.lineWidth = this.zoom;
+    ctx.lineWidth = 1 / this.zoom;
     
     // رسم الخطوط حسب النمط
     this.drawHatchPattern(ctx, pattern, bounds, spacing, angle);
@@ -4891,120 +4915,6 @@ setLineType(type) {
             }
         }
         return null;
-    }
-    
-    /**
-     * التحقق من وقوع نقطة داخل شكل
-     */
-    isPointInShape(point, shape) {
-        const tolerance = 5 / this.zoom; // 5 pixels tolerance
-        
-        switch (shape.type) {
-            case 'line':
-                return this.isPointOnLine(point.x, point.y, shape.start, shape.end, tolerance);
-                
-           case 'rectangle':
-            // 🆕 إذا كان المستطيل مدور
-            if (shape.rotation && shape.rotation !== 0) {
-                const centerX = shape.center ? shape.center.x : (shape.start.x + shape.end.x) / 2;
-                const centerY = shape.center ? shape.center.y : (shape.start.y + shape.end.y) / 2;
-                const width = Math.abs(shape.end.x - shape.start.x);
-                const height = Math.abs(shape.end.y - shape.start.y);
-                
-                // تحويل النقطة إلى إحداثيات محلية (عكس الدوران)
-                const cos = Math.cos(-shape.rotation);
-                const sin = Math.sin(-shape.rotation);
-                const dx = point.x - centerX;
-                const dy = point.y - centerY;
-                const localX = dx * cos - dy * sin;
-                const localY = dx * sin + dy * cos;
-                
-                // التحقق من الحدود في الإحداثيات المحلية
-                const halfWidth = width / 2;
-                const halfHeight = height / 2;
-                
-                // Check if on border (with tolerance)
-                if (Math.abs(Math.abs(localX) - halfWidth) < tolerance && 
-                    Math.abs(localY) <= halfHeight + tolerance) {
-                    return true;
-                }
-                if (Math.abs(Math.abs(localY) - halfHeight) < tolerance && 
-                    Math.abs(localX) <= halfWidth + tolerance) {
-                    return true;
-                }
-                return false;
-            } else {
-                // المستطيل غير المدور (الكود الأصلي)
-                const minX = Math.min(shape.start.x, shape.end.x);
-                const minY = Math.min(shape.start.y, shape.end.y);
-                const maxX = Math.max(shape.start.x, shape.end.x);
-                const maxY = Math.max(shape.start.y, shape.end.y);
-                
-                // Check if on border
-                if (Math.abs(point.x - minX) < tolerance || Math.abs(point.x - maxX) < tolerance) {
-                    if (point.y >= minY - tolerance && point.y <= maxY + tolerance) return true;
-                }
-                if (Math.abs(point.y - minY) < tolerance || Math.abs(point.y - maxY) < tolerance) {
-                    if (point.x >= minX - tolerance && point.x <= maxX + tolerance) return true;
-                }
-                return false;
-            }
-
-                
-            case 'circle':
-                const dist = this.distance(point.x, point.y, shape.center.x, shape.center.y);
-                return Math.abs(dist - shape.radius) < tolerance;
-                
-            case 'arc':
-                const arcDist = this.distance(point.x, point.y, shape.center.x, shape.center.y);
-                if (Math.abs(arcDist - shape.radius) > tolerance) return false;
-                
-                // Check angle
-                let angle = Math.atan2(point.y - shape.center.y, point.x - shape.center.x);
-                if (angle < 0) angle += Math.PI * 2;
-                
-                let start = shape.startAngle;
-                let end = shape.endAngle;
-                if (start < 0) start += Math.PI * 2;
-                if (end < 0) end += Math.PI * 2;
-                
-                if (start > end) {
-                    return angle >= start || angle <= end;
-                } else {
-                    return angle >= start && angle <= end;
-                }
-                
-            case 'polyline':
-                for (let i = 0; i < shape.points.length - 1; i++) {
-                    if (this.isPointOnLine(point.x, point.y, shape.points[i], shape.points[i + 1], tolerance)) {
-                        return true;
-                    }
-                }
-                return false;
-                
-            case 'polygon':
-                // Check edges
-                for (let i = 0; i < shape.points.length; i++) {
-                    const next = (i + 1) % shape.points.length;
-                    if (this.isPointOnLine(point.x, point.y, shape.points[i], shape.points[next], tolerance)) {
-                        return true;
-                    }
-                }
-                return false;
-                
-            case 'text':
-                // Approximate text bounds
-                const textWidth = (shape.text || '').length * (shape.fontSize || 12) * 0.6;
-                const textHeight = shape.fontSize || 12;
-                
-                return point.x >= shape.position.x - tolerance &&
-                       point.x <= shape.position.x + textWidth + tolerance &&
-                       point.y >= shape.position.y - textHeight - tolerance &&
-                       point.y <= shape.position.y + tolerance;
-                
-            default:
-                return false;
-        }
     }
     
     saveLayerState(stateName) {
