@@ -29,8 +29,7 @@
             this.precisionMode = false;
             
             // تتبع موقع الماوس في screen coordinates
-            // إضافة خاصية dragOffset لحفظ الفرق بين موقع الماوس والنقطة
-            this.dragOffset = { x: 0, y: 0 };
+            // تم إزالة dragOffset - لم نعد نحتاجه
             this.lastMouseScreen = { x: 0, y: 0 };
             this.lastMouseWorld = { x: 0, y: 0 };
             
@@ -200,19 +199,15 @@
         }
         
         /**
-         * بدء سحب grip - محسن
+         * بدء سحب grip - محسن (بدون dragOffset)
          */
         startDrag(grip, worldPoint) {
             this.draggedGrip = grip;
             
-            // حفظ الموقع الأصلي للنقطة (وليس موقع الماوس)
+            // حفظ الموقع الأصلي للنقطة
             this.originalPosition = { ...grip.point };
             
-            // حفظ الفرق بين موقع النقطة وموقع الماوس
-            this.dragOffset = {
-                x: grip.point.x - worldPoint.x,
-                y: grip.point.y - worldPoint.y
-            };
+            // تم إزالة dragOffset - لم نعد نحتاجه
             
             // تسجيل الحالة للـ undo
             this.cad.recordState();
@@ -237,20 +232,14 @@
         }
         
         /**
-         * تحديث موقع أثناء السحب - محسن مع استخدام dragOffset
-         * هذا هو الإصلاح الأساسي للمشكلة
+         * تحديث موقع أثناء السحب - محسن (بدون dragOffset)
+         * الإصلاح الأساسي: استخدام موقع الماوس مباشرة
          */
         updateDrag(worldPoint) {
             if (!this.draggedGrip) return;
             
-            // الإصلاح المهم: تطبيق dragOffset على موقع الماوس
-            const adjustedPoint = {
-                x: worldPoint.x + this.dragOffset.x,
-                y: worldPoint.y + this.dragOffset.y
-            };
-            
-            // تطبيق Snap على الموقع المُعدل
-            const snappedPoint = this.getSnappedPosition(adjustedPoint);
+            // استخدام worldPoint مباشرة بدون تعديل
+            const snappedPoint = this.getSnappedPosition(worldPoint);
             
             // تطبيق القيود مع Shift
             let constrainedPoint = this.applyConstraints(snappedPoint);
@@ -261,7 +250,7 @@
                 if (this.gripMode === 'stretch') {
                     this.previewEdgeStretch(this.draggedGrip, constrainedPoint);
                 } else {
-                    // استخدام النقطة المُعدلة للمعاينة أيضاً
+                    // استخدام النقطة مباشرة للمعاينة
                     this.previewNewVertex(this.draggedGrip, constrainedPoint);
                 }
             }
@@ -288,7 +277,7 @@
                         type: 'polyline',
                         points: [
                             edgeGrip.start,
-                            mousePoint,  // استخدم موقع الماوس المُعدل
+                            mousePoint,  // استخدم موقع الماوس مباشرة
                             edgeGrip.end
                         ],
                         color: shape.color,
@@ -356,75 +345,74 @@
         }
         
         /**
-         * إضافة vertex عند edge - محدث
+         * إضافة vertex عند edge - محدث (بدون dragOffset)
          */
-            
         addVertexAtEdge(edgeGrip, clickPoint) {
-    if (!edgeGrip) return;
-    
-    const shape = edgeGrip.shape;
-    this.cad.recordState();
-    
-    // استخدم النقطة المنقرة مباشرة بدلاً من نقطة منتصف الـ edge
-    const newPoint = this.getSnappedPosition(clickPoint);
-    
-    switch (shape.type) {
-        case 'line':
-            // تحويل الخط إلى polyline
-            shape.type = 'polyline';
-            shape.points = [
-                shape.start,
-                newPoint,
-                shape.end
-            ];
-            delete shape.start;
-            delete shape.end;
-            break;
+            if (!edgeGrip) return;
             
-        case 'rectangle':
-            // حفظ الخصائص المهمة قبل التحويل
-            const preservedProps = {
-                filled: shape.filled,
-                fillColor: shape.fillColor,
-                color: shape.color,
-                lineWidth: shape.lineWidth,
-                lineType: shape.lineType,
-                layerId: shape.layerId
-            };
+            const shape = edgeGrip.shape;
+            this.cad.recordState();
             
-            // تحويل المستطيل إلى polygon
-            const corners = this.getRectangleCorners(shape);
-            const points = [...corners];
+            // استخدم النقطة المنقرة مباشرة
+            const newPoint = this.getSnappedPosition(clickPoint);
             
-            // إدراج النقطة في الموقع الصحيح
-            points.splice(edgeGrip.endIndex, 0, newPoint);
+            switch (shape.type) {
+                case 'line':
+                    // تحويل الخط إلى polyline
+                    shape.type = 'polyline';
+                    shape.points = [
+                        shape.start,
+                        newPoint,
+                        shape.end
+                    ];
+                    delete shape.start;
+                    delete shape.end;
+                    break;
+                    
+                case 'rectangle':
+                    // حفظ الخصائص المهمة قبل التحويل
+                    const preservedProps = {
+                        filled: shape.filled,
+                        fillColor: shape.fillColor,
+                        color: shape.color,
+                        lineWidth: shape.lineWidth,
+                        lineType: shape.lineType,
+                        layerId: shape.layerId
+                    };
+                    
+                    // تحويل المستطيل إلى polygon
+                    const corners = this.getRectangleCorners(shape);
+                    const points = [...corners];
+                    
+                    // إدراج النقطة في الموقع الصحيح
+                    points.splice(edgeGrip.endIndex, 0, newPoint);
+                    
+                    shape.type = 'polygon';
+                    shape.points = points;
+                    shape.closed = true;
+                    
+                    // استعادة الخصائص المحفوظة
+                    Object.assign(shape, preservedProps);
+                    
+                    // حذف الخصائص القديمة للمستطيل
+                    delete shape.start;
+                    delete shape.end;
+                    delete shape.x;
+                    delete shape.y;
+                    delete shape.width;
+                    delete shape.height;
+                    break;
+                    
+                case 'polyline':
+                case 'polygon':
+                    // إدراج النقطة في المكان الصحيح
+                    shape.points.splice(edgeGrip.endIndex, 0, newPoint);
+                    break;
+            }
             
-            shape.type = 'polygon';
-            shape.points = points;
-            shape.closed = true;
-            
-            // استعادة الخصائص المحفوظة
-            Object.assign(shape, preservedProps);
-            
-            // حذف الخصائص القديمة للمستطيل
-            delete shape.start;
-            delete shape.end;
-            delete shape.x;
-            delete shape.y;
-            delete shape.width;
-            delete shape.height;
-            break;
-            
-        case 'polyline':
-        case 'polygon':
-            // إدراج النقطة في المكان الصحيح
-            shape.points.splice(edgeGrip.endIndex, 0, newPoint);
-            break;
-    }
-    
-    this.cad.updateStatus('Vertex added');
-    this.cad.render();
-}
+            this.cad.updateStatus('Vertex added');
+            this.cad.render();
+        }
         
         /**
          * تطبيق القيود على الحركة
@@ -468,7 +456,7 @@
         }
         
         /**
-         * إنهاء السحب
+         * إنهاء السحب - محسن (بدون dragOffset)
          */
         endDrag(point) {
             if (!this.draggedGrip) return;
@@ -478,19 +466,13 @@
                     // تطبيق stretch
                     this.applyEdgeStretch(this.draggedGrip, point);
                 } else {
-                    // إضافة vertex جديد في موقع السحب
-                    // تطبيق dragOffset هنا أيضاً
-                    const adjustedPoint = {
-                        x: point.x + this.dragOffset.x,
-                        y: point.y + this.dragOffset.y
-                    };
-                    this.addVertexAtEdge(this.draggedGrip, adjustedPoint);
+                    // إضافة vertex جديد في موقع النقر مباشرة
+                    this.addVertexAtEdge(this.draggedGrip, point);
                 }
             }
             
             this.draggedGrip = null;
             this.originalPosition = null;
-            this.dragOffset = { x: 0, y: 0 };
             this.cad.tempShape = null;
             this.gripMode = 'vertex';
             this.cad.updateStatus('READY');

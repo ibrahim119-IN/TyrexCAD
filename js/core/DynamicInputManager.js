@@ -531,18 +531,93 @@ class DynamicInputManager {
         this.container.style.borderColor = '#00d4aa';
     }
     
-    destroy() {
-        document.removeEventListener('mousemove', this.mouseHandler);
-        document.removeEventListener('mousedown', this.clickHandler);
-        
-        if (this.globalKeyHandler) {
-            document.removeEventListener('keydown', this.globalKeyHandler, true);
-        }
-        
-        if (this.container && this.container.parentNode) {
-            this.container.remove();
-        }
+    // دالة التنظيف الشاملة
+destroy() {
+    // إيقاف render loop
+    if (this.animationId) {
+        cancelAnimationFrame(this.animationId);
+        this.animationId = null;
     }
+    
+    // تنظيف Event Listeners
+    if (this._resizeHandler) {
+        window.removeEventListener('resize', this._resizeHandler);
+    }
+    
+    if (this.canvas) {
+        this.canvas.removeEventListener('mousedown', this._mouseDownHandler);
+        this.canvas.removeEventListener('mousemove', this._mouseMoveHandler);
+        this.canvas.removeEventListener('mouseup', this._mouseUpHandler);
+        this.canvas.removeEventListener('wheel', this._wheelHandler);
+        this.canvas.removeEventListener('contextmenu', this._contextMenuHandler);
+        this.canvas.removeEventListener('mouseleave', this._mouseLeaveHandler);
+        this.canvas.removeEventListener('dblclick', this._dblClickHandler);
+    }
+    
+    document.removeEventListener('keydown', this._keyDownHandler);
+    document.removeEventListener('keyup', this._keyUpHandler);
+    
+    // تنظيف المكونات
+    if (this.dynamicInputManager) {
+        this.dynamicInputManager.destroy();
+        this.dynamicInputManager = null;
+    }
+    
+    if (this.gripsController) {
+        this.gripsController.destroy?.();
+        this.gripsController = null;
+    }
+    
+    if (this.layerManager) {
+        this.layerManager.destroy?.();
+        this.layerManager = null;
+    }
+    
+    if (this.linetypeManager) {
+        this.linetypeManager.destroy?.();
+        this.linetypeManager = null;
+    }
+    
+    if (this.toolsManager) {
+        this.toolsManager.destroy?.();
+        this.toolsManager = null;
+    }
+    
+    if (this.ui) {
+        this.ui.destroy?.();
+        this.ui = null;
+    }
+    
+    // تنظيف Three.js
+    if (this.renderer3D) {
+        this.renderer3D.dispose();
+        this.renderer3D = null;
+    }
+    
+    if (this.scene3D) {
+        // تنظيف كل الكائنات في المشهد
+        this.scene3D.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+                if (Array.isArray(child.material)) {
+                    child.material.forEach(material => material.dispose());
+                } else {
+                    child.material.dispose();
+                }
+            }
+        });
+        this.scene3D = null;
+    }
+    
+    // مسح المراجع
+    this.shapes = [];
+    this.selectedShapes.clear();
+    this.previewShapes.clear();
+    this.history = [];
+    this.redoStack = [];
+    
+    console.log('✅ TyrexCAD destroyed successfully');
+}
 }
 
 // تصدير

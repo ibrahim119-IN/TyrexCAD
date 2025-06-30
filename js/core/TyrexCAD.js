@@ -210,19 +210,16 @@ class TyrexCAD {
             // Initialize UI
             this.ui.init();
 
-            // تهيئة نظام الإدخال الديناميكي
+              // تهيئة نظام الإدخال الديناميكي
         if (window.DynamicInputManager) {
-    this.dynamicInputManager = new DynamicInputManager(this);
-    console.log('✅ Dynamic Input Manager initialized');
-}
+            this.dynamicInputManager = new DynamicInputManager(this);
+            console.log('✅ Dynamic Input Manager initialized');
+        }
 
         // إنشاء Command Prompt
         this.createCommandPrompt();
 
-        // 4. في دالة destroy() أو cleanup أضف:
-        if (this.dynamicInputManager) {
-            this.dynamicInputManager.destroy();
-        }
+      
             
 
         
@@ -326,102 +323,102 @@ class TyrexCAD {
     }
     
     resizeCanvas() {
-        const container = document.getElementById('canvasContainer');
-        const rect = container.getBoundingClientRect();
-        
-        // دعم Device Pixel Ratio
-        const dpr = window.devicePixelRatio || 1;
-        this.devicePixelRatio = dpr;
-        
-        // الحجم الفعلي للـ canvas
-        this.canvas.width = rect.width * dpr;
-        this.canvas.height = rect.height * dpr;
-        this.canvas3D.width = rect.width * dpr;
-        this.canvas3D.height = rect.height * dpr;
-        
-        // حجم CSS
-        this.canvas.style.width = rect.width + 'px';
-        this.canvas.style.height = rect.height + 'px';
-        this.canvas3D.style.width = rect.width + 'px';
-        this.canvas3D.style.height = rect.height + 'px';
-        
-        // تطبيق scale للـ context
-        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        
-        // Center the view
-        this.panX = rect.width / 2;
-        this.panY = rect.height / 2;
-        
-        if (this.renderer3D) {
-            this.renderer3D.setSize(rect.width, rect.height);
-            this.camera3D.aspect = rect.width / rect.height;
-            this.camera3D.updateProjectionMatrix();
-        }
-        
-        this.render();
+    const container = document.getElementById('canvasContainer');
+    if (!container) return;
+    
+    const rect = container.getBoundingClientRect();
+    
+    // دعم Device Pixel Ratio
+    const dpr = window.devicePixelRatio || 1;
+    this.devicePixelRatio = dpr;
+    
+    // الحجم الفعلي للـ canvas
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.canvas3D.width = rect.width * dpr;
+    this.canvas3D.height = rect.height * dpr;
+    
+    // حجم CSS
+    this.canvas.style.width = rect.width + 'px';
+    this.canvas.style.height = rect.height + 'px';
+    this.canvas3D.style.width = rect.width + 'px';
+    this.canvas3D.style.height = rect.height + 'px';
+    
+    // Center the view
+    this.panX = rect.width / 2;
+    this.panY = rect.height / 2;
+    
+    if (this.renderer3D) {
+        this.renderer3D.setSize(rect.width, rect.height);
+        this.camera3D.aspect = rect.width / rect.height;
+        this.camera3D.updateProjectionMatrix();
     }
     
+    // إعادة الرسم
+    this.render();
+}
+    
     setupEventListeners() {
-        // Window events
-        window.addEventListener('resize', () => this.resizeCanvas());
-        
-        // Canvas events - only for 2D mode
-        this.canvas.addEventListener('mousedown', (e) => {
-            if (this.mode === '2D') this.onMouseDown(e);
-        });
-        this.canvas.addEventListener('mousemove', (e) => {
-            if (this.mode === '2D') this.onMouseMove(e);
-        });
-        this.canvas.addEventListener('mouseup', (e) => {
-            if (this.mode === '2D') this.onMouseUp(e);
-        });
-        this.canvas.addEventListener('wheel', (e) => {
-        if (this.mode === '2D') this.onWheel(e);
-        }, { passive: false }); // نحتاج false لاستخدام preventDefault
-        this.canvas.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            if (this.mode === '2D') this.onContextMenu(e);
-        });
-        this.canvas.addEventListener('mouseleave', (e) => {
-            if (this.mode === '2D') this.onMouseLeave(e);
-        });
-        this.canvas.addEventListener('dblclick', (e) => {
-            if (this.mode === '2D') this.onDoubleClick(e);
-        });
-        
-        // 3D Canvas events
-        this.canvas3D.addEventListener('mousedown', (e) => {
-            if (this.mode === '3D') this.on3DMouseDown(e);
-        });
-        this.canvas3D.addEventListener('mousemove', (e) => {
-            if (this.mode === '3D') this.on3DMouseMove(e);
-        });
-        this.canvas3D.addEventListener('mouseup', (e) => {
-            if (this.mode === '3D') this.on3DMouseUp(e);
-        });
-        this.canvas3D.addEventListener('wheel', (e) => {
+    // حفظ المراجع للتنظيف لاحقاً
+    this._resizeHandler = () => this.resizeCanvas();
+    this._mouseDownHandler = (e) => { if (this.mode === '2D') this.onMouseDown(e); };
+    this._mouseMoveHandler = (e) => { if (this.mode === '2D') this.onMouseMove(e); };
+    this._mouseUpHandler = (e) => { if (this.mode === '2D') this.onMouseUp(e); };
+    this._wheelHandler = (e) => { if (this.mode === '2D') this.onWheel(e); };
+    this._contextMenuHandler = (e) => { e.preventDefault(); if (this.mode === '2D') this.onContextMenu(e); };
+    this._mouseLeaveHandler = (e) => { if (this.mode === '2D') this.onMouseLeave(e); };
+    this._dblClickHandler = (e) => { if (this.mode === '2D') this.onDoubleClick(e); };
+    this._keyDownHandler = (e) => this.onKeyDown(e);
+    this._keyUpHandler = (e) => this.onKeyUp(e);
+    
+    // Window events
+    window.addEventListener('resize', this._resizeHandler);
+    
+    // Canvas events - only for 2D mode
+    this.canvas.addEventListener('mousedown', this._mouseDownHandler);
+    this.canvas.addEventListener('mousemove', this._mouseMoveHandler);
+    this.canvas.addEventListener('mouseup', this._mouseUpHandler);
+    this.canvas.addEventListener('wheel', this._wheelHandler, { passive: false });
+    this.canvas.addEventListener('contextmenu', this._contextMenuHandler);
+    this.canvas.addEventListener('mouseleave', this._mouseLeaveHandler);
+    this.canvas.addEventListener('dblclick', this._dblClickHandler);
+    
+    // 3D Canvas events
+    this.canvas3D.addEventListener('mousedown', (e) => {
+        if (this.mode === '3D') this.on3DMouseDown(e);
+    });
+    this.canvas3D.addEventListener('mousemove', (e) => {
+        if (this.mode === '3D') this.on3DMouseMove(e);
+    });
+    this.canvas3D.addEventListener('mouseup', (e) => {
+        if (this.mode === '3D') this.on3DMouseUp(e);
+    });
+    this.canvas3D.addEventListener('wheel', (e) => {
         if (this.mode === '3D') this.on3DWheel(e);
-        }, { passive: false });
-        this.canvas3D.addEventListener('contextmenu', (e) => e.preventDefault());
-        
-        // Keyboard events
-        document.addEventListener('keydown', (e) => this.onKeyDown(e));
-        document.addEventListener('keyup', (e) => this.onKeyUp(e));
-        
-        // Command input
-        const commandInput = document.getElementById('commandInput');
+    }, { passive: false });
+    this.canvas3D.addEventListener('contextmenu', (e) => e.preventDefault());
+    
+    // Keyboard events
+    document.addEventListener('keydown', this._keyDownHandler);
+    document.addEventListener('keyup', this._keyUpHandler);
+    
+    // Command input
+    const commandInput = document.getElementById('commandInput');
+    if (commandInput) {
         commandInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 this.executeCommand(e.target.value);
                 e.target.value = '';
             } else if (e.key === 'Escape') {
                 e.target.value = '';
-                this.cancelCurrentOperation();
+                e.target.blur();
             }
         });
-        
-        // Dynamic input
-        const dynamicField = document.getElementById('dynamicField');
+    }
+    
+    // Dynamic input
+    const dynamicField = document.getElementById('dynamicField');
+    if (dynamicField) {
         dynamicField.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 this.applyDynamicInput();
@@ -430,13 +427,16 @@ class TyrexCAD {
                 this.cancelCurrentOperation();
             }
         });
-        
-        // Zoom window overlay
-        const zoomOverlay = document.getElementById('zoomWindowOverlay');
+    }
+    
+    // Zoom window overlay
+    const zoomOverlay = document.getElementById('zoomWindowOverlay');
+    if (zoomOverlay) {
         zoomOverlay.addEventListener('mousedown', (e) => this.onZoomWindowStart(e));
         zoomOverlay.addEventListener('mousemove', (e) => this.onZoomWindowMove(e));
         zoomOverlay.addEventListener('mouseup', (e) => this.onZoomWindowEnd(e));
     }
+}
     
     // 3D Scene Setup
     init3D() {
@@ -2866,12 +2866,15 @@ isPointInShape(point, shape, customTolerance = null) {
         this.updateStatus('READY');
     }
     
-    // Rendering - محدثة لدعم Grips والطبقات المتقدمة
+// Rendering - محدثة لدعم Grips والطبقات المتقدمة
 render() {
     if (this.mode === '3D') {
         this.render3D();
         return;
-        }
+    }
+    
+    // 🔴 التحسين الأساسي: إعادة تعيين التحويلات قبل المسح
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     
     // Clear canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -2881,7 +2884,8 @@ render() {
     
     // Apply DPR and transformations
     const dpr = this.devicePixelRatio || 1;
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // 🔴 تحسين: استخدام scale بدلاً من setTransform
+    this.ctx.scale(dpr, dpr);
     
     // Apply view transformations
     this.ctx.translate(this.panX, this.panY);
@@ -2967,7 +2971,6 @@ render() {
             this.ctx.restore();
             
             // رسم Grips للأشكال المحددة (فقط للطبقات غير المقفولة)
-            // 🔴 التعديل: إضافة فحص showSelectionGrips
             const canShowGrips = this.currentTool === 'select' || 
                 (this.toolsManager?.activeTool?.showSelectionGrips === true);
 
@@ -3117,12 +3120,26 @@ render() {
         this.ctx.restore();
     }
 }
-    
-    render3D() {
-        if (this.renderer3D && this.scene3D && this.camera3D) {
-            this.renderer3D.render(this.scene3D, this.camera3D);
-        }
+
+render3D() {
+    if (this.renderer3D && this.scene3D && this.camera3D) {
+        this.renderer3D.render(this.scene3D, this.camera3D);
     }
+}
+
+startRenderLoop() {
+    const animate = () => {
+        this.animationId = requestAnimationFrame(animate);
+        
+        // تحديث فقط إذا كان هناك تغيير
+        if (this.needsUpdate || this.mode === '3D') {
+            this.render();
+            this.needsUpdate = false;
+        }
+    };
+    
+    animate();
+}
     
     drawGrid() {
         this.ctx.save();
