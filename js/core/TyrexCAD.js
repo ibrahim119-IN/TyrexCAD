@@ -1330,41 +1330,37 @@ class TyrexCAD {
                 shape.end = rotatePoint(shape.end);
                 break;
             case 'rectangle':
-    // حفظ الزوايا الأربع للمستطيل
-    const corners = [
-        { x: shape.start.x, y: shape.start.y },
-        { x: shape.end.x, y: shape.start.y },
-        { x: shape.end.x, y: shape.end.y },
-        { x: shape.start.x, y: shape.end.y }
-    ];
+    // حساب مركز المستطيل
+    const centerX = (shape.start.x + shape.end.x) / 2;
+    const centerY = (shape.start.y + shape.end.y) / 2;
     
-    // تدوير الزوايا الأربع
-    const rotatedCorners = corners.map(rotatePoint);
+    // تدوير نقطتي المستطيل
+    const rotatedStart = rotatePoint(shape.start);
+    const rotatedEnd = rotatePoint(shape.end);
     
-    // 🆕 حفظ الخصائص المهمة قبل التحويل
-    const preservedProps = {
-        filled: shape.filled || false,
-        fillColor: shape.fillColor,
-        color: shape.color,
-        lineWidth: shape.lineWidth,
-        lineType: shape.lineType,
-        layerId: shape.layerId,
-        locked: shape.locked,
-        visible: shape.visible,
-        id: shape.id
+    // حساب المركز الجديد
+    const newCenterX = (rotatedStart.x + rotatedEnd.x) / 2;
+    const newCenterY = (rotatedStart.y + rotatedEnd.y) / 2;
+    
+    // حفظ الأبعاد الأصلية
+    const width = Math.abs(shape.end.x - shape.start.x);
+    const height = Math.abs(shape.end.y - shape.start.y);
+    
+    // تحديث المستطيل مع الاحتفاظ بنوعه
+    shape.center = { x: newCenterX, y: newCenterY };
+    shape.width = width;
+    shape.height = height;
+    shape.rotation = (shape.rotation || 0) + angle;
+    
+    // إعادة حساب start و end للتوافق مع الأدوات الأخرى
+    shape.start = {
+        x: newCenterX - width / 2,
+        y: newCenterY - height / 2
     };
-    
-    // تحويل المستطيل إلى polygon
-    shape.type = 'polygon';
-    shape.points = rotatedCorners;
-    shape.closed = true;
-    
-    // 🆕 استعادة الخصائص المحفوظة
-    Object.assign(shape, preservedProps);
-    
-    // حذف الخصائص القديمة للمستطيل
-    delete shape.start;
-    delete shape.end;
+    shape.end = {
+        x: newCenterX + width / 2,
+        y: newCenterY + height / 2
+    };
     break;
             case 'circle':
             case 'ellipse':
@@ -2079,11 +2075,37 @@ class TyrexCAD {
                 break;
                 
             case 'rectangle':
+            // 🆕 إذا كان المستطيل مدور
+            if (shape.rotation && shape.rotation !== 0) {
+                const centerX = shape.center ? shape.center.x : (shape.start.x + shape.end.x) / 2;
+                const centerY = shape.center ? shape.center.y : (shape.start.y + shape.end.y) / 2;
+                const width = Math.abs(shape.end.x - shape.start.x);
+                const height = Math.abs(shape.end.y - shape.start.y);
+                
+                // حساب الزوايا الأربع للمستطيل المدور
+                const corners = [
+                    { x: -width/2, y: -height/2 },
+                    { x: width/2, y: -height/2 },
+                    { x: width/2, y: height/2 },
+                    { x: -width/2, y: height/2 }
+                ];
+                
+                // تدوير كل زاوية
+                corners.forEach(corner => {
+                    const cos = Math.cos(shape.rotation);
+                    const sin = Math.sin(shape.rotation);
+                    const rotatedX = corner.x * cos - corner.y * sin;
+                    const rotatedY = corner.x * sin + corner.y * cos;
+                    updateBounds(centerX + rotatedX, centerY + rotatedY);
+                });
+            } else {
+                // المستطيل غير المدور (الكود الأصلي)
                 updateBounds(shape.start.x, shape.start.y);
                 updateBounds(shape.end.x, shape.end.y);
                 updateBounds(shape.start.x, shape.end.y);
                 updateBounds(shape.end.x, shape.start.y);
-                break;
+            }
+            break;
                 
             case 'circle':
                 updateBounds(shape.center.x - shape.radius, shape.center.y - shape.radius);
@@ -3142,12 +3164,32 @@ drawRectangle(ctx, shape) {
     const width = Math.abs(end.x - start.x);
     const height = Math.abs(end.y - start.y);
     
+    // 🆕 دعم الدوران
+    if (shape.rotation && shape.rotation !== 0) {
+        ctx.save();
+        
+        // حساب مركز المستطيل
+        const centerX = shape.center ? shape.center.x : (x + width / 2);
+        const centerY = shape.center ? shape.center.y : (y + height / 2);
+        
+        // تطبيق التحويلات
+        ctx.translate(centerX, centerY);
+        ctx.rotate(shape.rotation);
+        ctx.translate(-centerX, -centerY);
+    }
+    
+    // رسم المستطيل
     if (shape.filled || shape.fillColor) {
         ctx.fillStyle = shape.fillColor || shape.color || this.currentColor;
         ctx.fillRect(x, y, width, height);
     }
     
     ctx.strokeRect(x, y, width, height);
+    
+    // 🆕 استعادة حالة السياق
+    if (shape.rotation && shape.rotation !== 0) {
+        ctx.restore();
+    }
 }
 
 drawCircle(ctx, shape) {
@@ -3389,6 +3431,37 @@ drawHatch(ctx, shape) {
     
     // رسم الحدود
     ctx.stroke();
+}
+
+
+    /**
+ * الحصول على زوايا المستطيل (مع دعم الدوران)
+ */
+getRectangleCorners(shape) {
+    if (shape.type !== 'rectangle') return [];
+    
+    const centerX = shape.center ? shape.center.x : (shape.start.x + shape.end.x) / 2;
+    const centerY = shape.center ? shape.center.y : (shape.start.y + shape.end.y) / 2;
+    const width = Math.abs(shape.end.x - shape.start.x);
+    const height = Math.abs(shape.end.y - shape.start.y);
+    
+    // الزوايا في الإحداثيات المحلية
+    const corners = [
+        { x: -width/2, y: -height/2 }, // أعلى يسار
+        { x: width/2, y: -height/2 },  // أعلى يمين
+        { x: width/2, y: height/2 },   // أسفل يمين
+        { x: -width/2, y: height/2 }    // أسفل يسار
+    ];
+    
+    // تطبيق الدوران إن وجد
+    const rotation = shape.rotation || 0;
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    
+    return corners.map(corner => ({
+        x: centerX + corner.x * cos - corner.y * sin,
+        y: centerY + corner.x * sin + corner.y * cos
+    }));
 }
 
 // دالة مساعدة لحساب حدود مجموعة نقاط
@@ -4642,7 +4715,38 @@ setLineType(type) {
             case 'line':
                 return this.isPointOnLine(point.x, point.y, shape.start, shape.end, tolerance);
                 
-            case 'rectangle':
+           case 'rectangle':
+            // 🆕 إذا كان المستطيل مدور
+            if (shape.rotation && shape.rotation !== 0) {
+                const centerX = shape.center ? shape.center.x : (shape.start.x + shape.end.x) / 2;
+                const centerY = shape.center ? shape.center.y : (shape.start.y + shape.end.y) / 2;
+                const width = Math.abs(shape.end.x - shape.start.x);
+                const height = Math.abs(shape.end.y - shape.start.y);
+                
+                // تحويل النقطة إلى إحداثيات محلية (عكس الدوران)
+                const cos = Math.cos(-shape.rotation);
+                const sin = Math.sin(-shape.rotation);
+                const dx = point.x - centerX;
+                const dy = point.y - centerY;
+                const localX = dx * cos - dy * sin;
+                const localY = dx * sin + dy * cos;
+                
+                // التحقق من الحدود في الإحداثيات المحلية
+                const halfWidth = width / 2;
+                const halfHeight = height / 2;
+                
+                // Check if on border (with tolerance)
+                if (Math.abs(Math.abs(localX) - halfWidth) < tolerance && 
+                    Math.abs(localY) <= halfHeight + tolerance) {
+                    return true;
+                }
+                if (Math.abs(Math.abs(localY) - halfHeight) < tolerance && 
+                    Math.abs(localX) <= halfWidth + tolerance) {
+                    return true;
+                }
+                return false;
+            } else {
+                // المستطيل غير المدور (الكود الأصلي)
                 const minX = Math.min(shape.start.x, shape.end.x);
                 const minY = Math.min(shape.start.y, shape.end.y);
                 const maxX = Math.max(shape.start.x, shape.end.x);
@@ -4656,6 +4760,8 @@ setLineType(type) {
                     if (point.x >= minX - tolerance && point.x <= maxX + tolerance) return true;
                 }
                 return false;
+            }
+
                 
             case 'circle':
                 const dist = this.distance(point.x, point.y, shape.center.x, shape.center.y);

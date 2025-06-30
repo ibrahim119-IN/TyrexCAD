@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAD Grips Debug Tool</title>
+    <style>
+        body {
+            font-family: 'SF Mono', monospace;
+            background: #0a0a0a;
+            color: #00d4aa;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00ffcc;
+            border-bottom: 2px solid #00d4aa;
+            padding-bottom: 10px;
+        }
+        .section {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 8px;
+            background: #0d0d0d;
+            border-left: 3px solid #00d4aa;
+            font-size: 12px;
+        }
+        .error {
+            border-left-color: #ff4444;
+            color: #ffaaaa;
+        }
+        .warning {
+            border-left-color: #ffaa00;
+            color: #ffcc66;
+        }
+        .success {
+            border-left-color: #00ff88;
+            color: #88ffcc;
+        }
+        .info {
+            border-left-color: #0088ff;
+            color: #88ccff;
+        }
+        button {
+            background: #00d4aa;
+            color: #0a0a0a;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover {
+            background: #00ffcc;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .metric {
+            background: #222;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+        .metric-label {
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        #debugCanvas {
+            border: 2px solid #00d4aa;
+            margin: 20px 0;
+            background: #000;
+        }
+        .code-fix {
+            background: #0d1a0d;
+            border: 1px solid #00aa00;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 CAD Grips Debug Tool</h1>
+        
+        <div class="section">
+            <h2>System Diagnostics</h2>
+            <div class="metrics" id="metrics">
+                <div class="metric">
+                    <div class="metric-label">Mouse Position (Screen)</div>
+                    <div class="metric-value" id="mouseScreen">0, 0</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Mouse Position (World)</div>
+                    <div class="metric-value" id="mouseWorld">0, 0</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Zoom Level</div>
+                    <div class="metric-value" id="zoomLevel">1.00</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Pan Offset</div>
+                    <div class="metric-value" id="panOffset">0, 0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Debug Actions</h2>
+            <button onclick="startDebug()">Start Debug Session</button>
+            <button onclick="testGripDetection()">Test Grip Detection</button>
+            <button onclick="analyzeDragIssue()">Analyze Drag Issue</button>
+            <button onclick="exportDebugData()">Export Debug Data</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+
+        <div class="section">
+            <h2>Visual Debug Canvas</h2>
+            <canvas id="debugCanvas" width="800" height="400"></canvas>
+        </div>
+
+        <div class="section">
+            <h2>Debug Log</h2>
+            <div id="debugLog"></div>
+        </div>
+
+        <div class="section">
+            <h2>🔧 Identified Issues & Solutions</h2>
+            <div id="solutions"></div>
+        </div>
+    </div>
+
+    <script>
+        // Debug state
+        const debugState = {
+            logs: [],
+            isDebugging: false,
+            cadInstance: null,
+            gripsController: null,
+            canvas: document.getElementById('debugCanvas'),
+            ctx: null,
+            dragTestData: []
+        };
+
+        // Initialize
+        debugState.ctx = debugState.canvas.getContext('2d');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = { timestamp, message, type };
+            debugState.logs.push(entry);
+            
+            const logDiv = document.getElementById('debugLog');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logDiv.insertBefore(logEntry, logDiv.firstChild);
+            
+            // Keep only last 100 logs
+            if (debugState.logs.length > 100) {
+                debugState.logs.shift();
+                if (logDiv.children.length > 100) {
+                    logDiv.removeChild(logDiv.lastChild);
+                }
+            }
+        }
+
+        function clearLogs() {
+            debugState.logs = [];
+            document.getElementById('debugLog').innerHTML = '';
+            log('Logs cleared', 'info');
+        }
+
+        function startDebug() {
+            log('Starting debug session...', 'info');
+            
+            // Try to get CAD instance
+            if (window.cad) {
+                debugState.cadInstance = window.cad;
+                debugState.gripsController = window.cad.gripsController;
+                log('✓ CAD instance found', 'success');
+                
+                // Enable debug mode
+                if (debugState.gripsController) {
+                    debugState.gripsController.debugMode = true;
+                    log('✓ GripsController debug mode enabled', 'success');
+                }
+                
+                // Hook into CAD events
+                hookCADEvents();
+                
+                // Start monitoring
+                startMonitoring();
+                
+            } else {
+                log('✗ CAD instance not found! Make sure the CAD application is loaded.', 'error');
+            }
+        }
+
+        function hookCADEvents() {
+            if (!debugState.cadInstance) return;
+            
+            log('Hooking into CAD events...', 'info');
+            
+            // Hook mouse events
+            const originalMouseMove = debugState.cadInstance.onMouseMove;
+            debugState.cadInstance.onMouseMove = function(e) {
+                updateMouseMetrics(e);
+                originalMouseMove.call(this, e);
+            };
+            
+            // Hook grip events
+            if (debugState.gripsController) {
+                // Hook startDrag
+                const originalStartDrag = debugState.gripsController.startDrag;
+                debugState.gripsController.startDrag = function(grip, worldPoint) {
+                    log(`🎯 StartDrag called:
+- Grip: ${grip.type} at (${grip.point.x.toFixed(2)}, ${grip.point.y.toFixed(2)})
+- Mouse: (${worldPoint.x.toFixed(2)}, ${worldPoint.y.toFixed(2)})
+- Offset: (${(grip.point.x - worldPoint.x).toFixed(2)}, ${(grip.point.y - worldPoint.y).toFixed(2)})`, 'warning');
+                    
+                    // Store test data
+                    debugState.dragTestData.push({
+                        action: 'startDrag',
+                        gripPoint: {...grip.point},
+                        mousePoint: {...worldPoint},
+                        offset: {
+                            x: grip.point.x - worldPoint.x,
+                            y: grip.point.y - worldPoint.y
+                        }
+                    });
+                    
+                    return originalStartDrag.call(this, grip, worldPoint);
+                };
+                
+                // Hook updateDrag
+                const originalUpdateDrag = debugState.gripsController.updateDrag;
+                debugState.gripsController.updateDrag = function(worldPoint) {
+                    if (this.draggedGrip && this.dragOffset) {
+                        const expectedPoint = {
+                            x: worldPoint.x + this.dragOffset.x,
+                            y: worldPoint.y + this.dragOffset.y
+                        };
+                        
+                        log(`🔄 UpdateDrag:
+- Mouse: (${worldPoint.x.toFixed(2)}, ${worldPoint.y.toFixed(2)})
+- DragOffset: (${this.dragOffset.x.toFixed(2)}, ${this.dragOffset.y.toFixed(2)})
+- Expected Point: (${expectedPoint.x.toFixed(2)}, ${expectedPoint.y.toFixed(2)})`, 'info');
+                    }
+                    
+                    return originalUpdateDrag.call(this, worldPoint);
+                };
+            }
+            
+            log('✓ Event hooks installed', 'success');
+        }
+
+        function updateMouseMetrics(e) {
+            if (!debugState.cadInstance) return;
+            
+            const rect = debugState.cadInstance.canvas.getBoundingClientRect();
+            const screenX = e.clientX - rect.left;
+            const screenY = e.clientY - rect.top;
+            const world = debugState.cadInstance.screenToWorld(screenX, screenY);
+            
+            document.getElementById('mouseScreen').textContent = `${screenX.toFixed(0)}, ${screenY.toFixed(0)}`;
+            document.getElementById('mouseWorld').textContent = `${world.x.toFixed(2)}, ${world.y.toFixed(2)}`;
+            document.getElementById('zoomLevel').textContent = debugState.cadInstance.zoom.toFixed(2);
+            document.getElementById('panOffset').textContent = `${debugState.cadInstance.panX.toFixed(0)}, ${debugState.cadInstance.panY.toFixed(0)}`;
+        }
+
+        function startMonitoring() {
+            log('Starting real-time monitoring...', 'info');
+            debugState.isDebugging = true;
+            
+            // Monitor grip states
+            setInterval(() => {
+                if (!debugState.isDebugging || !debugState.gripsController) return;
+                
+                const gc = debugState.gripsController;
+                if (gc.hoveredGrip) {
+                    log(`Hovered: ${gc.hoveredGrip.type} at (${gc.hoveredGrip.point.x.toFixed(2)}, ${gc.hoveredGrip.point.y.toFixed(2)})`, 'info');
+                }
+                
+                if (gc.draggedGrip && gc.dragOffset) {
+                    visualizeDragIssue();
+                }
+            }, 100);
+        }
+
+        function testGripDetection() {
+            log('Testing grip detection...', 'warning');
+            
+            if (!debugState.gripsController || !debugState.cadInstance) {
+                log('CAD not initialized', 'error');
+                return;
+            }
+            
+            // Create test shape
+            const testShape = {
+                type: 'rectangle',
+                start: { x: 100, y: 100 },
+                end: { x: 300, y: 200 },
+                id: 'test_shape_' + Date.now()
+            };
+            
+            debugState.cadInstance.shapes.push(testShape);
+            debugState.cadInstance.selectedShapes.clear();
+            debugState.cadInstance.selectedShapes.add(testShape);
+            debugState.cadInstance.render();
+            
+            log('✓ Test shape created and selected', 'success');
+            
+            // Test grip detection at various points
+            const testPoints = [
+                { x: 100, y: 100, expected: 'vertex' },
+                { x: 300, y: 200, expected: 'vertex' },
+                { x: 200, y: 100, expected: 'edge' },
+                { x: 100, y: 150, expected: 'edge' }
+            ];
+            
+            testPoints.forEach(test => {
+                const screenPoint = debugState.cadInstance.worldToScreen(test.x, test.y);
+                const grip = debugState.gripsController.findGripAtScreen(screenPoint, debugState.cadInstance.selectedShapes);
+                
+                if (grip) {
+                    log(`✓ Found ${grip.type} grip at (${test.x}, ${test.y})`, 'success');
+                } else {
+                    log(`✗ No grip found at (${test.x}, ${test.y}) - expected ${test.expected}`, 'error');
+                }
+            });
+            
+            visualizeGripDetection(testShape);
+        }
+
+        function visualizeDragIssue() {
+            const ctx = debugState.ctx;
+            const gc = debugState.gripsController;
+            const cad = debugState.cadInstance;
+            
+            if (!gc.draggedGrip || !gc.dragOffset) return;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, debugState.canvas.width, debugState.canvas.height);
+            
+            // Set up coordinate system
+            ctx.save();
+            ctx.translate(400, 200);
+            ctx.scale(2, 2);
+            
+            // Draw grid
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 0.5;
+            for (let x = -200; x <= 200; x += 20) {
+                ctx.beginPath();
+                ctx.moveTo(x, -100);
+                ctx.lineTo(x, 100);
+                ctx.stroke();
+            }
+            for (let y = -100; y <= 100; y += 20) {
+                ctx.beginPath();
+                ctx.moveTo(-200, y);
+                ctx.lineTo(200, y);
+                ctx.stroke();
+            }
+            
+            // Draw original grip position
+            ctx.fillStyle = '#00d4aa';
+            ctx.beginPath();
+            ctx.arc(gc.originalPosition.x, gc.originalPosition.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillText('Original', gc.originalPosition.x + 10, gc.originalPosition.y - 10);
+            
+            // Draw current mouse position
+            ctx.fillStyle = '#ff4444';
+            ctx.beginPath();
+            ctx.arc(gc.lastMouseWorld.x, gc.lastMouseWorld.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillText('Mouse', gc.lastMouseWorld.x + 10, gc.lastMouseWorld.y - 10);
+            
+            // Draw expected position (with offset)
+            const expectedX = gc.lastMouseWorld.x + gc.dragOffset.x;
+            const expectedY = gc.lastMouseWorld.y + gc.dragOffset.y;
+            ctx.fillStyle = '#00ff88';
+            ctx.beginPath();
+            ctx.arc(expectedX, expectedY, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillText('Expected', expectedX + 10, expectedY - 10);
+            
+            // Draw actual grip position
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.arc(gc.draggedGrip.point.x, gc.draggedGrip.point.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillText('Actual', gc.draggedGrip.point.x + 10, gc.draggedGrip.point.y - 10);
+            
+            // Draw offset vector
+            ctx.strokeStyle = '#00ffcc';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(gc.lastMouseWorld.x, gc.lastMouseWorld.y);
+            ctx.lineTo(expectedX, expectedY);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+
+        function visualizeGripDetection(shape) {
+            const ctx = debugState.ctx;
+            const gc = debugState.gripsController;
+            const cad = debugState.cadInstance;
+            
+            ctx.clearRect(0, 0, debugState.canvas.width, debugState.canvas.height);
+            
+            // Get grips
+            const grips = gc.getShapeGrips(shape);
+            
+            // Draw shape
+            ctx.strokeStyle = '#00d4aa';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(shape.start.x, shape.start.y, 
+                          shape.end.x - shape.start.x, 
+                          shape.end.y - shape.start.y);
+            
+            // Draw vertex grips with detection area
+            ctx.fillStyle = '#00ff88';
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.3)';
+            grips.vertices.forEach(grip => {
+                // Grip
+                ctx.fillRect(grip.point.x - 5, grip.point.y - 5, 10, 10);
+                
+                // Detection area
+                ctx.beginPath();
+                ctx.arc(grip.point.x, grip.point.y, gc.screenDetectionThreshold, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+            
+            // Draw edge grips with detection area
+            ctx.fillStyle = '#ffaa00';
+            ctx.strokeStyle = 'rgba(255, 170, 0, 0.3)';
+            grips.edges.forEach(grip => {
+                // Grip
+                ctx.beginPath();
+                ctx.arc(grip.point.x, grip.point.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Detection area
+                ctx.beginPath();
+                ctx.arc(grip.point.x, grip.point.y, gc.screenDetectionThreshold * 0.8, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+        }
+
+        function analyzeDragIssue() {
+            log('🔍 Analyzing drag issue...', 'warning');
+            
+            if (!debugState.gripsController) {
+                log('GripsController not found', 'error');
+                return;
+            }
+            
+            // Check updateDrag implementation
+            const updateDragCode = debugState.gripsController.updateDrag.toString();
+            
+            if (!updateDragCode.includes('dragOffset')) {
+                log('❌ CRITICAL: updateDrag() does not use dragOffset!', 'error');
+                log('This is the main cause of the gap issue.', 'error');
+                
+                // Show fix
+                showDragOffsetFix();
+            } else {
+                log('✓ updateDrag() uses dragOffset', 'success');
+            }
+            
+            // Check coordinate transformation
+            if (debugState.cadInstance) {
+                const testPoint = { x: 100, y: 100 };
+                const screen = debugState.cadInstance.worldToScreen(testPoint.x, testPoint.y);
+                const world = debugState.cadInstance.screenToWorld(screen.x, screen.y);
+                
+                const errorX = Math.abs(world.x - testPoint.x);
+                const errorY = Math.abs(world.y - testPoint.y);
+                
+                if (errorX > 0.001 || errorY > 0.001) {
+                    log(`⚠️ Coordinate transformation error: (${errorX.toFixed(6)}, ${errorY.toFixed(6)})`, 'warning');
+                } else {
+                    log('✓ Coordinate transformation is accurate', 'success');
+                }
+            }
+            
+            // Check snap interference
+            if (debugState.dragTestData.length > 0) {
+                const lastDrag = debugState.dragTestData[debugState.dragTestData.length - 1];
+                log(`Last drag data:
+- Grip Point: (${lastDrag.gripPoint.x}, ${lastDrag.gripPoint.y})
+- Mouse Point: (${lastDrag.mousePoint.x}, ${lastDrag.mousePoint.y})
+- Calculated Offset: (${lastDrag.offset.x}, ${lastDrag.offset.y})`, 'info');
+            }
+        }
+
+        function showDragOffsetFix() {
+            const solutionsDiv = document.getElementById('solutions');
+            
+            const fixHTML = `
+<div class="code-fix">
+<h3>🔧 Fix for GripsController.updateDrag():</h3>
+<strong>Current (Broken) Code:</strong>
+updateDrag(worldPoint) {
+    if (!this.draggedGrip) return;
+    
+    const snappedPoint = this.getSnappedPosition(worldPoint);
+    let constrainedPoint = this.applyConstraints(snappedPoint);
+    
+    if (this.draggedGrip.type === 'vertex') {
+        this.updateVertexPosition(this.draggedGrip, constrainedPoint);
+    }
+    // ...
+}
+
+<strong>Fixed Code:</strong>
+updateDrag(worldPoint) {
+    if (!this.draggedGrip) return;
+    
+    <span style="color: #00ff88;">// Apply the drag offset FIRST
+    const adjustedPoint = {
+        x: worldPoint.x + this.dragOffset.x,
+        y: worldPoint.y + this.dragOffset.y
+    };</span>
+    
+    const snappedPoint = this.getSnappedPosition(<span style="color: #00ff88;">adjustedPoint</span>);
+    let constrainedPoint = this.applyConstraints(snappedPoint);
+    
+    if (this.draggedGrip.type === 'vertex') {
+        this.updateVertexPosition(this.draggedGrip, constrainedPoint);
+    } else if (this.draggedGrip.type === 'edge') {
+        if (this.gripMode === 'stretch') {
+            this.previewEdgeStretch(this.draggedGrip, constrainedPoint);
+        } else {
+            <span style="color: #00ff88;">// Use the adjusted point for preview too</span>
+            this.previewNewVertex(this.draggedGrip, constrainedPoint);
+        }
+    }
+    
+    this.showDragFeedback(constrainedPoint);
+}
+
+<strong>Additional Fix for startDrag():</strong>
+startDrag(grip, worldPoint) {
+    this.draggedGrip = grip;
+    this.originalPosition = { ...grip.point };
+    
+    <span style="color: #00ff88;">// Calculate offset correctly
+    this.dragOffset = {
+        x: grip.point.x - worldPoint.x,
+        y: grip.point.y - worldPoint.y
+    };</span>
+    
+    // ... rest of the code
+}
+</div>
+            `;
+            
+            solutionsDiv.innerHTML = fixHTML;
+            log('✓ Fix solution displayed', 'success');
+        }
+
+        function exportDebugData() {
+            const data = {
+                timestamp: new Date().toISOString(),
+                logs: debugState.logs,
+                dragTestData: debugState.dragTestData,
+                cadState: debugState.cadInstance ? {
+                    zoom: debugState.cadInstance.zoom,
+                    panX: debugState.cadInstance.panX,
+                    panY: debugState.cadInstance.panY,
+                    selectedShapes: debugState.cadInstance.selectedShapes.size,
+                    snapEnabled: debugState.cadInstance.snapEnabled
+                } : null,
+                gripsState: debugState.gripsController ? {
+                    debugMode: debugState.gripsController.debugMode,
+                    screenDetectionThreshold: debugState.gripsController.screenDetectionThreshold,
+                    hoveredGrip: debugState.gripsController.hoveredGrip ? 'Yes' : 'No',
+                    draggedGrip: debugState.gripsController.draggedGrip ? 'Yes' : 'No'
+                } : null
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cad_debug_${Date.now()}.json`;
+            a.click();
+            
+            log('✓ Debug data exported', 'success');
+        }
+
+        // Auto-start if CAD is already loaded
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (window.cad) {
+                    log('CAD detected, auto-starting debug...', 'info');
+                    startDebug();
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
