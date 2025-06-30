@@ -2242,18 +2242,26 @@ async executeLocally(operation, data) {
                 shape.end = this.rotatePoint(shape.end, center, angle);
                 break;
             case 'rectangle':
-                // تحويل لمضلع للتدوير الصحيح
-                const corners = [
-                    { x: shape.start.x, y: shape.start.y },
-                    { x: shape.end.x, y: shape.start.y },
-                    { x: shape.end.x, y: shape.end.y },
-                    { x: shape.start.x, y: shape.end.y }
-                ];
-                shape.type = 'polygon';
-                shape.points = corners.map(p => this.rotatePoint(p, center, angle));
-                delete shape.start;
-                delete shape.end;
-                break;
+    // حفظ الزوايا الأربع للمستطيل
+    const corners = [
+        { x: shape.start.x, y: shape.start.y },
+        { x: shape.end.x, y: shape.start.y },
+        { x: shape.end.x, y: shape.end.y },
+        { x: shape.start.x, y: shape.end.y }
+    ];
+    
+    // تدوير الزوايا الأربع
+    const rotatedCorners = corners.map(rotatePoint);
+    
+    // تحويل المستطيل إلى polygon للحفاظ على الشكل المدور
+    shape.type = 'polygon';
+    shape.points = rotatedCorners;
+    shape.closed = true; // للتأكد من إغلاق الشكل
+    
+    // حذف الخصائص القديمة
+    delete shape.start;
+    delete shape.end;
+    break;
             case 'circle':
             case 'ellipse':
                 shape.center = this.rotatePoint(shape.center, center, angle);

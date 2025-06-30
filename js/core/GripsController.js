@@ -1,5 +1,5 @@
 // ============================================
-//  js/core/GripsController.js - النسخة المُحسّنة والمُحدثة
+//  js/core/GripsController.js - النسخة المُحدثة لحل مشكلة الالتقاط
 // ============================================
 
 (function(window) {
@@ -16,16 +16,26 @@
             this.contextMenuGrip = null;
             this.gripMode = 'vertex'; // 'vertex' أو 'stretch' أو 'arc'
             
-            // إعدادات مرئية محسنة - مع توحيد الأحجام
-            this.vertexGripSize = 10; // زيادة الحجم لسهولة الالتقاط
-            this.edgeGripSize = 8;
-            this.hoverScale = 1.4;
+            // إعدادات مرئية محسنة - مع زيادة الأحجام
+            this.vertexGripSize = 12; // زيادة من 10 إلى 12
+            this.edgeGripSize = 10;   // زيادة من 8 إلى 10
+            this.hoverScale = 1.5;    // زيادة من 1.4 إلى 1.5
             this.cornerRadius = 2;
             this.showLabels = false;
             
-            // إعدادات منطقة الكشف - مُحسّنة
-            this.detectionThreshold = 15; // منطقة كشف أكبر
-            this.precisionMode = false; // وضع الدقة للتحكم الدقيق
+            // إعدادات منطقة الكشف المحسنة
+            this.screenDetectionThreshold = 20; // threshold ثابت في screen pixels
+            this.detectionThreshold = 20;      // زيادة من 15 إلى 20
+            this.precisionMode = false;
+            
+            // تتبع موقع الماوس في screen coordinates
+            // إضافة خاصية dragOffset لحفظ الفرق بين موقع الماوس والنقطة
+            this.dragOffset = { x: 0, y: 0 };
+            this.lastMouseScreen = { x: 0, y: 0 };
+            this.lastMouseWorld = { x: 0, y: 0 };
+            
+            // Debug mode
+            this.debugMode = false;
             
             // ألوان محسنة
             this.colors = {
@@ -50,11 +60,626 @@
             this.arcCenter = null;
             this.arcRadius = 0;
             
-            // Cache للأداء
+            // Cache محسن
             this.gripsCache = new Map();
+            this.screenGripsCache = new Map();
             this.lastCacheUpdate = 0;
-            this.cacheTimeout = 100; // ms
+            this.cacheTimeout = 50; // تقليل من 100 إلى 50ms
         }
+        
+        /**
+         * البحث عن grip في screen coordinates - دالة جديدة محسنة
+         */
+        findGripAtScreen(screenPoint, selectedShapes) {
+            let nearestGrip = null;
+            let minDist = this.screenDetectionThreshold;
+            
+            // Check cache first
+            const cacheKey = `${screenPoint.x.toFixed(0)},${screenPoint.y.toFixed(0)}`;
+            const now = Date.now();
+            
+            if (this.screenGripsCache.has(cacheKey) && (now - this.lastCacheUpdate) < this.cacheTimeout) {
+                return this.screenGripsCache.get(cacheKey);
+            }
+            
+            for (const shape of selectedShapes) {
+                const grips = this.getShapeGrips(shape);
+                
+                // Check vertices
+                for (const vertex of grips.vertices) {
+                    const gripScreen = this.cad.worldToScreen(vertex.point.x, vertex.point.y);
+                    const dist = Math.sqrt(
+                        Math.pow(gripScreen.x - screenPoint.x, 2) +
+                        Math.pow(gripScreen.y - screenPoint.y, 2)
+                    );
+                    
+                    // Dynamic threshold based on grip type
+                    const threshold = vertex.subtype === 'center' ? 
+                        this.screenDetectionThreshold * 1.2 : 
+                        this.screenDetectionThreshold;
+                    
+                    if (dist < threshold && dist < minDist) {
+                        minDist = dist;
+                        nearestGrip = vertex;
+                    }
+                }
+                
+                // Check edges with smaller threshold
+                const edgeThreshold = this.screenDetectionThreshold * 0.8;
+                for (const edge of grips.edges) {
+                    const edgeScreen = this.cad.worldToScreen(edge.point.x, edge.point.y);
+                    const dist = Math.sqrt(
+                        Math.pow(edgeScreen.x - screenPoint.x, 2) +
+                        Math.pow(edgeScreen.y - screenPoint.y, 2)
+                    );
+                    
+                    if (dist < edgeThreshold && dist < minDist) {
+                        minDist = dist;
+                        nearestGrip = edge;
+                    }
+                }
+            }
+            
+            // Update cache
+            this.screenGripsCache.set(cacheKey, nearestGrip);
+            this.lastCacheUpdate = now;
+            
+            return nearestGrip;
+        }
+        
+        /**
+         * البحث عن grip عند نقطة معينة - محدث ليستخدم screen coordinates
+         */
+        findGripAt(worldPoint, selectedShapes) {
+            // تحويل world point إلى screen point
+            const screenPoint = this.cad.worldToScreen(worldPoint.x, worldPoint.y);
+            return this.findGripAtScreen(screenPoint, selectedShapes);
+        }
+        
+        /**
+         * تحديث hover state - محسن
+         */
+        updateHover(worldPoint, selectedShapes) {
+            // استخدام screen coordinates للدقة
+            const screenPoint = {
+                x: this.cad.mouseX,
+                y: this.cad.mouseY
+            };
+            
+            const newHover = this.findGripAtScreen(screenPoint, selectedShapes);
+            
+            if (newHover !== this.hoveredGrip) {
+                this.hoveredGrip = newHover;
+                
+                // Clear caches on hover change
+                if (newHover || this.hoveredGrip) {
+                    this.gripsCache.clear();
+                    this.screenGripsCache.clear();
+                }
+                
+                this.cad.render();
+                
+                // Update cursor with visual feedback
+                if (newHover) {
+                    this.cad.canvas.style.cursor = 'pointer';
+                    this.showHoverFeedback(newHover);
+                } else {
+                    this.cad.canvas.style.cursor = 'default';
+                    this.hideHoverFeedback();
+                }
+            }
+        }
+        
+        /**
+         * حساب المسافة بدقة عالية
+         */
+        calculateDistance(p1, p2) {
+            const dx = p1.x - p2.x;
+            const dy = p1.y - p2.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        
+        /**
+         * إظهار تأثير بصري عند الـ hover
+         */
+        showHoverFeedback(grip) {
+            // يمكن إضافة tooltip أو تأثيرات إضافية
+            if (this.showLabels && grip.label) {
+                const screenPos = this.cad.worldToScreen(grip.point.x, grip.point.y);
+                this.cad.ui?.showTooltip(screenPos, grip.label);
+            }
+        }
+        
+        /**
+         * إخفاء تأثير الـ hover
+         */
+        hideHoverFeedback() {
+            if (this.cad.ui?.hideTooltip) {
+                this.cad.ui.hideTooltip();
+            }
+        }
+        
+        /**
+ * بدء سحب grip - محسن
+ */
+startDrag(grip, worldPoint) {
+    this.draggedGrip = grip;
+    
+    // حفظ الموقع الأصلي للنقطة (وليس موقع الماوس)
+    this.originalPosition = { ...grip.point };
+    
+    // حفظ الفرق بين موقع الماوس والنقطة
+    this.dragOffset = {
+        x: grip.point.x - worldPoint.x,
+        y: grip.point.y - worldPoint.y
+    };
+    
+    // تسجيل الحالة للـ undo
+    this.cad.recordState();
+    
+    // تحديد الوضع
+    if (grip.type === 'vertex') {
+        this.cad.updateStatus(`Dragging ${grip.label || 'vertex'}`);
+        this.cad.canvas.style.cursor = 'move';
+    } else {
+        if (this.cad.keys && this.cad.keys.ctrl) {
+            this.gripMode = 'stretch';
+            this.cad.updateStatus('Stretching edge');
+        } else {
+            this.gripMode = 'vertex';
+            this.cad.updateStatus('Click to add vertex');
+        }
+    }
+    
+    // مسح الـ cache
+    this.gripsCache.clear();
+    this.screenGripsCache.clear();
+}
+        
+        /**
+ * تحديث موقع أثناء السحب - محسن مع snap دقيق
+ */
+updateDrag(worldPoint) {
+    if (!this.draggedGrip) return;
+    
+    // تطبيق Snap على الموقع الجديد وليس على النقطة الأصلية
+    const snappedPoint = this.getSnappedPosition(worldPoint);
+    
+    // تطبيق القيود مع Shift
+    let constrainedPoint = this.applyConstraints(snappedPoint);
+    
+    if (this.draggedGrip.type === 'vertex') {
+        this.updateVertexPosition(this.draggedGrip, constrainedPoint);
+    } else if (this.draggedGrip.type === 'edge') {
+        if (this.gripMode === 'stretch') {
+            this.previewEdgeStretch(this.draggedGrip, constrainedPoint);
+        } else {
+            // هنا المشكلة - يجب استخدام الموقع الفعلي للماوس
+            this.previewNewVertex(this.draggedGrip, constrainedPoint);
+        }
+    }
+    
+    // عرض الإحداثيات الحالية
+    this.showDragFeedback(constrainedPoint);
+}
+
+/**
+ * معاينة إضافة vertex جديد - محدث
+ */
+previewNewVertex(edgeGrip, mousePoint) {
+    if (!edgeGrip || !mousePoint) return;
+    
+    const shape = edgeGrip.shape;
+    
+    // إنشاء معاينة للشكل مع النقطة الجديدة
+    let preview = null;
+    
+    switch (shape.type) {
+        case 'line':
+            // تحويل الخط إلى polyline مع النقطة الجديدة في موقع الماوس
+            preview = {
+                type: 'polyline',
+                points: [
+                    edgeGrip.start,
+                    mousePoint,  // استخدم موقع الماوس مباشرة
+                    edgeGrip.end
+                ],
+                color: shape.color,
+                lineWidth: shape.lineWidth,
+                lineType: 'dashed'
+            };
+            break;
+            
+        case 'polyline':
+        case 'polygon':
+            // إضافة النقطة في الموقع الصحيح
+            const points = [...shape.points];
+            points.splice(edgeGrip.endIndex, 0, mousePoint);
+            
+            preview = {
+                type: shape.type,
+                points: points,
+                closed: shape.closed,
+                color: shape.color,
+                lineWidth: shape.lineWidth,
+                lineType: 'dashed'
+            };
+            break;
+            
+        case 'rectangle':
+            // للمستطيل، نحوله إلى polygon مع النقطة الجديدة
+            const corners = this.getRectangleCorners(shape);
+            const newPoints = [...corners];
+            
+            // إدراج النقطة الجديدة في الموقع الصحيح
+            newPoints.splice(edgeGrip.endIndex, 0, mousePoint);
+            
+            preview = {
+                type: 'polygon',
+                points: newPoints,
+                closed: true,
+                color: shape.color,
+                lineWidth: shape.lineWidth,
+                lineType: 'dashed'
+            };
+            break;
+    }
+    
+    // تعيين المعاينة
+    if (preview) {
+        this.cad.tempShape = preview;
+    }
+}
+
+/**
+ * إضافة vertex عند edge - محدث
+ */
+addVertexAtEdge(edgeGrip, clickPoint) {
+    if (!edgeGrip) return;
+    
+    const shape = edgeGrip.shape;
+    this.cad.recordState();
+    
+    // استخدم النقطة المنقرة مباشرة بدلاً من نقطة منتصف الـ edge
+    const newPoint = this.getSnappedPosition(clickPoint);
+    
+    switch (shape.type) {
+        case 'line':
+            // تحويل الخط إلى polyline
+            shape.type = 'polyline';
+            shape.points = [
+                shape.start,
+                newPoint,
+                shape.end
+            ];
+            delete shape.start;
+            delete shape.end;
+            break;
+            
+        case 'rectangle':
+            // تحويل المستطيل إلى polygon
+            const corners = this.getRectangleCorners(shape);
+            const points = [...corners];
+            
+            // إدراج النقطة في الموقع الصحيح
+            points.splice(edgeGrip.endIndex, 0, newPoint);
+            
+            shape.type = 'polygon';
+            shape.points = points;
+            shape.closed = true;
+            delete shape.start;
+            delete shape.end;
+            delete shape.x;
+            delete shape.y;
+            delete shape.width;
+            delete shape.height;
+            break;
+            
+        case 'polyline':
+        case 'polygon':
+            // إدراج النقطة في المكان الصحيح
+            shape.points.splice(edgeGrip.endIndex, 0, newPoint);
+            break;
+    }
+    
+    this.cad.updateStatus('Vertex added');
+    this.cad.render();
+}
+        
+        /**
+         * تطبيق القيود على الحركة
+         */
+        applyConstraints(point) {
+            if (!this.cad.keys || !this.cad.keys.shift || !this.originalPosition) {
+                return point;
+            }
+            
+            const dx = Math.abs(point.x - this.originalPosition.x);
+            const dy = Math.abs(point.y - this.originalPosition.y);
+            
+            // قيد أفقي/رأسي
+            if (dx > dy) {
+                return {
+                    x: point.x,
+                    y: this.originalPosition.y
+                };
+            } else {
+                return {
+                    x: this.originalPosition.x,
+                    y: point.y
+                };
+            }
+        }
+        
+        /**
+         * عرض معلومات السحب
+         */
+        showDragFeedback(point) {
+            if (this.originalPosition) {
+                const dx = point.x - this.originalPosition.x;
+                const dy = point.y - this.originalPosition.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                
+                this.cad.updateStatus(
+                    `Distance: ${distance.toFixed(2)}, Angle: ${angle.toFixed(1)}°`
+                );
+            }
+        }
+        
+        /**
+         * إنهاء السحب
+         */
+        endDrag(point) {
+            if (!this.draggedGrip) return;
+            
+            if (this.draggedGrip.type === 'edge') {
+                if (this.gripMode === 'stretch') {
+                    // تطبيق stretch
+                    this.applyEdgeStretch(this.draggedGrip, point);
+                } else {
+                    // إضافة vertex جديد في موقع السحب
+                    this.addVertexAtEdge(this.draggedGrip, point);
+                }
+            }
+            
+            this.draggedGrip = null;
+            this.originalPosition = null;
+            this.cad.tempShape = null;
+            this.gripMode = 'vertex';
+            this.cad.updateStatus('READY');
+        }
+        
+        /**
+         * رسم vertex grip محسن مع منطقة كشف أكبر
+         */
+        drawVertexGrip(grip) {
+            const ctx = this.cad.ctx;
+            const isHovered = grip === this.hoveredGrip;
+            const isDragged = grip === this.draggedGrip;
+            
+            // حساب الحجم مع تأثير الـ hover
+            const scale = isHovered || isDragged ? this.hoverScale : 1;
+            const size = (this.vertexGripSize * scale) / this.cad.zoom;
+            
+            ctx.save();
+            
+            // رسم منطقة الكشف الشفافة (للـ hover)
+            if (isHovered && !isDragged) {
+                ctx.fillStyle = 'rgba(0, 212, 170, 0.1)';
+                ctx.beginPath();
+                ctx.arc(grip.point.x, grip.point.y, (this.screenDetectionThreshold / this.cad.zoom), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // تحديد الألوان
+            let fillColor, strokeColor;
+            
+            if (isDragged) {
+                fillColor = this.colors.vertex.active;
+                strokeColor = this.colors.vertex.hover;
+                ctx.shadowColor = this.colors.vertex.hover;
+                ctx.shadowBlur = 15 / this.cad.zoom;
+            } else if (isHovered) {
+                fillColor = this.colors.vertex.hover;
+                strokeColor = this.colors.vertex.active;
+                ctx.shadowColor = this.colors.vertex.hover;
+                ctx.shadowBlur = 10 / this.cad.zoom;
+            } else {
+                // ألوان مختلفة حسب النوع
+                switch (grip.subtype) {
+                    case 'center':
+                        fillColor = '#4da6ff';
+                        break;
+                    case 'radius':
+                        fillColor = '#ff9999';
+                        break;
+                    case 'curve':
+                        fillColor = '#ffaa00';
+                        break;
+                    default:
+                        fillColor = this.colors.vertex.normal;
+                }
+                strokeColor = this.colors.vertex.active;
+            }
+            
+            ctx.fillStyle = fillColor;
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 2 / this.cad.zoom;
+            
+            // رسم الشكل المناسب
+            if (grip.subtype === 'corner' || grip.subtype === 'endpoint') {
+                // مربع للزوايا والنهايات
+                const halfSize = size / 2;
+                const x = grip.point.x - halfSize;
+                const y = grip.point.y - halfSize;
+                
+                // رسم مربع مع زوايا مدورة
+                ctx.beginPath();
+                if (ctx.roundRect) {
+                    ctx.roundRect(x, y, size, size, this.cornerRadius / this.cad.zoom);
+                } else {
+                    // Fallback for browsers without roundRect
+                    ctx.rect(x, y, size, size);
+                }
+                ctx.fill();
+                ctx.stroke();
+            } else {
+                // دائرة للأنواع الأخرى
+                ctx.beginPath();
+                ctx.arc(grip.point.x, grip.point.y, size/2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+            
+            // إضافة رمز داخلي للأنواع الخاصة
+            if (isHovered || isDragged) {
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 1.5 / this.cad.zoom;
+                
+                switch (grip.subtype) {
+                    case 'center':
+                        // رسم علامة +
+                        const crossSize = size / 4;
+                        ctx.beginPath();
+                        ctx.moveTo(grip.point.x - crossSize, grip.point.y);
+                        ctx.lineTo(grip.point.x + crossSize, grip.point.y);
+                        ctx.moveTo(grip.point.x, grip.point.y - crossSize);
+                        ctx.lineTo(grip.point.x, grip.point.y + crossSize);
+                        ctx.stroke();
+                        break;
+                }
+            }
+            
+            // Debug mode - رسم منطقة الكشف
+            if (this.debugMode) {
+                ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
+                ctx.lineWidth = 1 / this.cad.zoom;
+                ctx.setLineDash([5 / this.cad.zoom, 5 / this.cad.zoom]);
+                ctx.beginPath();
+                ctx.arc(grip.point.x, grip.point.y, this.screenDetectionThreshold / this.cad.zoom, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            
+            ctx.restore();
+        }
+        
+        /**
+         * رسم edge grip محسن
+         */
+        drawEdgeGrip(grip) {
+            const ctx = this.cad.ctx;
+            const isHovered = grip === this.hoveredGrip;
+            const isDragged = grip === this.draggedGrip;
+            
+            // حساب الحجم
+            const scale = isHovered || isDragged ? this.hoverScale : 1;
+            const size = (this.edgeGripSize * scale) / this.cad.zoom;
+            
+            ctx.save();
+            
+            // رسم منطقة الكشف للـ hover
+            if (isHovered && !isDragged) {
+                ctx.fillStyle = 'rgba(0, 212, 170, 0.05)';
+                ctx.beginPath();
+                ctx.arc(grip.point.x, grip.point.y, (this.screenDetectionThreshold * 0.8) / this.cad.zoom, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            let fillColor, strokeColor;
+            
+            if (isDragged) {
+                fillColor = this.colors.edge.active;
+                strokeColor = this.colors.vertex.active;
+            } else if (isHovered) {
+                fillColor = this.colors.edge.hover;
+                strokeColor = this.colors.edge.active;
+            } else {
+                fillColor = this.colors.edge.normal;
+                strokeColor = 'transparent';
+            }
+            
+            ctx.fillStyle = fillColor;
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 1 / this.cad.zoom;
+            
+            // رسم دائرة صغيرة
+            ctx.beginPath();
+            ctx.arc(grip.point.x, grip.point.y, size/2, 0, Math.PI * 2);
+            ctx.fill();
+            if (strokeColor !== 'transparent') {
+                ctx.stroke();
+            }
+            
+            // إضافة رمز + عند hover
+            if (isHovered) {
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2 / this.cad.zoom;
+                const plusSize = size / 3;
+                
+                ctx.beginPath();
+                ctx.moveTo(grip.point.x - plusSize, grip.point.y);
+                ctx.lineTo(grip.point.x + plusSize, grip.point.y);
+                ctx.moveTo(grip.point.x, grip.point.y - plusSize);
+                ctx.lineTo(grip.point.x, grip.point.y + plusSize);
+                ctx.stroke();
+                
+                // إضافة توهج
+                ctx.shadowColor = this.colors.edge.active;
+                ctx.shadowBlur = 8 / this.cad.zoom;
+                ctx.stroke();
+            }
+            
+            ctx.restore();
+        }
+        
+        /**
+         * Toggle debug mode
+         */
+        toggleDebugMode() {
+            this.debugMode = !this.debugMode;
+            this.cad.render();
+            console.log('Grips Debug Mode:', this.debugMode ? 'ON' : 'OFF');
+        }
+        
+        /**
+         * رسم معلومات debug
+         */
+        drawDebugInfo() {
+            if (!this.debugMode) return;
+            
+            const ctx = this.cad.ctx;
+            ctx.save();
+            
+            // رسم دوائر detection حول كل grip
+            for (const shape of this.cad.selectedShapes) {
+                const grips = this.getShapeGrips(shape);
+                
+                for (const vertex of grips.vertices) {
+                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
+                    ctx.lineWidth = 1 / this.cad.zoom;
+                    ctx.setLineDash([5 / this.cad.zoom, 5 / this.cad.zoom]);
+                    ctx.beginPath();
+                    ctx.arc(vertex.point.x, vertex.point.y, this.screenDetectionThreshold / this.cad.zoom, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                
+                for (const edge of grips.edges) {
+                    ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+                    ctx.lineWidth = 1 / this.cad.zoom;
+                    ctx.setLineDash([3 / this.cad.zoom, 3 / this.cad.zoom]);
+                    ctx.beginPath();
+                    ctx.arc(edge.point.x, edge.point.y, (this.screenDetectionThreshold * 0.8) / this.cad.zoom, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+            
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+        
+        // ==================== باقي الدوال الأصلية بدون تغيير ====================
         
         /**
          * الحصول على جميع grips للشكل
@@ -424,227 +1049,6 @@
                     label: 'Bottom Left'
                 }
             ];
-        }
-        
-        /**
-         * البحث عن grip عند نقطة معينة - مُحسّن
-         */
-        findGripAt(point, selectedShapes) {
-            // استخدام threshold ديناميكي يتناسب مع حجم الـ grip
-            const baseThreshold = this.precisionMode ? 8 : this.detectionThreshold;
-            const threshold = baseThreshold / this.cad.zoom;
-            
-            let nearestGrip = null;
-            let minDist = threshold;
-            
-            // التحقق من الـ cache أولاً
-            const now = Date.now();
-            const cacheKey = `${point.x.toFixed(2)},${point.y.toFixed(2)}`;
-            
-            if (this.gripsCache.has(cacheKey) && (now - this.lastCacheUpdate) < this.cacheTimeout) {
-                return this.gripsCache.get(cacheKey);
-            }
-            
-            for (const shape of selectedShapes) {
-                const grips = this.getShapeGrips(shape);
-                
-                // البحث في vertex grips أولاً (لها أولوية)
-                for (const vertex of grips.vertices) {
-                    // حساب المسافة بدقة عالية
-                    const dist = this.calculateDistance(point, vertex.point);
-                    
-                    // استخدام threshold متغير حسب نوع الـ grip
-                    const gripThreshold = vertex.subtype === 'center' ? 
-                        threshold * 1.2 : threshold;
-                    
-                    if (dist < gripThreshold && dist < minDist) {
-                        minDist = dist;
-                        nearestGrip = vertex;
-                    }
-                }
-                
-                // البحث في edges بـ threshold أصغر
-                const edgeThreshold = threshold * 0.8;
-                for (const edge of grips.edges) {
-                    const dist = this.calculateDistance(point, edge.point);
-                    
-                    if (dist < edgeThreshold && dist < minDist) {
-                        minDist = dist;
-                        nearestGrip = edge;
-                    }
-                }
-            }
-            
-            // تحديث الـ cache
-            this.gripsCache.set(cacheKey, nearestGrip);
-            this.lastCacheUpdate = now;
-            
-            return nearestGrip;
-        }
-        
-        /**
-         * حساب المسافة بدقة عالية
-         */
-        calculateDistance(p1, p2) {
-            const dx = p1.x - p2.x;
-            const dy = p1.y - p2.y;
-            return Math.sqrt(dx * dx + dy * dy);
-        }
-        
-        /**
-         * تحديث hover state - مُحسّن
-         */
-        updateHover(point, selectedShapes) {
-            const newHover = this.findGripAt(point, selectedShapes);
-            
-            if (newHover !== this.hoveredGrip) {
-                this.hoveredGrip = newHover;
-                
-                // مسح الـ cache عند تغيير الـ hover
-                if (newHover || this.hoveredGrip) {
-                    this.gripsCache.clear();
-                }
-                
-                this.cad.render();
-                
-                // تحديث المؤشر مع visual feedback
-                if (newHover) {
-                    this.cad.canvas.style.cursor = 'pointer';
-                    // إضافة تأثير بصري للـ hover
-                    this.showHoverFeedback(newHover);
-                } else {
-                    this.cad.canvas.style.cursor = 'default';
-                }
-            }
-        }
-        
-        /**
-         * إظهار تأثير بصري عند الـ hover
-         */
-        showHoverFeedback(grip) {
-            // يمكن إضافة تأثيرات إضافية هنا
-            if (this.showLabels && grip.label) {
-                // عرض tooltip
-                this.cad.ui?.showTooltip(grip.point, grip.label);
-            }
-        }
-        
-        /**
-         * بدء سحب grip - مُحسّن
-         */
-        startDrag(grip, point) {
-            this.draggedGrip = grip;
-            this.originalPosition = { ...grip.point };
-            
-            // تسجيل الحالة للـ undo
-            this.cad.recordState();
-            
-            // تحديد الوضع
-            if (grip.type === 'vertex') {
-                this.cad.updateStatus(`Dragging ${grip.label || 'vertex'}`);
-                this.cad.canvas.style.cursor = 'move';
-            } else {
-                if (this.cad.keys && this.cad.keys.ctrl) {
-                    this.gripMode = 'stretch';
-                    this.cad.updateStatus('Stretching edge');
-                } else {
-                    this.gripMode = 'vertex';
-                    this.cad.updateStatus('Click to add vertex');
-                }
-            }
-            
-            // مسح الـ cache
-            this.gripsCache.clear();
-        }
-        
-        /**
-         * تحديث موقع أثناء السحب - مُحسّن
-         */
-        updateDrag(point) {
-            if (!this.draggedGrip) return;
-            
-            // تطبيق Snap مع تحسين الدقة
-            const snappedPoint = this.getSnappedPosition(point);
-            
-            // تطبيق القيود مع Shift
-            let constrainedPoint = this.applyConstraints(snappedPoint);
-            
-            if (this.draggedGrip.type === 'vertex') {
-                this.updateVertexPosition(this.draggedGrip, constrainedPoint);
-            } else if (this.draggedGrip.type === 'edge') {
-                if (this.gripMode === 'stretch') {
-                    this.previewEdgeStretch(this.draggedGrip, constrainedPoint);
-                } else {
-                    this.previewNewVertex(this.draggedGrip, constrainedPoint);
-                }
-            }
-            
-            // عرض الإحداثيات الحالية
-            this.showDragFeedback(constrainedPoint);
-        }
-        
-        /**
-         * تطبيق القيود على الحركة
-         */
-        applyConstraints(point) {
-            if (!this.cad.keys || !this.cad.keys.shift || !this.originalPosition) {
-                return point;
-            }
-            
-            const dx = Math.abs(point.x - this.originalPosition.x);
-            const dy = Math.abs(point.y - this.originalPosition.y);
-            
-            // قيد أفقي/رأسي
-            if (dx > dy) {
-                return {
-                    x: point.x,
-                    y: this.originalPosition.y
-                };
-            } else {
-                return {
-                    x: this.originalPosition.x,
-                    y: point.y
-                };
-            }
-        }
-        
-        /**
-         * عرض معلومات السحب
-         */
-        showDragFeedback(point) {
-            if (this.originalPosition) {
-                const dx = point.x - this.originalPosition.x;
-                const dy = point.y - this.originalPosition.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-                
-                this.cad.updateStatus(
-                    `Distance: ${distance.toFixed(2)}, Angle: ${angle.toFixed(1)}°`
-                );
-            }
-        }
-        
-        /**
-         * إنهاء السحب
-         */
-        endDrag(point) {
-            if (!this.draggedGrip) return;
-            
-            if (this.draggedGrip.type === 'edge') {
-                if (this.gripMode === 'stretch') {
-                    // تطبيق stretch
-                    this.applyEdgeStretch(this.draggedGrip, point);
-                } else {
-                    // إضافة vertex جديد في موقع السحب
-                    this.addVertexAtEdge(this.draggedGrip, point);
-                }
-            }
-            
-            this.draggedGrip = null;
-            this.originalPosition = null;
-            this.cad.tempShape = null;
-            this.gripMode = 'vertex';
-            this.cad.updateStatus('READY');
         }
         
         /**
@@ -1741,162 +2145,11 @@
             
             // استعادة حالة الـ context
             this.cad.ctx.restore();
-        }
-        
-        /**
-         * رسم vertex grip محسن
-         */
-        drawVertexGrip(grip) {
-            const ctx = this.cad.ctx;
-            const isHovered = grip === this.hoveredGrip;
-            const isDragged = grip === this.draggedGrip;
             
-            // حساب الحجم مع تأثير الـ hover
-            const scale = isHovered || isDragged ? this.hoverScale : 1;
-            const size = (this.vertexGripSize * scale) / this.cad.zoom;
-            
-            ctx.save();
-            
-            // تحديد الألوان
-            let fillColor, strokeColor;
-            
-            if (isDragged) {
-                fillColor = this.colors.vertex.active;
-                strokeColor = this.colors.vertex.hover;
-                ctx.shadowColor = this.colors.vertex.hover;
-                ctx.shadowBlur = 15 / this.cad.zoom;
-            } else if (isHovered) {
-                fillColor = this.colors.vertex.hover;
-                strokeColor = this.colors.vertex.active;
-                ctx.shadowColor = this.colors.vertex.hover;
-                ctx.shadowBlur = 10 / this.cad.zoom;
-            } else {
-                // ألوان مختلفة حسب النوع
-                switch (grip.subtype) {
-                    case 'center':
-                        fillColor = '#4da6ff';
-                        break;
-                    case 'radius':
-                        fillColor = '#ff9999';
-                        break;
-                    case 'curve':
-                        fillColor = '#ffaa00';
-                        break;
-                    default:
-                        fillColor = this.colors.vertex.normal;
-                }
-                strokeColor = this.colors.vertex.active;
+            // رسم debug info إذا كان مفعلاً
+            if (this.debugMode) {
+                this.drawDebugInfo();
             }
-            
-            ctx.fillStyle = fillColor;
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = 2 / this.cad.zoom;
-            
-            // رسم الشكل المناسب
-            if (grip.subtype === 'corner' || grip.subtype === 'endpoint') {
-                // مربع للزوايا والنهايات
-                const halfSize = size / 2;
-                const x = grip.point.x - halfSize;
-                const y = grip.point.y - halfSize;
-                
-                // رسم مربع مع زوايا مدورة
-                ctx.beginPath();
-                if (ctx.roundRect) {
-                    ctx.roundRect(x, y, size, size, this.cornerRadius / this.cad.zoom);
-                } else {
-                    // Fallback for browsers without roundRect
-                    ctx.rect(x, y, size, size);
-                }
-                ctx.fill();
-                ctx.stroke();
-            } else {
-                // دائرة للأنواع الأخرى
-                ctx.beginPath();
-                ctx.arc(grip.point.x, grip.point.y, size/2, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-            }
-            
-            // إضافة رمز داخلي للأنواع الخاصة
-            if (isHovered || isDragged) {
-                ctx.strokeStyle = 'white';
-                ctx.lineWidth = 1.5 / this.cad.zoom;
-                
-                switch (grip.subtype) {
-                    case 'center':
-                        // رسم علامة +
-                        const crossSize = size / 4;
-                        ctx.beginPath();
-                        ctx.moveTo(grip.point.x - crossSize, grip.point.y);
-                        ctx.lineTo(grip.point.x + crossSize, grip.point.y);
-                        ctx.moveTo(grip.point.x, grip.point.y - crossSize);
-                        ctx.lineTo(grip.point.x, grip.point.y + crossSize);
-                        ctx.stroke();
-                        break;
-                }
-            }
-            
-            ctx.restore();
-        }
-        
-        /**
-         * رسم edge grip محسن
-         */
-        drawEdgeGrip(grip) {
-            const ctx = this.cad.ctx;
-            const isHovered = grip === this.hoveredGrip;
-            const isDragged = grip === this.draggedGrip;
-            
-            const scale = isHovered || isDragged ? this.hoverScale : 1;
-            const size = (this.edgeGripSize * scale) / this.cad.zoom;
-            
-            ctx.save();
-            
-            let fillColor, strokeColor;
-            
-            if (isDragged) {
-                fillColor = this.colors.edge.active;
-                strokeColor = this.colors.vertex.active;
-            } else if (isHovered) {
-                fillColor = this.colors.edge.hover;
-                strokeColor = this.colors.edge.active;
-            } else {
-                fillColor = this.colors.edge.normal;
-                strokeColor = 'transparent';
-            }
-            
-            ctx.fillStyle = fillColor;
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = 1 / this.cad.zoom;
-            
-            // رسم دائرة صغيرة
-            ctx.beginPath();
-            ctx.arc(grip.point.x, grip.point.y, size/2, 0, Math.PI * 2);
-            ctx.fill();
-            if (strokeColor !== 'transparent') {
-                ctx.stroke();
-            }
-            
-            // إضافة رمز + عند hover
-            if (isHovered) {
-                ctx.strokeStyle = 'white';
-                ctx.lineWidth = 2 / this.cad.zoom;
-                const plusSize = size / 3;
-                
-                ctx.beginPath();
-                ctx.moveTo(grip.point.x - plusSize, grip.point.y);
-                ctx.lineTo(grip.point.x + plusSize, grip.point.y);
-                ctx.moveTo(grip.point.x, grip.point.y - plusSize);
-                ctx.lineTo(grip.point.x, grip.point.y + plusSize);
-                ctx.stroke();
-                
-                // إضافة توهج
-                ctx.shadowColor = this.colors.edge.active;
-                ctx.shadowBlur = 8 / this.cad.zoom;
-                ctx.stroke();
-            }
-            
-            ctx.restore();
         }
     }
     

@@ -565,18 +565,26 @@ class TyrexCAD {
     
     // Coordinate transformations
     screenToWorld(x, y) {
-        return {
-            x: (x - this.panX) / this.zoom,
-            y: (y - this.panY) / this.zoom
-        };
-    }
+    // تطبيق التحويل بدقة أعلى
+    const worldX = (x - this.panX) / this.zoom;
+    const worldY = (y - this.panY) / this.zoom;
+    
+    return {
+        x: Math.round(worldX * 1000000) / 1000000,
+        y: Math.round(worldY * 1000000) / 1000000
+    };
+}
     
     worldToScreen(x, y) {
-        return {
-            x: x * this.zoom + this.panX,
-            y: y * this.zoom + this.panY
-        };
-    }
+    // تطبيق التحويل بدقة أعلى
+    const screenX = x * this.zoom + this.panX;
+    const screenY = y * this.zoom + this.panY;
+    
+    return {
+        x: Math.round(screenX * 1000) / 1000,
+        y: Math.round(screenY * 1000) / 1000
+    };
+}
     
     // Mouse events
     onMouseDown(e) {
@@ -594,7 +602,11 @@ class TyrexCAD {
                 if (e.shiftKey && !this.isSelecting) {
                     this.startPanning(x, y);
                 } else {
-                    this.handleSelection(x, y, e.ctrlKey);
+                    if (this.currentTool === 'select') {
+                    // استخدم موقع الماوس الدقيق
+                    const worldExact = this.screenToWorld(x, y);
+                    this.handleSelection(x, y, e.ctrlKey, worldExact);
+                }
                 }
             } else {
                 // في الأدوات الأخرى
@@ -617,80 +629,86 @@ class TyrexCAD {
     }
     
     onMouseMove(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        this.mouseX = e.clientX - rect.left;
-        this.mouseY = e.clientY - rect.top;
-        
-        const world = this.screenToWorld(this.mouseX, this.mouseY);
-        this.worldX = world.x;
-        this.worldY = world.y;
-        
-        // Update coordinates display
-        this.ui.updateCoordinates(this.worldX, this.worldY, 0);
-        
-        // Update crosshair only in 2D mode
-        if (this.mode === '2D') {
-            this.ui.updateCrosshair(this.mouseX, this.mouseY);
-        }
-        
-        // معالجة Grips في وضع التحديد
-        if (this.currentTool === 'select' && this.gripsController && !this.isSelecting && !this.isPanning) {
-            if (this.gripsController.draggedGrip) {
-                // تحديث السحب
-                this.gripsController.updateDrag(world);
-            } else if (this.selectedShapes.size > 0) {
-                // تحديث hover فقط إذا كان هناك أشكال محددة
-                this.gripsController.updateHover(world, this.selectedShapes);
-                
-                // تحديث المؤشر بناءً على الحالة
-                if (this.gripsController.hoveredGrip) {
-                    this.canvas.style.cursor = 'move';
-                } else {
-                    // لا يوجد grip - تحقق من الشكل
-                    const shape = this.getShapeAt(world.x, world.y);
-                    this.canvas.style.cursor = shape ? 'pointer' : 'default';
-                }
+    const rect = this.canvas.getBoundingClientRect();
+    this.mouseX = e.clientX - rect.left;
+    this.mouseY = e.clientY - rect.top;
+    
+    const world = this.screenToWorld(this.mouseX, this.mouseY);
+    this.worldX = world.x;
+    this.worldY = world.y;
+    
+    // حفظ موقع الماوس للـ GripsController
+    if (this.gripsController) {
+        this.gripsController.lastMouseScreen = { x: this.mouseX, y: this.mouseY };
+        this.gripsController.lastMouseWorld = world;
+    }
+    
+    // Update coordinates display
+    this.ui.updateCoordinates(this.worldX, this.worldY, 0);
+    
+    // Update crosshair only in 2D mode
+    if (this.mode === '2D') {
+        this.ui.updateCrosshair(this.mouseX, this.mouseY);
+    }
+    
+    // معالجة Grips في وضع التحديد - محدث
+    if (this.currentTool === 'select' && this.gripsController && !this.isSelecting && !this.isPanning) {
+        if (this.gripsController.draggedGrip) {
+            // تحديث السحب
+            this.gripsController.updateDrag(world);
+        } else if (this.selectedShapes.size > 0) {
+            // تحديث hover - تمرير world point
+            this.gripsController.updateHover(world, this.selectedShapes);
+            
+            // تحديث المؤشر بناءً على الحالة
+            if (this.gripsController.hoveredGrip) {
+                this.canvas.style.cursor = 'move';
             } else {
-                // لا توجد أشكال محددة - عرض pointer للأشكال
+                // لا يوجد grip - تحقق من الشكل
                 const shape = this.getShapeAt(world.x, world.y);
                 this.canvas.style.cursor = shape ? 'pointer' : 'default';
             }
+        } else {
+            // لا توجد أشكال محددة - عرض pointer للأشكال
+            const shape = this.getShapeAt(world.x, world.y);
+            this.canvas.style.cursor = shape ? 'pointer' : 'default';
         }
-        
-        // باقي معالجة الأحداث...
-        if (this.isPanning) {
-            this.updatePanning();
-        } else if (this.isSelecting) {
-            // تحديث selection box
-            this.updateSelection();
-        } else if (this.toolsManager && this.toolsManager.activeTool) {
-            // دع ToolsManager يتعامل مع حركة الماوس
-            const snapPoint = this.getSnapPoint(world.x, world.y);
-            this.toolsManager.handleMouseMove(snapPoint);
-        }
-        
-        // تتبع الشكل تحت الماوس (للـ hover effect)
-        if (this.currentTool === 'select' && !this.isSelecting && !this.isPanning && !this.gripsController?.draggedGrip) {
-            const newHoveredShape = this.getShapeAt(world.x, world.y);
-            if (newHoveredShape !== this.hoveredShape) {
-                this.hoveredShape = newHoveredShape;
-                this.render();
-            }
-        }
-        
-        // Update snap indicator
-        if (this.snapEnabled && this.mode === '2D') {
-            const snapPoint = this.getSnapPoint(world.x, world.y);
-            if (snapPoint.type) {
-                const screen = this.worldToScreen(snapPoint.x, snapPoint.y);
-                this.ui.updateSnapIndicator(snapPoint, screen);
-            } else {
-                this.ui.updateSnapIndicator(null, null);
-            }
-        }
-        
-        this.render();
     }
+    
+    // باقي معالجة الأحداث...
+    if (this.isPanning) {
+        this.updatePanning();
+    } else if (this.isSelecting) {
+        // تحديث selection box
+        this.updateSelection();
+    } else if (this.toolsManager && this.toolsManager.activeTool) {
+        // دع ToolsManager يتعامل مع حركة الماوس
+        const snapPoint = this.getSnapPoint(world.x, world.y);
+        this.toolsManager.handleMouseMove(snapPoint);
+    }
+    
+    // تتبع الشكل تحت الماوس (للـ hover effect)
+    if (this.currentTool === 'select' && !this.isSelecting && !this.isPanning && !this.gripsController?.draggedGrip) {
+        const newHoveredShape = this.getShapeAt(world.x, world.y);
+        if (newHoveredShape !== this.hoveredShape) {
+            this.hoveredShape = newHoveredShape;
+            this.render();
+        }
+    }
+    
+    // Update snap indicator
+    if (this.snapEnabled && this.mode === '2D') {
+        const snapPoint = this.getSnapPoint(world.x, world.y);
+        if (snapPoint.type) {
+            const screen = this.worldToScreen(snapPoint.x, snapPoint.y);
+            this.ui.updateSnapIndicator(snapPoint, screen);
+        } else {
+            this.ui.updateSnapIndicator(null, null);
+        }
+    }
+    
+    this.render();
+}
     
     onMouseUp(e) {
         const rect = this.canvas.getBoundingClientRect();
@@ -1312,17 +1330,42 @@ class TyrexCAD {
                 shape.end = rotatePoint(shape.end);
                 break;
             case 'rectangle':
-                const tempStart = rotatePoint(shape.start);
-                const tempEnd = rotatePoint(shape.end);
-                shape.start = {
-                    x: Math.min(tempStart.x, tempEnd.x),
-                    y: Math.min(tempStart.y, tempEnd.y)
-                };
-                shape.end = {
-                    x: Math.max(tempStart.x, tempEnd.x),
-                    y: Math.max(tempStart.y, tempEnd.y)
-                };
-                break;
+    // حفظ الزوايا الأربع للمستطيل
+    const corners = [
+        { x: shape.start.x, y: shape.start.y },
+        { x: shape.end.x, y: shape.start.y },
+        { x: shape.end.x, y: shape.end.y },
+        { x: shape.start.x, y: shape.end.y }
+    ];
+    
+    // تدوير الزوايا الأربع
+    const rotatedCorners = corners.map(rotatePoint);
+    
+    // 🆕 حفظ الخصائص المهمة قبل التحويل
+    const preservedProps = {
+        filled: shape.filled || false,
+        fillColor: shape.fillColor,
+        color: shape.color,
+        lineWidth: shape.lineWidth,
+        lineType: shape.lineType,
+        layerId: shape.layerId,
+        locked: shape.locked,
+        visible: shape.visible,
+        id: shape.id
+    };
+    
+    // تحويل المستطيل إلى polygon
+    shape.type = 'polygon';
+    shape.points = rotatedCorners;
+    shape.closed = true;
+    
+    // 🆕 استعادة الخصائص المحفوظة
+    Object.assign(shape, preservedProps);
+    
+    // حذف الخصائص القديمة للمستطيل
+    delete shape.start;
+    delete shape.end;
+    break;
             case 'circle':
             case 'ellipse':
                 shape.center = rotatePoint(shape.center);
@@ -1454,57 +1497,57 @@ class TyrexCAD {
     }
     
     // Selection - محدثة لدعم Grips والسلوك الجديد
-    handleSelection(x, y, ctrlKey) {
-        const world = this.screenToWorld(x, y);
+    handleSelection(x, y, ctrlKey, exactWorldPoint = null) {
+    const world = exactWorldPoint || this.screenToWorld(x, y);
+    
+    // معالجة سحب Grip أولاً - استخدام screen coordinates للبحث المحسن
+    if (this.gripsController && this.selectedShapes.size > 0) {
+        const grip = this.gripsController.findGripAtScreen({x, y}, this.selectedShapes);
         
-        // معالجة سحب Grip أولاً
-        if (this.gripsController && this.selectedShapes.size > 0) {
-            const grip = this.gripsController.findGripAt(world, this.selectedShapes);
-            
-            if (grip) {
-                this.gripsController.startDrag(grip, world);
-                return;
-            }
-        }
-        
-        // التحقق من الأشكال
-        const shape = this.getShapeAt(world.x, world.y);
-        
-        if (shape) {
-            // نقرة على شكل
-            if (this.isSelecting && this.selectionFirstClick) {
-                // إذا كنا في وضع التحديد، أنهي التحديد أولاً
-                this.finishSelection();
-            }
-            
-            // معالجة تحديد الشكل
-            if (this.cumulativeSelection || ctrlKey) {
-                // التحديد التراكمي
-                if (this.selectedShapes.has(shape)) {
-                    this.selectedShapes.delete(shape);
-                } else {
-                    this.selectedShapes.add(shape);
-                }
-            } else {
-                // استبدال التحديد
-                if (!this.selectedShapes.has(shape)) {
-                    this.selectedShapes.clear();
-                    this.selectedShapes.add(shape);
-                }
-            }
-            this.ui.updatePropertiesPanel();
-            this.render();
-        } else {
-            // نقرة في الفراغ - بدء أو إنهاء selection box
-            if (!this.selectionFirstClick) {
-                // النقرة الأولى - بدء التحديد
-                this.startSelectionBox(x, y, ctrlKey);
-            } else {
-                // النقرة الثانية - إنهاء التحديد
-                this.finishSelection();
-            }
+        if (grip) {
+            this.gripsController.startDrag(grip, world);
+            return;
         }
     }
+    
+    // التحقق من الأشكال
+    const shape = this.getShapeAt(world.x, world.y);
+    
+    if (shape) {
+        // نقرة على شكل
+        if (this.isSelecting && this.selectionFirstClick) {
+            // إذا كنا في وضع التحديد، أنهي التحديد أولاً
+            this.finishSelection();
+        }
+        
+        // معالجة تحديد الشكل
+        if (this.cumulativeSelection || ctrlKey) {
+            // التحديد التراكمي
+            if (this.selectedShapes.has(shape)) {
+                this.selectedShapes.delete(shape);
+            } else {
+                this.selectedShapes.add(shape);
+            }
+        } else {
+            // استبدال التحديد
+            if (!this.selectedShapes.has(shape)) {
+                this.selectedShapes.clear();
+                this.selectedShapes.add(shape);
+            }
+        }
+        this.ui.updatePropertiesPanel();
+        this.render();
+    } else {
+        // نقرة في الفراغ - بدء أو إنهاء selection box
+        if (!this.selectionFirstClick) {
+            // النقرة الأولى - بدء التحديد
+            this.startSelectionBox(x, y, ctrlKey);
+        } else {
+            // النقرة الثانية - إنهاء التحديد
+            this.finishSelection();
+        }
+    }
+}
     
     // دالة جديدة لبدء selection box
     startSelectionBox(x, y, ctrlKey) {
@@ -2106,155 +2149,183 @@ class TyrexCAD {
     
     // Snap system
     getSnapPoint(x, y) {
-        if (!this.snapEnabled) return { x, y };
+    if (!this.snapEnabled) return { x, y };
+    
+    let bestSnap = null;
+    let bestDistance = Infinity;
+    const snapRadius = 10 / this.zoom;
+    
+    // إضافة Snap للـ Grips كأولوية عالية
+    if (this.selectedShapes.size > 0 && this.gripsController && this.currentTool !== 'select') {
+        const grips = [];
+        for (const shape of this.selectedShapes) {
+            const shapeGrips = this.gripsController.getShapeGrips(shape);
+            grips.push(...shapeGrips.vertices);
+            grips.push(...shapeGrips.edges);
+        }
         
-        let bestSnap = null;
-        let bestDistance = Infinity;
-        const snapRadius = 10 / this.zoom;
-        
-        // Grid snap
-        if (this.snapSettings.grid && this.gridEnabled) {
-            const gridX = Math.round(x / this.gridSize) * this.gridSize;
-            const gridY = Math.round(y / this.gridSize) * this.gridSize;
-            const dist = this.distance(x, y, gridX, gridY);
+        for (const grip of grips) {
+            const dist = this.distance(x, y, grip.point.x, grip.point.y);
             
             if (dist < snapRadius && dist < bestDistance) {
                 bestDistance = dist;
-                bestSnap = { x: gridX, y: gridY, type: 'Grid' };
+                bestSnap = {
+                    x: grip.point.x,
+                    y: grip.point.y,
+                    type: grip.type === 'vertex' ? 'Grip Point' : 'Grip Edge'
+                };
             }
         }
         
-        // Object snaps
-        for (const shape of this.shapes) {
-            const layer = this.getLayer(shape.layerId);
-            if (!layer || !layer.visible) continue;
-            
-            // Skip selected shapes when moving/copying
-            if ((this.currentTool === 'move' || this.currentTool === 'copy') && 
-                this.isDrawing && this.selectedShapes.has(shape)) {
-                continue;
-            }
-            
-            // Endpoint snap
-            if (this.snapSettings.endpoint) {
-                const endpoints = this.getShapeEndpoints(shape);
-                for (const point of endpoints) {
-                    const dist = this.distance(x, y, point.x, point.y);
-                    if (dist < snapRadius && dist < bestDistance) {
-                        bestDistance = dist;
-                        bestSnap = { ...point, type: 'Endpoint' };
-                    }
-                }
-            }
-            
-            // Midpoint snap
-            if (this.snapSettings.midpoint) {
-                const midpoints = this.getShapeMidpoints(shape);
-                for (const point of midpoints) {
-                    const dist = this.distance(x, y, point.x, point.y);
-                    if (dist < snapRadius && dist < bestDistance) {
-                        bestDistance = dist;
-                        bestSnap = { ...point, type: 'Midpoint' };
-                    }
-                }
-            }
-            
-            // Center snap
-            if (this.snapSettings.center) {
-                const center = this.getShapeCenter(shape);
-                if (center) {
-                    const dist = this.distance(x, y, center.x, center.y);
-                    if (dist < snapRadius && dist < bestDistance) {
-                        bestDistance = dist;
-                        bestSnap = { ...center, type: 'Center' };
-                    }
-                }
-            }
-            
-            // Intersection snap
-            if (this.snapSettings.intersection) {
-                for (const otherShape of this.shapes) {
-                    if (shape === otherShape) continue;
-                    const intersections = this.getShapeIntersections(shape, otherShape);
-                    for (const point of intersections) {
-                        const dist = this.distance(x, y, point.x, point.y);
-                        if (dist < snapRadius && dist < bestDistance) {
-                            bestDistance = dist;
-                            bestSnap = { ...point, type: 'Intersection' };
-                        }
-                    }
-                }
-            }
-            
-            // Perpendicular snap
-            if (this.snapSettings.perpendicular && this.isDrawing && this.drawingPoints.length > 0) {
-                const perpPoint = this.geo.getPerpendicularPoint(this.drawingPoints[0], { x, y }, shape);
-                if (perpPoint) {
-                    const dist = this.distance(x, y, perpPoint.x, perpPoint.y);
-                    if (dist < snapRadius && dist < bestDistance) {
-                        bestDistance = dist;
-                        bestSnap = { ...perpPoint, type: 'Perpendicular' };
-                    }
-                }
-            }
-            
-            // Tangent snap
-            if (this.snapSettings.tangent && shape.type === 'circle') {
-                const tangentPoints = this.getTangentPoints({ x, y }, shape);
-                for (const point of tangentPoints) {
-                    const dist = this.distance(x, y, point.x, point.y);
-                    if (dist < snapRadius && dist < bestDistance) {
-                        bestDistance = dist;
-                        bestSnap = { ...point, type: 'Tangent' };
-                    }
-                }
-            }
-            
-            // Nearest snap
-            if (this.snapSettings.nearest) {
-                const nearestPoint = this.getNearestPointOnShape({ x, y }, shape);
-                if (nearestPoint) {
-                    const dist = this.distance(x, y, nearestPoint.x, nearestPoint.y);
-                    if (dist < snapRadius && dist < bestDistance) {
-                        bestDistance = dist;
-                        bestSnap = { ...nearestPoint, type: 'Nearest' };
-                    }
-                }
-            }
+        // إذا وجدنا grip snap، نعيده مباشرة
+        if (bestSnap) {
+            return bestSnap;
         }
-        
-        // Ortho mode
-        if (this.orthoEnabled && this.isDrawing && this.drawingPoints.length > 0) {
-            const lastPoint = this.drawingPoints[this.drawingPoints.length - 1];
-            const dx = x - lastPoint.x;
-            const dy = y - lastPoint.y;
-            
-            if (Math.abs(dx) > Math.abs(dy)) {
-                bestSnap = { x: x, y: lastPoint.y, type: 'Ortho' };
-            } else {
-                bestSnap = { x: lastPoint.x, y: y, type: 'Ortho' };
-            }
-        }
-        
-        // Polar tracking
-        if (this.polarEnabled && this.isDrawing && this.drawingPoints.length > 0) {
-            const lastPoint = this.drawingPoints[this.drawingPoints.length - 1];
-            const angle = Math.atan2(y - lastPoint.y, x - lastPoint.x);
-            const distance = this.distance(x, y, lastPoint.x, lastPoint.y);
-            
-            // Snap to 15-degree increments
-            const snapAngle = Math.round(angle / (Math.PI / 12)) * (Math.PI / 12);
-            const angleDiff = Math.abs(angle - snapAngle);
-            
-            if (angleDiff < Math.PI / 36) { // Within 5 degrees
-                const snapX = lastPoint.x + distance * Math.cos(snapAngle);
-                const snapY = lastPoint.y + distance * Math.sin(snapAngle);
-                bestSnap = { x: snapX, y: snapY, type: 'Polar' };
-            }
-        }
-        
-        return bestSnap || { x, y };
     }
+    
+    // Grid snap
+    if (this.snapSettings.grid && this.gridEnabled) {
+        const gridX = Math.round(x / this.gridSize) * this.gridSize;
+        const gridY = Math.round(y / this.gridSize) * this.gridSize;
+        const dist = this.distance(x, y, gridX, gridY);
+        
+        if (dist < snapRadius && dist < bestDistance) {
+            bestDistance = dist;
+            bestSnap = { x: gridX, y: gridY, type: 'Grid' };
+        }
+    }
+    
+    // Object snaps
+    for (const shape of this.shapes) {
+        const layer = this.getLayer(shape.layerId);
+        if (!layer || !layer.visible) continue;
+        
+        // Skip selected shapes when moving/copying
+        if ((this.currentTool === 'move' || this.currentTool === 'copy') && 
+            this.isDrawing && this.selectedShapes.has(shape)) {
+            continue;
+        }
+        
+        // Endpoint snap
+        if (this.snapSettings.endpoint) {
+            const endpoints = this.getShapeEndpoints(shape);
+            for (const point of endpoints) {
+                const dist = this.distance(x, y, point.x, point.y);
+                if (dist < snapRadius && dist < bestDistance) {
+                    bestDistance = dist;
+                    bestSnap = { ...point, type: 'Endpoint' };
+                }
+            }
+        }
+        
+        // Midpoint snap
+        if (this.snapSettings.midpoint) {
+            const midpoints = this.getShapeMidpoints(shape);
+            for (const point of midpoints) {
+                const dist = this.distance(x, y, point.x, point.y);
+                if (dist < snapRadius && dist < bestDistance) {
+                    bestDistance = dist;
+                    bestSnap = { ...point, type: 'Midpoint' };
+                }
+            }
+        }
+        
+        // Center snap
+        if (this.snapSettings.center) {
+            const center = this.getShapeCenter(shape);
+            if (center) {
+                const dist = this.distance(x, y, center.x, center.y);
+                if (dist < snapRadius && dist < bestDistance) {
+                    bestDistance = dist;
+                    bestSnap = { ...center, type: 'Center' };
+                }
+            }
+        }
+        
+        // Intersection snap
+        if (this.snapSettings.intersection) {
+            for (const otherShape of this.shapes) {
+                if (shape === otherShape) continue;
+                const intersections = this.getShapeIntersections(shape, otherShape);
+                for (const point of intersections) {
+                    const dist = this.distance(x, y, point.x, point.y);
+                    if (dist < snapRadius && dist < bestDistance) {
+                        bestDistance = dist;
+                        bestSnap = { ...point, type: 'Intersection' };
+                    }
+                }
+            }
+        }
+        
+        // Perpendicular snap
+        if (this.snapSettings.perpendicular && this.isDrawing && this.drawingPoints.length > 0) {
+            const perpPoint = this.geo.getPerpendicularPoint(this.drawingPoints[0], { x, y }, shape);
+            if (perpPoint) {
+                const dist = this.distance(x, y, perpPoint.x, perpPoint.y);
+                if (dist < snapRadius && dist < bestDistance) {
+                    bestDistance = dist;
+                    bestSnap = { ...perpPoint, type: 'Perpendicular' };
+                }
+            }
+        }
+        
+        // Tangent snap
+        if (this.snapSettings.tangent && shape.type === 'circle') {
+            const tangentPoints = this.getTangentPoints({ x, y }, shape);
+            for (const point of tangentPoints) {
+                const dist = this.distance(x, y, point.x, point.y);
+                if (dist < snapRadius && dist < bestDistance) {
+                    bestDistance = dist;
+                    bestSnap = { ...point, type: 'Tangent' };
+                }
+            }
+        }
+        
+        // Nearest snap
+        if (this.snapSettings.nearest) {
+            const nearestPoint = this.getNearestPointOnShape({ x, y }, shape);
+            if (nearestPoint) {
+                const dist = this.distance(x, y, nearestPoint.x, nearestPoint.y);
+                if (dist < snapRadius && dist < bestDistance) {
+                    bestDistance = dist;
+                    bestSnap = { ...nearestPoint, type: 'Nearest' };
+                }
+            }
+        }
+    }
+    
+    // Ortho mode
+    if (this.orthoEnabled && this.isDrawing && this.drawingPoints.length > 0) {
+        const lastPoint = this.drawingPoints[this.drawingPoints.length - 1];
+        const dx = x - lastPoint.x;
+        const dy = y - lastPoint.y;
+        
+        if (Math.abs(dx) > Math.abs(dy)) {
+            bestSnap = { x: x, y: lastPoint.y, type: 'Ortho' };
+        } else {
+            bestSnap = { x: lastPoint.x, y: y, type: 'Ortho' };
+        }
+    }
+    
+    // Polar tracking
+    if (this.polarEnabled && this.isDrawing && this.drawingPoints.length > 0) {
+        const lastPoint = this.drawingPoints[this.drawingPoints.length - 1];
+        const angle = Math.atan2(y - lastPoint.y, x - lastPoint.x);
+        const distance = this.distance(x, y, lastPoint.x, lastPoint.y);
+        
+        // Snap to 15-degree increments
+        const snapAngle = Math.round(angle / (Math.PI / 12)) * (Math.PI / 12);
+        const angleDiff = Math.abs(angle - snapAngle);
+        
+        if (angleDiff < Math.PI / 36) { // Within 5 degrees
+            const snapX = lastPoint.x + distance * Math.cos(snapAngle);
+            const snapY = lastPoint.y + distance * Math.sin(snapAngle);
+            bestSnap = { x: snapX, y: snapY, type: 'Polar' };
+        }
+    }
+    
+    return bestSnap || { x, y };
+}
     
     getShapeEndpoints(shape) {
         switch (shape.type) {
@@ -2568,6 +2639,7 @@ class TyrexCAD {
     }
     
     // Rendering - محدثة لدعم Grips والطبقات المتقدمة
+// Rendering - محدثة لدعم Grips والطبقات المتقدمة
 render() {
     if (this.mode === '3D') {
         this.render3D();
@@ -2708,8 +2780,107 @@ render() {
         this.drawSelectionBox();
     }
     
+    // رسم debug info للـ Grips إذا كان مفعلاً
+    if (this.gripsController && this.gripsController.debugMode && this.selectedShapes.size > 0) {
+        this.ctx.save();
+        
+        // رسم معلومات debug للـ grips
+        for (const shape of this.selectedShapes) {
+            const grips = this.gripsController.getShapeGrips(shape);
+            
+            // رسم دوائر detection حول كل grip
+            this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
+            this.ctx.lineWidth = 1 / this.zoom;
+            this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
+            
+            // رسم مناطق الكشف للـ vertices
+            for (const vertex of grips.vertices) {
+                this.ctx.beginPath();
+                this.ctx.arc(vertex.point.x, vertex.point.y, 
+                    this.gripsController.screenDetectionThreshold / this.zoom, 
+                    0, Math.PI * 2);
+                this.ctx.stroke();
+                
+                // عرض معلومات النقطة
+                this.ctx.save();
+                this.ctx.setLineDash([]);
+                this.ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                this.ctx.font = `${10 / this.zoom}px Arial`;
+                this.ctx.fillText(
+                    `${vertex.id || vertex.label || 'vertex'}`, 
+                    vertex.point.x + 15 / this.zoom, 
+                    vertex.point.y - 15 / this.zoom
+                );
+                this.ctx.restore();
+            }
+            
+            // رسم مناطق الكشف للـ edges
+            this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+            for (const edge of grips.edges) {
+                this.ctx.beginPath();
+                this.ctx.arc(edge.point.x, edge.point.y, 
+                    (this.gripsController.screenDetectionThreshold * 0.8) / this.zoom, 
+                    0, Math.PI * 2);
+                this.ctx.stroke();
+                
+                // عرض معلومات الحافة
+                this.ctx.save();
+                this.ctx.setLineDash([]);
+                this.ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+                this.ctx.font = `${10 / this.zoom}px Arial`;
+                this.ctx.fillText(
+                    `${edge.id || edge.label || 'edge'}`, 
+                    edge.point.x + 15 / this.zoom, 
+                    edge.point.y + 5 / this.zoom
+                );
+                this.ctx.restore();
+            }
+        }
+        
+        // عرض معلومات إضافية
+        this.ctx.restore();
+        this.ctx.save();
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transformation
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        this.ctx.fillRect(10, this.canvas.height - 100, 300, 90);
+        this.ctx.fillStyle = '#000';
+        this.ctx.font = '12px Arial';
+        this.ctx.fillText('Grips Debug Mode: ON', 20, this.canvas.height - 80);
+        this.ctx.fillText(`Zoom: ${this.zoom.toFixed(2)}`, 20, this.canvas.height - 60);
+        this.ctx.fillText(`Detection Threshold: ${this.gripsController.screenDetectionThreshold}px`, 20, this.canvas.height - 40);
+        this.ctx.fillText(`Selected Shapes: ${this.selectedShapes.size}`, 20, this.canvas.height - 20);
+        this.ctx.restore();
+    }
+    
     // Restore context
     this.ctx.restore();
+    
+    // رسم معلومات UI إضافية (خارج التحويلات)
+    if (this.gripsController && this.gripsController.hoveredGrip) {
+        this.ctx.save();
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transformation
+        
+        // عرض tooltip للـ grip المحوم عليه
+        const screenPos = this.worldToScreen(
+            this.gripsController.hoveredGrip.point.x, 
+            this.gripsController.hoveredGrip.point.y
+        );
+        
+        const label = this.gripsController.hoveredGrip.label || 
+                     this.gripsController.hoveredGrip.type || 
+                     'Grip';
+        
+        // رسم خلفية للـ tooltip
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.fillRect(screenPos.x + 10, screenPos.y - 25, label.length * 7 + 10, 20);
+        
+        // رسم النص
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = '12px Arial';
+        this.ctx.fillText(label, screenPos.x + 15, screenPos.y - 10);
+        
+        this.ctx.restore();
+    }
 }
     
     render3D() {
@@ -3494,6 +3665,14 @@ drawHatchPattern(ctx, pattern, bounds, spacing, angle) {
         this.updateStatus(`Grips ${this.gripsVisible ? 'enabled' : 'disabled'}`);
     }
     
+
+    // إضافة دالة لتفعيل debug mode للـ grips
+        toggleGripsDebug() {
+            if (this.gripsController) {
+                this.gripsController.toggleDebugMode();
+            }
+        }
+
     // تحديث drawSelectionHandles لتجنب التداخل مع Grips
     drawSelectionHandles_OLD(shape) {
         // هذه الدالة القديمة - يمكن إبقاؤها للرجوع إليها
