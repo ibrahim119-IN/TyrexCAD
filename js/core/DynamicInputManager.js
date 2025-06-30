@@ -1,8 +1,7 @@
 // ==================== js/core/DynamicInputManager.js ====================
 
 /**
- * Dynamic Input Manager - نظام الإدخال الديناميكي الذكي
- * يتكيف مع احتياجات كل أداة ويتتبع القيم الحية
+ * Dynamic Input Manager - مع جميع الإصلاحات المطبقة
  */
 
 class DynamicInputManager {
@@ -13,20 +12,28 @@ class DynamicInputManager {
         this.container = null;
         
         // الحالة
-        this.mode = 'passive'; // passive, active, locked
-        this.currentValue = null;
+        this.mode = 'passive';
+        this.liveValue = null;
         this.userValue = null;
-        this.liveCallback = null;
-        this.confirmCallback = null;
+        this.lastConfirmedValue = null;
+        
+        // Callbacks
+        this.callbacks = {
+            onInput: null,
+            onLiveUpdate: null,
+            onConfirm: null,
+            onCancel: null,
+            onTab: null
+        };
+        
+        // معالج المفاتيح العام
+        this.globalKeyHandler = null;
         
         // إنشاء العناصر
         this.createElements();
         this.bindEvents();
     }
     
-    /**
-     * إنشاء عناصر الواجهة
-     */
     createElements() {
         // الحاوية الرئيسية
         this.container = document.createElement('div');
@@ -34,16 +41,16 @@ class DynamicInputManager {
         this.container.style.cssText = `
             position: fixed;
             display: none;
-            background: rgba(26, 26, 26, 0.95);
+            background: rgba(26, 26, 26, 0.98);
             border: 2px solid #00d4aa;
-            border-radius: 6px;
-            padding: 8px 12px;
-            box-shadow: 0 4px 16px rgba(0, 212, 170, 0.2);
-            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            padding: 10px 14px;
+            box-shadow: 0 6px 20px rgba(0, 212, 170, 0.3);
+            backdrop-filter: blur(12px);
             z-index: 10000;
             user-select: none;
             pointer-events: all;
-            transition: opacity 0.2s ease;
+            transition: opacity 0.2s ease, transform 0.2s ease;
         `;
         
         // الحاوية الداخلية
@@ -51,52 +58,70 @@ class DynamicInputManager {
         inner.style.cssText = `
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         `;
         
         // التسمية
         this.labelElement = document.createElement('span');
         this.labelElement.style.cssText = `
-            color: #a0a0a0;
+            color: #aaa;
             font-size: 12px;
+            font-weight: 500;
             white-space: nowrap;
+            user-select: none;
         `;
         
         // حقل الإدخال
         this.inputElement = document.createElement('input');
         this.inputElement.type = 'text';
         this.inputElement.style.cssText = `
-            width: 70px;
-            padding: 4px 8px;
-            background: rgba(10, 10, 10, 0.8);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            width: 100px;
+            padding: 6px 10px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #444;
             border-radius: 4px;
-            color: #ffffff;
-            font-size: 13px;
+            color: #fff;
+            font-size: 14px;
             font-family: 'Consolas', 'Monaco', monospace;
             text-align: right;
             outline: none;
+            transition: all 0.15s ease;
+            pointer-events: all;
+            user-select: text;
+        `;
+        
+        // وحدة القياس
+        this.unitElement = document.createElement('span');
+        this.unitElement.style.cssText = `
+            color: #888;
+            font-size: 11px;
+            margin-left: -5px;
+            user-select: none;
+        `;
+        
+        // مؤشر الحالة
+        this.statusIndicator = document.createElement('div');
+        this.statusIndicator.style.cssText = `
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00d4aa;
+            margin-left: 5px;
             transition: all 0.2s ease;
         `;
         
-        // الوحدة
-        this.unitElement = document.createElement('span');
-        this.unitElement.style.cssText = `
-            color: #606060;
-            font-size: 11px;
-        `;
-        
-        // التجميع
+        // تجميع العناصر
         inner.appendChild(this.labelElement);
         inner.appendChild(this.inputElement);
         inner.appendChild(this.unitElement);
+        inner.appendChild(this.statusIndicator);
+        
         this.container.appendChild(inner);
+        
+        // ⭐ إضافة الحاوية إلى DOM مباشرة
         document.body.appendChild(this.container);
     }
     
-    /**
-     * ربط الأحداث
-     */
     bindEvents() {
         // منع فقدان التركيز
         this.container.addEventListener('mousedown', (e) => {
@@ -104,12 +129,13 @@ class DynamicInputManager {
             e.stopPropagation();
         });
         
-        // معالجة الإدخال
+        // إدخال النص
         this.inputElement.addEventListener('input', (e) => {
-            this.handleInput(e.target.value);
+            const value = e.target.value;
+            this.handleUserInput(value);
         });
         
-        // معالجة المفاتيح
+        // لوحة المفاتيح
         this.inputElement.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -119,67 +145,70 @@ class DynamicInputManager {
                 this.cancel();
             } else if (e.key === 'Tab') {
                 e.preventDefault();
-                // Tab يقفل القيمة ويستمر
-                this.lock();
+                this.handleTab();
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.adjustValue(e.key === 'ArrowUp' ? 1 : -1);
             }
         });
         
-        // تغيير التركيز
+        // التركيز
         this.inputElement.addEventListener('focus', () => {
-            this.mode = 'active';
-            this.container.style.borderColor = '#00ffcc';
+            this.setMode('active');
         });
         
-        this.inputElement.addEventListener('blur', () => {
-            if (this.mode === 'active') {
-                this.mode = 'passive';
-                this.container.style.borderColor = '#00d4aa';
-            }
-        });
-        
-        // تتبع حركة الماوس
+        // ⭐ معالج حركة الماوس مع الحفاظ على السياق
         this.mouseHandler = (e) => {
-            if (this.active) {
+            if (this.active && this.config && this.config.trackMouse) {
                 this.updatePosition(e.clientX, e.clientY);
             }
         };
-        document.addEventListener('mousemove', this.mouseHandler);
+        
+        // النقر خارج الحقل
+        this.clickHandler = (e) => {
+            if (this.active && !this.container.contains(e.target)) {
+                if (this.mode === 'active' && this.userValue !== null) {
+                    this.confirm();
+                }
+            }
+        };
+        document.addEventListener('mousedown', this.clickHandler);
     }
     
-    /**
-     * عرض الإدخال الديناميكي
-     * @param {Object} config - إعدادات الإدخال
-     * @param {Function} callback - دالة callback اختيارية للتوافق العكسي
-     */
-    show(config, callback) {
-        // دعم التوافق العكسي مع النمط القديم
-        if (callback && typeof callback === 'function') {
-            config.onLiveUpdate = (value) => callback(value, false);
-            config.onConfirm = (value) => callback(value, true);
-        }
-        
+    show(config) {
         this.active = true;
         this.mode = config.startMode || 'passive';
         
-        // الإعدادات
+        // حفظ الإعدادات
         this.config = {
             label: config.label || '',
             unit: config.unit || '',
-            defaultValue: config.defaultValue || 0,
+            defaultValue: config.defaultValue,
+            placeholder: config.placeholder || '',
             decimals: config.decimals !== undefined ? config.decimals : 2,
             min: config.min || null,
             max: config.max || null,
-            liveUpdate: config.liveUpdate !== false, // true by default
-            trackMouse: config.trackMouse !== false  // true by default
+            liveUpdate: config.liveUpdate !== false,
+            trackMouse: config.trackMouse !== false
         };
         
-        // الـ callbacks
-        this.liveCallback = config.onLiveUpdate || null;
-        this.confirmCallback = config.onConfirm || null;
+        // حفظ callbacks
+        this.callbacks.onInput = config.onInput || null;
+        this.callbacks.onLiveUpdate = config.onLiveUpdate || null;
+        this.callbacks.onConfirm = config.onConfirm || null;
+        this.callbacks.onCancel = config.onCancel || null;
+        this.callbacks.onTab = config.onTab || null;
         
         // تحديث العناصر
         this.labelElement.textContent = this.config.label ? this.config.label + ':' : '';
         this.unitElement.textContent = this.config.unit;
+        this.inputElement.placeholder = this.config.placeholder;
+        
+        // ⭐ التأكد من أن الحاوية في DOM
+        if (!this.container.parentNode) {
+            document.body.appendChild(this.container);
+            console.log('✅ Container added to DOM');
+        }
         
         // عرض الحاوية
         this.container.style.display = 'block';
@@ -192,30 +221,92 @@ class DynamicInputManager {
         // تأثير الظهور
         requestAnimationFrame(() => {
             this.container.style.opacity = '1';
+            this.container.style.transform = 'scale(1)';
         });
         
-        // عرض القيمة الافتراضية
+        // القيمة الافتراضية
         if (this.config.defaultValue !== null && this.config.defaultValue !== undefined) {
             this.displayValue(this.config.defaultValue);
+        } else {
+            this.inputElement.value = '';
         }
         
-        // التركيز حسب الوضع
-        if (this.mode === 'active') {
-            setTimeout(() => {
+        // ⭐ إعداد تتبع الماوس
+        if (this.config.trackMouse) {
+            // إزالة المعالج القديم إن وجد
+            document.removeEventListener('mousemove', this.mouseHandler);
+            // إضافة المعالج الجديد
+            document.addEventListener('mousemove', this.mouseHandler);
+            console.log('✅ Mouse tracking enabled');
+        }
+        
+        // ⭐ إعداد التقاط المفاتيح العام
+        if (this.globalKeyHandler) {
+            document.removeEventListener('keydown', this.globalKeyHandler, true);
+        }
+        
+        this.globalKeyHandler = (e) => {
+            // إذا كان Dynamic Input نشط وليس في وضع الكتابة
+            if (this.active && document.activeElement !== this.inputElement) {
+                // التقط الأرقام
+                if ((e.key >= '0' && e.key <= '9') || e.key === '.' || e.key === '-') {
+                    e.preventDefault();
+                    
+                    // ركز على الحقل وأضف الرقم
+                    this.inputElement.focus();
+                    this.inputElement.value = e.key;
+                    
+                    // أطلق حدث input
+                    this.inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+                    
+                    console.log('✅ Captured key:', e.key);
+                }
+                // Enter للتأكيد
+                else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.confirm();
+                }
+                // Escape للإلغاء
+                else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    this.cancel();
+                }
+            }
+        };
+        
+        document.addEventListener('keydown', this.globalKeyHandler, true);
+        console.log('✅ Global key capture enabled');
+        
+        // ⭐ التركيز التلقائي
+        setTimeout(() => {
+            if (this.active && this.inputElement) {
                 this.inputElement.focus();
                 this.inputElement.select();
-            }, 50);
-        }
+                console.log('✅ Auto-focused on input');
+            }
+        }, 50);
+        
+        // تحديث المؤشر
+        this.updateStatusIndicator();
         
         return this;
     }
     
-    /**
-     * إخفاء الإدخال
-     */
     hide() {
         this.active = false;
+        
+        // ⭐ إزالة معالج المفاتيح العام
+        if (this.globalKeyHandler) {
+            document.removeEventListener('keydown', this.globalKeyHandler, true);
+            this.globalKeyHandler = null;
+        }
+        
+        // إزالة معالج الماوس
+        document.removeEventListener('mousemove', this.mouseHandler);
+        
+        // تأثير الإخفاء
         this.container.style.opacity = '0';
+        this.container.style.transform = 'scale(0.95)';
         
         setTimeout(() => {
             this.container.style.display = 'none';
@@ -223,98 +314,134 @@ class DynamicInputManager {
         }, 200);
     }
     
-    /**
-     * تحديث القيمة الحية (من الماوس مثلاً)
-     */
     updateLiveValue(value) {
         if (!this.active) return;
         
-        this.currentValue = value;
+        this.liveValue = value;
         
-        // عرض القيمة إذا لم يكن المستخدم يكتب
+        // عرض القيمة فقط في الوضع السلبي
         if (this.mode === 'passive') {
             this.displayValue(value);
         }
         
-        // استدعاء callback إذا لم تكن القيمة مقفلة
-        if (this.mode !== 'locked' && this.config.liveUpdate && this.liveCallback) {
-            const effectiveValue = this.userValue !== null ? this.userValue : value;
-            this.liveCallback(effectiveValue, false);
+        // استدعاء callback
+        if (this.config.liveUpdate && this.callbacks.onLiveUpdate) {
+            this.callbacks.onLiveUpdate(value, this.mode === 'locked');
         }
     }
     
-    /**
-     * معالجة إدخال المستخدم
-     */
-    handleInput(input) {
-        this.mode = 'active';
+    handleUserInput(input) {
+        this.setMode('active');
+        
+        if (input.trim() === '') {
+            this.userValue = null;
+            if (this.callbacks.onInput) {
+                this.callbacks.onInput(null);
+            }
+            return;
+        }
         
         const value = this.parseValue(input);
         if (value !== null) {
             this.userValue = this.validateValue(value);
             
-            // تحديث مباشر
-            if (this.config.liveUpdate && this.liveCallback) {
-                this.liveCallback(this.userValue, false);
+            if (this.callbacks.onInput) {
+                this.callbacks.onInput(this.userValue);
             }
         }
     }
     
-    /**
-     * قفل القيمة الحالية
-     */
-    lock() {
-        if (this.userValue !== null) {
-            this.mode = 'locked';
-            this.container.style.borderColor = '#ff9900';
-            this.inputElement.blur();
-            
-            if (this.liveCallback) {
-                this.liveCallback(this.userValue, true);
+    setMode(mode) {
+        this.mode = mode;
+        this.updateStatusIndicator();
+        
+        switch (mode) {
+            case 'passive':
+                this.container.style.borderColor = '#00d4aa';
+                this.inputElement.style.borderColor = '#444';
+                break;
+            case 'active':
+                this.container.style.borderColor = '#00ffcc';
+                this.inputElement.style.borderColor = '#00ffcc';
+                break;
+            case 'locked':
+                this.container.style.borderColor = '#ff9900';
+                this.inputElement.style.borderColor = '#ff9900';
+                break;
+        }
+    }
+    
+    updateStatusIndicator() {
+        switch (this.mode) {
+            case 'passive':
+                this.statusIndicator.style.background = '#00d4aa';
+                break;
+            case 'active':
+                this.statusIndicator.style.background = '#00ffcc';
+                break;
+            case 'locked':
+                this.statusIndicator.style.background = '#ff9900';
+                break;
+        }
+    }
+    
+    handleTab() {
+        if (this.callbacks.onTab) {
+            this.callbacks.onTab();
+        } else {
+            if (this.mode === 'locked') {
+                this.setMode('passive');
+            } else if (this.userValue !== null) {
+                this.setMode('locked');
             }
         }
     }
     
-    /**
-     * تأكيد القيمة
-     */
     confirm() {
-        const value = this.userValue !== null ? this.userValue : this.currentValue;
+        const value = this.userValue !== null ? this.userValue : this.liveValue;
         
-        if (value !== null && this.confirmCallback) {
-            this.confirmCallback(value);
+        if (this.callbacks.onConfirm) {
+            this.callbacks.onConfirm(value);
         }
         
+        this.lastConfirmedValue = value;
         this.hide();
     }
     
-    /**
-     * إلغاء
-     */
     cancel() {
-        if (this.confirmCallback) {
-            this.confirmCallback(null);
+        if (this.callbacks.onCancel) {
+            this.callbacks.onCancel();
         }
         
         this.hide();
     }
     
-    /**
-     * تحليل القيمة المدخلة
-     */
+    adjustValue(direction) {
+        const current = this.userValue !== null ? this.userValue : this.liveValue;
+        if (current === null) return;
+        
+        const step = 1 / Math.pow(10, this.config.decimals);
+        const newValue = current + (direction * step);
+        
+        this.userValue = this.validateValue(newValue);
+        this.displayValue(this.userValue);
+        
+        if (this.callbacks.onInput) {
+            this.callbacks.onInput(this.userValue);
+        }
+    }
+    
     parseValue(input) {
         if (!input || input.trim() === '') return null;
         
-        // دعم العمليات الحسابية البسيطة
         try {
             input = input.replace(/\s/g, '');
             
-            // تعبير رياضي بسيط
             if (/^[\d\.\+\-\*\/\(\)]+$/.test(input)) {
-                return new Function('return ' + input)();
+                const result = new Function('return ' + input)();
+                return isNaN(result) ? null : result;
             }
             
-            // رقم مباشر
             const num = parseFloat(input);
             return isNaN(num) ? null : num;
             
@@ -323,9 +450,6 @@ class DynamicInputManager {
         }
     }
     
-    /**
-     * التحقق من القيمة
-     */
     validateValue(value) {
         if (this.config.min !== null && value < this.config.min) {
             value = this.config.min;
@@ -336,9 +460,6 @@ class DynamicInputManager {
         return value;
     }
     
-    /**
-     * عرض القيمة
-     */
     displayValue(value) {
         if (typeof value === 'number') {
             this.inputElement.value = value.toFixed(this.config.decimals);
@@ -347,72 +468,60 @@ class DynamicInputManager {
         }
     }
     
-    /**
-     * تحديث الموضع
-     */
     updatePosition(x, y) {
-        const offset = 15;
+        // ⭐ تحقق إضافي للتأكد
+        if (!this.active || !this.config || !this.config.trackMouse) {
+            return;
+        }
+        
+        const offset = 20;
         const padding = 10;
         
-        // حساب الموضع
-        let left = x + offset;
-        let top = y + offset;
-        
-        // حدود الشاشة
         const rect = this.container.getBoundingClientRect();
+        let left = x + offset;
+        let top = y - rect.height / 2;
+        
         const maxX = window.innerWidth - rect.width - padding;
         const maxY = window.innerHeight - rect.height - padding;
         
         if (left > maxX) left = x - rect.width - offset;
-        if (top > maxY) top = y - rect.height - offset;
+        if (top > maxY) top = maxY;
+        if (top < padding) top = padding;
         
-        this.container.style.left = Math.max(padding, left) + 'px';
-        this.container.style.top = Math.max(padding, top) + 'px';
+        this.container.style.left = left + 'px';
+        this.container.style.top = top + 'px';
     }
     
-    /**
-     * الحصول على موضع الماوس
-     */
     getMousePosition() {
-        // محاولة الحصول على الإحداثيات من مصادر مختلفة
-        if (this.cad.mouseX !== undefined && this.cad.mouseY !== undefined) {
+        if (this.cad && this.cad.mouseX !== undefined && this.cad.mouseY !== undefined) {
+            const rect = this.cad.canvas ? this.cad.canvas.getBoundingClientRect() : { left: 0, top: 0 };
             return {
-                x: this.cad.mouseX,
-                y: this.cad.mouseY
+                x: rect.left + this.cad.mouseX,
+                y: rect.top + this.cad.mouseY
             };
         }
         
-        // fallback للإحداثيات على الشاشة
-        if (this.cad.canvas) {
-            const rect = this.cad.canvas.getBoundingClientRect();
-            return {
-                x: rect.left + rect.width / 2,
-                y: rect.top + rect.height / 2
-            };
-        }
-        
-        return { x: 100, y: 100 };
+        return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
     }
     
-    /**
-     * إعادة تعيين
-     */
     reset() {
         this.mode = 'passive';
-        this.currentValue = null;
+        this.liveValue = null;
         this.userValue = null;
-        this.liveCallback = null;
-        this.confirmCallback = null;
+        this.callbacks = {};
         this.inputElement.value = '';
         this.container.style.borderColor = '#00d4aa';
     }
     
-    /**
-     * تنظيف
-     */
     destroy() {
         document.removeEventListener('mousemove', this.mouseHandler);
-        if (this.container) {
+        document.removeEventListener('mousedown', this.clickHandler);
+        
+        if (this.globalKeyHandler) {
+            document.removeEventListener('keydown', this.globalKeyHandler, true);
+        }
+        
+        if (this.container && this.container.parentNode) {
             this.container.remove();
         }
     }

@@ -3967,86 +3967,361 @@ option:disabled {
     background: var(--bg-primary);
 }
 
-/* ==================== Dynamic Input System Styles ==================== */
 
-/* حاوية الإدخال الديناميكي */
+/* ==================== Dynamic Input System Enhanced Styles ==================== */
+
+/* إضافة هذه الأنماط إلى css/styles.css */
+
+/* حاوية الإدخال الديناميكي المحسنة */
 .dynamic-input-container {
-    position: fixed;
+    position: fixed !important;
     display: flex;
     align-items: center;
-    gap: 6px;
-    background: rgba(26, 26, 26, 0.95);
-    border: 2px solid var(--accent-primary);
-    border-radius: 6px;
-    padding: 8px 12px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 212, 170, 0.3);
-    backdrop-filter: blur(10px);
-    z-index: 10000; /* زيادة z-index */
-    pointer-events: all;
-    user-select: none;
+    gap: 10px;
+    background: rgba(26, 26, 26, 0.98) !important;
+    border: 2px solid #00d4aa !important;
+    border-radius: 8px !important;
+    padding: 10px 14px !important;
+    box-shadow: 0 6px 20px rgba(0, 212, 170, 0.3), 
+                0 2px 8px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(12px) !important;
+    z-index: 10000 !important;
+    pointer-events: all !important;
+    user-select: none !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
     
-    /* تأثير ظهور سلس */
-    animation: dynamicInputFadeIn 0.2s ease-out;
+    /* منع اختيار النص في الحاوية */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
-@keyframes dynamicInputFadeIn {
-    from {
-        opacity: 0;
-        transform: scale(0.9);
+/* حالات مختلفة للحاوية */
+.dynamic-input-container.mode-passive {
+    border-color: #00d4aa !important;
+}
+
+.dynamic-input-container.mode-active {
+    border-color: #00ffcc !important;
+    box-shadow: 0 6px 24px rgba(0, 255, 204, 0.4),
+                0 2px 8px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.dynamic-input-container.mode-locked {
+    border-color: #ff9900 !important;
+    box-shadow: 0 6px 24px rgba(255, 153, 0, 0.4),
+                0 2px 8px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+/* حقل الإدخال المحسن */
+.dynamic-input-field {
+    width: 100px !important;
+    padding: 6px 10px !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    border: 1px solid #444 !important;
+    border-radius: 4px !important;
+    color: #ffffff !important;
+    font-size: 14px !important;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    text-align: right !important;
+    outline: none !important;
+    transition: all 0.15s ease !important;
+    pointer-events: all !important;
+    user-select: text !important;
+    
+    /* السماح باختيار النص في الحقل */
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+}
+
+.dynamic-input-field:focus {
+    border-color: #00ffcc !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+    box-shadow: 0 0 0 2px rgba(0, 255, 204, 0.2),
+                inset 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dynamic-input-field::placeholder {
+    color: #666 !important;
+    opacity: 0.8 !important;
+    font-size: 12px !important;
+}
+
+.dynamic-input-field.error {
+    border-color: #ff4444 !important;
+    animation: inputShake 0.3s ease-out !important;
+}
+
+/* التسمية */
+.dynamic-input-label {
+    color: #aaa !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    white-space: nowrap !important;
+    margin-right: 8px !important;
+}
+
+/* وحدة القياس */
+.dynamic-input-unit {
+    color: #888 !important;
+    font-size: 11px !important;
+    margin-left: 4px !important;
+}
+
+/* مؤشر الحالة */
+.dynamic-input-status {
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50% !important;
+    background: #00d4aa !important;
+    margin-left: 8px !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 0 4px currentColor !important;
+}
+
+.dynamic-input-status.active {
+    background: #00ffcc !important;
+    animation: pulse 1.5s infinite !important;
+}
+
+.dynamic-input-status.locked {
+    background: #ff9900 !important;
+}
+
+/* تأثيرات الحركة */
+@keyframes inputShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+@keyframes pulse {
+    0% { 
+        opacity: 1;
+        transform: scale(1);
     }
-    to {
+    50% { 
+        opacity: 0.6;
+        transform: scale(1.2);
+    }
+    100% { 
         opacity: 1;
         transform: scale(1);
     }
 }
 
-/* تسمية الإدخال */
-.dynamic-input-label {
-    font-size: 12px;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    margin-right: 4px;
+/* تأثير الظهور */
+@keyframes dynamicInputFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
 }
 
-/* حقل الإدخال */
+/* سهم التوجيه (اختياري) */
+.dynamic-input-container::before {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 6px 6px 0 6px;
+    border-color: #00d4aa transparent transparent transparent;
+    bottom: -6px;
+    left: 20px;
+    transition: border-color 0.2s ease;
+}
+
+.dynamic-input-container.mode-active::before {
+    border-color: #00ffcc transparent transparent transparent;
+}
+
+.dynamic-input-container.mode-locked::before {
+    border-color: #ff9900 transparent transparent transparent;
+}
+
+/* تحسينات للشاشات الصغيرة */
+@media (max-width: 768px) {
+    .dynamic-input-container {
+        padding: 8px 12px !important;
+    }
+    
+    .dynamic-input-field {
+        width: 80px !important;
+        font-size: 13px !important;
+        padding: 5px 8px !important;
+    }
+    
+    .dynamic-input-label {
+        font-size: 11px !important;
+    }
+}
+
+/* دعم الوضع المظلم الكامل */
+@media (prefers-color-scheme: dark) {
+    .dynamic-input-container {
+        background: rgba(20, 20, 20, 0.98) !important;
+    }
+    
+    .dynamic-input-field {
+        background: rgba(0, 0, 0, 0.7) !important;
+        color: #f0f0f0 !important;
+    }
+}
+
+/* تحسينات الوصولية */
+.dynamic-input-field:focus-visible {
+    outline: 2px solid #00ffcc !important;
+    outline-offset: 2px !important;
+}
+
+/* دعم RTL */
+[dir="rtl"] .dynamic-input-field {
+    text-align: left !important;
+}
+
+[dir="rtl"] .dynamic-input-label {
+    margin-right: 0 !important;
+    margin-left: 8px !important;
+}
+
+/* تأثير hover للحاوية */
+.dynamic-input-container:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(0, 212, 170, 0.35),
+                0 3px 10px rgba(0, 0, 0, 0.5) !important;
+}
+
+
+/* ==================== Dynamic Input System - Final CSS ==================== */
+
+/* أضف هذه الأنماط لملف css/styles.css */
+
+/* حاوية الإدخال الديناميكي */
+.dynamic-input-container {
+    position: fixed !important;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(26, 26, 26, 0.98) !important;
+    border: 2px solid #00d4aa !important;
+    border-radius: 8px !important;
+    padding: 10px 14px !important;
+    box-shadow: 0 6px 20px rgba(0, 212, 170, 0.3),
+                0 2px 8px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    z-index: 10000 !important;
+    pointer-events: all !important;
+    user-select: none !important;
+    transform: translateZ(0) !important; /* GPU acceleration */
+    will-change: transform !important; /* Optimize for movement */
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+/* منع اختيار النص في الحاوية */
+.dynamic-input-container * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* حقل الإدخال - السماح باختيار النص */
 .dynamic-input-field {
-    width: 80px;
-    padding: 6px 10px;
-    background: rgba(10, 10, 10, 0.8);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    color: #ffffff;
-    font-size: 14px;
-    font-family: 'Consolas', 'Monaco', monospace;
-    text-align: right;
-    outline: none;
-    transition: all var(--transition-fast);
-    pointer-events: all; /* مهم للسماح بالكتابة */
-    user-select: text; /* مهم للسماح بتحديد النص */
+    width: 100px !important;
+    padding: 6px 10px !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    border: 1px solid #444 !important;
+    border-radius: 4px !important;
+    color: #ffffff !important;
+    font-size: 14px !important;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    text-align: right !important;
+    outline: none !important;
+    transition: all 0.15s ease !important;
+    pointer-events: all !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
 }
 
 .dynamic-input-field:focus {
-    border-color: var(--accent-primary);
-    background: var(--bg-primary);
-    box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.2);
+    border-color: #00ffcc !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+    box-shadow: 0 0 0 2px rgba(0, 255, 204, 0.2),
+                inset 0 1px 3px rgba(0, 0, 0, 0.3) !important;
 }
 
 .dynamic-input-field::placeholder {
-    color: var(--text-dim);
-    opacity: 0.7;
+    color: #666 !important;
+    opacity: 0.8 !important;
+    font-size: 12px !important;
+}
+
+/* التسمية */
+.dynamic-input-label {
+    color: #aaa !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    white-space: nowrap !important;
+    margin-right: 4px !important;
 }
 
 /* وحدة القياس */
 .dynamic-input-unit {
-    font-size: 11px;
-    color: var(--text-secondary);
-    margin-left: 2px;
+    color: #888 !important;
+    font-size: 11px !important;
+    margin-left: 2px !important;
 }
 
-/* تأثير الاهتزاز للخطأ */
-.dynamic-input-field.shake {
-    animation: inputShake 0.3s ease-out;
-    border-color: var(--accent-error) !important;
+/* مؤشر الحالة */
+.dynamic-input-status {
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50% !important;
+    background: #00d4aa !important;
+    margin-left: 8px !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 0 4px currentColor !important;
+}
+
+/* حالات مختلفة */
+.dynamic-input-container[data-mode="passive"],
+.dynamic-input-container.mode-passive {
+    border-color: #00d4aa !important;
+}
+
+.dynamic-input-container[data-mode="active"],
+.dynamic-input-container.mode-active {
+    border-color: #00ffcc !important;
+    box-shadow: 0 6px 24px rgba(0, 255, 204, 0.4),
+                0 2px 8px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.dynamic-input-container[data-mode="locked"],
+.dynamic-input-container.mode-locked {
+    border-color: #ff9900 !important;
+    box-shadow: 0 6px 24px rgba(255, 153, 0, 0.4),
+                0 2px 8px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+/* تأثير الخطأ */
+.dynamic-input-field.error {
+    border-color: #ff4444 !important;
+    animation: inputShake 0.3s ease-out !important;
 }
 
 @keyframes inputShake {
@@ -4055,131 +4330,133 @@ option:disabled {
     75% { transform: translateX(5px); }
 }
 
-/* مؤشر الإدخال النشط */
-.dynamic-input-container.active {
-    border-color: var(--accent-secondary);
-    box-shadow: 0 4px 16px rgba(0, 153, 255, 0.3);
+/* تأثير pulse للمؤشر */
+.dynamic-input-status.active {
+    animation: statusPulse 1.5s infinite !important;
 }
 
-/* دعم الأنواع المختلفة */
-.dynamic-input-container[data-type="angle"] .dynamic-input-field {
-    width: 60px;
-}
-
-.dynamic-input-container[data-type="text"] .dynamic-input-field {
-    width: 150px;
-    text-align: left;
-}
-
-/* Command Prompt Enhancement */
-.command-prompt {
-    position: fixed;
-    bottom: 60px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--bg-panel);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-size: 13px;
-    color: var(--text-primary);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
-    z-index: 1000;
-    display: none;
-    max-width: 500px;
-    text-align: center;
-}
-
-.command-prompt.visible {
-    display: block;
-    animation: commandPromptSlideUp 0.3s ease-out;
-}
-
-@keyframes commandPromptSlideUp {
-    from {
-        opacity: 0;
-        transform: translate(-50%, 20px);
-    }
-    to {
+@keyframes statusPulse {
+    0% { 
         opacity: 1;
-        transform: translate(-50%, 0);
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 0.6;
+        transform: scale(1.2);
+    }
+    100% { 
+        opacity: 1;
+        transform: scale(1);
     }
 }
 
-.command-prompt .prompt-text {
-    color: var(--text-secondary);
+/* سهم التوجيه (اختياري) */
+.dynamic-input-container::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 6px 6px 0 6px;
+    border-color: #00d4aa transparent transparent transparent;
+    bottom: -6px;
+    left: 20px;
+    transition: border-color 0.2s ease;
 }
 
-.command-prompt .prompt-value {
-    color: var(--accent-primary);
-    font-weight: 600;
-    margin: 0 4px;
+.dynamic-input-container[data-mode="active"]::after,
+.dynamic-input-container.mode-active::after {
+    border-color: #00ffcc transparent transparent transparent;
 }
 
-/* تكامل مع نظام المعاينة */
-.preview-mode .dynamic-input-container {
-    border-color: var(--accent-warning);
+.dynamic-input-container[data-mode="locked"]::after,
+.dynamic-input-container.mode-locked::after {
+    border-color: #ff9900 transparent transparent transparent;
 }
 
-.preview-mode .dynamic-input-field {
-    background: rgba(255, 170, 0, 0.1);
+/* تحسينات الأداء */
+.dynamic-input-container {
+    contain: layout style;
+    transform: translate3d(0, 0, 0); /* Force GPU layer */
+}
+
+/* دعم الشاشات عالية الدقة */
+@media (min-resolution: 2dppx) {
+    .dynamic-input-container {
+        border-width: 1.5px !important;
+    }
+}
+
+/* تحسينات للشاشات الصغيرة */
+@media (max-width: 768px) {
+    .dynamic-input-container {
+        padding: 8px 12px !important;
+    }
+    
+    .dynamic-input-field {
+        width: 80px !important;
+        font-size: 13px !important;
+        padding: 5px 8px !important;
+    }
+    
+    .dynamic-input-label {
+        font-size: 11px !important;
+    }
 }
 
 /* دعم الوضع المظلم */
 @media (prefers-color-scheme: dark) {
     .dynamic-input-container {
-        background: rgba(26, 26, 26, 0.95);
-    }
-}
-
-/* دعم الشاشات الصغيرة */
-@media (max-width: 768px) {
-    .dynamic-input-container {
-        padding: 4px 8px;
+        background: rgba(20, 20, 20, 0.98) !important;
     }
     
     .dynamic-input-field {
-        width: 60px;
-        font-size: 12px;
-    }
-    
-    .dynamic-input-label {
-        font-size: 11px;
+        background: rgba(0, 0, 0, 0.7) !important;
+        color: #f0f0f0 !important;
     }
 }
 
-/* تأثيرات إضافية */
-.dynamic-input-container::before {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: -1px;
-    right: -1px;
-    bottom: -1px;
-    background: linear-gradient(45deg, var(--accent-primary), var(--accent-secondary));
-    border-radius: 6px;
-    opacity: 0;
-    z-index: -1;
-    transition: opacity 0.3s ease;
+/* تحسينات الوصولية */
+.dynamic-input-field:focus-visible {
+    outline: 2px solid #00ffcc !important;
+    outline-offset: 2px !important;
 }
 
-.dynamic-input-container:hover::before {
-    opacity: 0.3;
+/* دعم اللغة العربية و RTL */
+[dir="rtl"] .dynamic-input-field {
+    text-align: left !important;
+    direction: ltr !important; /* الأرقام دائماً LTR */
 }
 
-/* Dynamic Input System - Fixed Positioning */
-.dynamic-input-container {
-    position: fixed !important;
-    z-index: 10000 !important;
-    background: rgba(26, 26, 26, 0.95) !important;
-    border: 2px solid #00d4aa !important;
-    pointer-events: all !important;
+[dir="rtl"] .dynamic-input-label {
+    margin-right: 0 !important;
+    margin-left: 4px !important;
 }
 
-.dynamic-input-field {
-    pointer-events: all !important;
-    user-select: text !important;
-    background: rgba(10, 10, 10, 0.9) !important;
-    color: white !important;
+[dir="rtl"] .dynamic-input-unit {
+    margin-left: 0 !important;
+    margin-right: 2px !important;
+}
+
+/* تأثير hover */
+.dynamic-input-container:hover {
+    box-shadow: 0 8px 24px rgba(0, 212, 170, 0.35),
+                0 3px 10px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* تحسين وضوح النص */
+.dynamic-input-container,
+.dynamic-input-field,
+.dynamic-input-label,
+.dynamic-input-unit {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+/* إخفاء عند الطباعة */
+@media print {
+    .dynamic-input-container {
+        display: none !important;
+    }
 }
