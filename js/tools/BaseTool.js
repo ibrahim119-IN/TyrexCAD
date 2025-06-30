@@ -22,7 +22,6 @@ export class BaseTool {
         this.errors = [];
         
         // دعم الإدخال الديناميكي
-        this.dynamicInput = null;
         this.waitingForInput = false;
         this.inputCallback = null;
     }
@@ -34,11 +33,6 @@ export class BaseTool {
         this.active = true;
         this.onActivate();
         this.updateCursor();
-        
-        // تهيئة الإدخال الديناميكي
-        if (this.cad.dynamicInputManager) {
-            this.dynamicInput = this.cad.dynamicInputManager;
-        }
     }
     
     /**
@@ -48,8 +42,8 @@ export class BaseTool {
         this.active = false;
         
         // إلغاء أي إدخال ديناميكي نشط
-        if (this.dynamicInput && this.dynamicInput.isActive()) {
-            this.dynamicInput.hide();
+        if (this.cad.dynamicInputManager && this.cad.dynamicInputManager.active) {
+            this.cad.dynamicInputManager.hide();
         }
         
         this.onDeactivate();
@@ -80,7 +74,7 @@ export class BaseTool {
      * @param {Function} callback - دالة معالجة القيمة
      */
     requestDynamicInput(options, callback) {
-        if (!this.dynamicInput) {
+        if (!this.cad.dynamicInputManager) {
             console.warn('Dynamic input not available');
             return;
         }
@@ -88,7 +82,7 @@ export class BaseTool {
         this.waitingForInput = true;
         this.inputCallback = callback;
         
-        this.dynamicInput.show(options, (value, confirmed) => {
+        this.cad.dynamicInputManager.show(options, (value, confirmed) => {
             this.waitingForInput = false;
             
             if (callback) {
