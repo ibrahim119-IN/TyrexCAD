@@ -1,6 +1,6 @@
 // ==================== js/tools/modify/MoveTool.js ====================
 
-import { ModifyToolBase } from '../BaseTool.js';
+import { ModifyToolBase, INPUT_TYPES } from '../BaseTool.js';
 
 /**
  * أداة التحريك - النسخة النهائية المتكاملة
@@ -56,7 +56,11 @@ export class MoveTool extends ModifyToolBase {
         }
     }
     
-    onMouseMove(point) {
+    /**
+     * معالجة حركة الماوس المحدثة
+     * 🆕 تستخدم processMouseMove من الفئة الأساسية
+     */
+    processMouseMove(point) {
         if (!this.basePoint) return;
         
         // حساب المسافة والاتجاه
@@ -74,15 +78,23 @@ export class MoveTool extends ModifyToolBase {
             effectiveDx = effectiveDistance * Math.cos(this.currentAngle);
             effectiveDy = effectiveDistance * Math.sin(this.currentAngle);
         } else {
-            // وضع حر: تتبع المؤشر
+            // وضع حر: تتبع المؤشر (مع قيود Ortho/Polar من النقطة المقيدة)
             effectiveDistance = currentDistance;
             effectiveDx = dx;
             effectiveDy = dy;
         }
         
-        // تحديث القيمة في Dynamic Input
+        // تحديث القيمة في Dynamic Input (بالوحدة الحالية)
         if (this.cad.dynamicInputManager && this.cad.dynamicInputManager.active) {
-            this.cad.dynamicInputManager.updateLiveValue(currentDistance);
+            let displayDistance = currentDistance;
+            if (this.cad.units && this.cad.currentUnit) {
+                try {
+                    displayDistance = this.cad.units.fromInternal(currentDistance, this.cad.currentUnit);
+                } catch (e) {
+                    // استخدام القيمة الأصلية في حالة الفشل
+                }
+            }
+            this.cad.dynamicInputManager.updateLiveValue(displayDistance);
         }
         
         // عرض المعاينة
@@ -90,10 +102,21 @@ export class MoveTool extends ModifyToolBase {
         
         // تحديث الحالة
         const angleDeg = this.currentAngle * 180 / Math.PI;
+        let displayDist = effectiveDistance;
+        if (this.cad.units && this.cad.currentUnit) {
+            try {
+                displayDist = this.cad.units.fromInternal(effectiveDistance, this.cad.currentUnit);
+            } catch (e) {
+                // استخدام القيمة الأصلية
+            }
+        }
+        
         this.updateStatus(
-            `Distance: ${effectiveDistance.toFixed(2)} ${this.cad.currentUnit}, ` +
+            `Distance: ${displayDist.toFixed(2)} ${this.cad.currentUnit}, ` +
             `Angle: ${angleDeg.toFixed(1)}°` +
-            (this.isConstrainedMode ? ' [CONSTRAINED]' : '')
+            (this.isConstrainedMode ? ' [CONSTRAINED]' : '') +
+            (this.cad.orthoEnabled ? ' [ORTHO]' : '') +
+            (this.cad.polarEnabled ? ' [POLAR]' : '')
         );
         
         this.lastDistance = currentDistance;
@@ -103,44 +126,26 @@ export class MoveTool extends ModifyToolBase {
      * عرض الإدخال الديناميكي
      */
     showDynamicInput() {
-        if (!this.cad.dynamicInputManager) {
-            console.error('❌ DynamicInputManager not available!');
-            return;
-        }
-        
-        this.cad.dynamicInputManager.show({
+        this.showDynamicInputForValue({
+            inputType: INPUT_TYPES.DISTANCE,
             label: 'Distance',
-            unit: this.cad.currentUnit || 'mm',
-            defaultValue: '',
+            defaultValue: this.getLastMoveDistance(),
             placeholder: 'Type distance or move freely',
-            decimals: 2,
-            min: 0,
-            liveUpdate: true,
-            trackMouse: true, // ⭐ مهم جداً
-            startMode: 'passive',
-            autoFocus: false, // لا نريد التركيز التلقائي حتى يمكن الحركة الحرة
             
             onInput: (value) => {
                 // المستخدم بدأ الكتابة
                 if (value !== null && value !== '') {
-                    const numValue = parseFloat(value);
-                    if (!isNaN(numValue) && numValue > 0) {
-                        this.isConstrainedMode = true;
-                        this.constrainedDistance = numValue;
-                        
-                        // تحديث المعاينة فوراً
-                        this.updateConstrainedPreview();
-                    }
+                    // القيمة ستكون محولة بالفعل للوحدة الداخلية
+                    this.isConstrainedMode = true;
+                    this.constrainedDistance = value;
+                    
+                    // تحديث المعاينة فوراً
+                    this.updateConstrainedPreview();
                 } else {
                     // مسح القيمة = العودة للوضع الحر
                     this.isConstrainedMode = false;
                     this.constrainedDistance = null;
                 }
-            },
-            
-            onLiveUpdate: (value, isLocked) => {
-                // تحديث حي من حركة الماوس
-                // لا نحتاج لفعل شيء هنا لأن onMouseMove يتولى التحديث
             },
             
             onConfirm: (value) => {
@@ -152,8 +157,9 @@ export class MoveTool extends ModifyToolBase {
                 } else if (!this.isConstrainedMode && this.lastDistance > 0) {
                     // تطبيق بالموضع الحالي
                     const world = this.cad.screenToWorld(this.cad.mouseX, this.cad.mouseY);
-                    const dx = world.x - this.basePoint.x;
-                    const dy = world.y - this.basePoint.y;
+                    const constrainedPoint = this.applyConstraints(this.basePoint, world);
+                    const dx = constrainedPoint.x - this.basePoint.x;
+                    const dy = constrainedPoint.y - this.basePoint.y;
                     this.applyMove(dx, dy);
                 } else {
                     // إلغاء
@@ -303,11 +309,20 @@ export class MoveTool extends ModifyToolBase {
         // إنهاء العملية
         this.finishOperation();
         
-        // رسالة النجاح
+        // رسالة النجاح (بالوحدة الحالية)
+        let displayDist = distance;
+        if (this.cad.units && this.cad.currentUnit) {
+            try {
+                displayDist = this.cad.units.fromInternal(distance, this.cad.currentUnit);
+            } catch (e) {
+                // استخدام القيمة الأصلية
+            }
+        }
+        
         const angleDeg = (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(1);
         this.updateStatus(
             `Moved ${this.selection.length} object${this.selection.length > 1 ? 's' : ''} ` +
-            `by ${distance.toFixed(2)} ${this.cad.currentUnit} at ${angleDeg}°`
+            `by ${displayDist.toFixed(2)} ${this.cad.currentUnit} at ${angleDeg}°`
         );
     }
     
@@ -350,8 +365,9 @@ export class MoveTool extends ModifyToolBase {
             } else if (this.lastDistance > 0) {
                 // تطبيق بالموضع الحالي
                 const world = this.cad.screenToWorld(this.cad.mouseX, this.cad.mouseY);
-                const dx = world.x - this.basePoint.x;
-                const dy = world.y - this.basePoint.y;
+                const constrainedPoint = this.applyConstraints(this.basePoint, world);
+                const dx = constrainedPoint.x - this.basePoint.x;
+                const dy = constrainedPoint.y - this.basePoint.y;
                 this.applyMove(dx, dy);
             }
         } else if (key === 'Tab' && this.basePoint) {
@@ -377,14 +393,28 @@ export class MoveTool extends ModifyToolBase {
      * الحصول على آخر مسافة تحريك
      */
     getLastMoveDistance() {
-        return this.toolsManager?.modifyState?.lastMoveDistance || 50;
+        const lastDist = this.toolsManager?.modifyState?.lastMoveDistance || 0;
+        
+        // تحويل من الوحدة الداخلية إلى الوحدة الحالية
+        if (lastDist > 0 && this.cad.units && this.cad.currentUnit) {
+            try {
+                return this.cad.units.fromInternal(lastDist, this.cad.currentUnit);
+            } catch (e) {
+                return lastDist;
+            }
+        }
+        
+        return lastDist;
     }
     
     /**
      * حفظ آخر مسافة تحريك
      */
     saveLastMoveDistance(distance) {
-        if (this.toolsManager && this.toolsManager.modifyState) {
+        if (this.toolsManager && !this.toolsManager.modifyState) {
+            this.toolsManager.modifyState = {};
+        }
+        if (this.toolsManager) {
             this.toolsManager.modifyState.lastMoveDistance = distance;
         }
     }

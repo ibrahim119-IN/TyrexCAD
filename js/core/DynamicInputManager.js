@@ -405,7 +405,8 @@ class DynamicInputManager {
         }
         
         this.lastConfirmedValue = value;
-        this.hide();
+        // ⭐ لا نغلق الإدخال تلقائياً - دع الأداة تقرر
+        // this.hide();
     }
     
     cancel() {
@@ -414,6 +415,23 @@ class DynamicInputManager {
         }
         
         this.hide();
+    }
+    
+    /**
+     * 🆕 مسح حقل الإدخال
+     * يُستخدم بعد تأكيد القيمة للسماح بإدخال قيمة جديدة
+     */
+    clearInput() {
+        if (this.inputElement) {
+            this.inputElement.value = '';
+            this.userValue = null;
+            this.setMode('passive');
+            
+            // إعادة التركيز
+            this.inputElement.focus();
+            
+            console.log('✅ Input cleared');
+        }
     }
     
     adjustValue(direction) {
