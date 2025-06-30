@@ -4462,7 +4462,24 @@ option:disabled {
 }
 
 
+/* Canvas settings للدقة العالية */
+#mainCanvas, #canvas3D {
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    /* منع أي transform غير مرغوب */
+    transform: none !important;
+    /* التأكد من عدم وجود padding أو margin */
+    padding: 0 !important;
+    margin: 0 !important;
+}
 
+.canvas-container {
+    /* منع أي scaling من CSS */
+    transform: none !important;
+    transform-origin: 0 0 !important;
+}
 
 
 

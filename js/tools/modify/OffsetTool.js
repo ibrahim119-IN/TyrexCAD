@@ -42,7 +42,8 @@ export class OffsetTool extends BaseTool {
         
         if (this.isFixedMode && this.fixedDistance) {
             // وضع القيمة الثابتة - اختيار شكل وتطبيق مباشرة
-            const shape = this.cad.getShapeAt(world.x, world.y);
+            const coords = this.cad.getMouseCoordinates();
+const shape = this.cad.getShapeAtScreen(coords.screenX, coords.screenY);
             
             if (shape && this.canOffsetShape(shape)) {
                 // تحديد الاتجاه بناءً على موضع النقرة
@@ -60,7 +61,8 @@ export class OffsetTool extends BaseTool {
             
         } else if (!this.selectedShape) {
             // الوضع العادي - اختيار الشكل الأول
-            const shape = this.cad.getShapeAt(world.x, world.y);
+            const coords = this.cad.getMouseCoordinates();
+const shape = this.cad.getShapeAtScreen(coords.screenX, coords.screenY);
             
             if (shape && this.canOffsetShape(shape)) {
                 this.selectedShape = shape;
@@ -108,7 +110,8 @@ export class OffsetTool extends BaseTool {
         
         if (this.isFixedMode && this.fixedDistance) {
             // في وضع القيمة الثابتة - عرض معاينة عند المرور على الأشكال
-            const shape = this.cad.getShapeAt(world.x, world.y);
+            const coords = this.cad.getMouseCoordinates();
+const shape = this.cad.getShapeAtScreen(coords.screenX, coords.screenY);
             
             if (shape && this.canOffsetShape(shape)) {
                 this.offsetSide = this.determineOffsetSide(shape, world);

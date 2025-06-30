@@ -360,71 +360,71 @@
          */
             
         addVertexAtEdge(edgeGrip, clickPoint) {
-            if (!edgeGrip) return;
+    if (!edgeGrip) return;
+    
+    const shape = edgeGrip.shape;
+    this.cad.recordState();
+    
+    // استخدم النقطة المنقرة مباشرة بدلاً من نقطة منتصف الـ edge
+    const newPoint = this.getSnappedPosition(clickPoint);
+    
+    switch (shape.type) {
+        case 'line':
+            // تحويل الخط إلى polyline
+            shape.type = 'polyline';
+            shape.points = [
+                shape.start,
+                newPoint,
+                shape.end
+            ];
+            delete shape.start;
+            delete shape.end;
+            break;
             
-            const shape = edgeGrip.shape;
-            this.cad.recordState();
+        case 'rectangle':
+            // حفظ الخصائص المهمة قبل التحويل
+            const preservedProps = {
+                filled: shape.filled,
+                fillColor: shape.fillColor,
+                color: shape.color,
+                lineWidth: shape.lineWidth,
+                lineType: shape.lineType,
+                layerId: shape.layerId
+            };
             
-            // استخدم النقطة المنقرة مباشرة بدلاً من نقطة منتصف الـ edge
-            const newPoint = this.getSnappedPosition(clickPoint);
+            // تحويل المستطيل إلى polygon
+            const corners = this.getRectangleCorners(shape);
+            const points = [...corners];
             
-            switch (shape.type) {
-                case 'line':
-                    // تحويل الخط إلى polyline
-                    shape.type = 'polyline';
-                    shape.points = [
-                        shape.start,
-                        newPoint,
-                        shape.end
-                    ];
-                    delete shape.start;
-                    delete shape.end;
-                    break;
-                    
-                case 'rectangle':
-                    // حفظ الخصائص المهمة قبل التحويل
-                    const preservedProps = {
-                        filled: shape.filled,
-                        fillColor: shape.fillColor,
-                        color: shape.color,
-                        lineWidth: shape.lineWidth,
-                        lineType: shape.lineType,
-                        layerId: shape.layerId
-                    };
-                    
-                    // تحويل المستطيل إلى polygon
-                    const corners = this.getRectangleCorners(shape);
-                    const points = [...corners];
-                    
-                    // إدراج النقطة في الموقع الصحيح
-                    points.splice(edgeGrip.endIndex, 0, newPoint);
-                    
-                    shape.type = 'polygon';
-                    shape.points = points;
-                    shape.closed = true;
-                    
-                    // استعادة الخصائص المحفوظة
-                    Object.assign(shape, preservedProps);
-                    
-                    // حذف الخصائص القديمة للمستطيل
-                    delete shape.start;
-                    delete shape.end;
-                    delete shape.x;
-                    delete shape.y;
-                    delete shape.width;
-                    delete shape.height;
-                    break;
-                    
-                case 'polyline':
-                case 'polygon':
-                    // إدراج النقطة في المكان الصحيح
-                    shape.points.splice(edgeGrip.endIndex, 0, newPoint);
-                    break;
-            }
+            // إدراج النقطة في الموقع الصحيح
+            points.splice(edgeGrip.endIndex, 0, newPoint);
             
-            this.cad.updateStatus('Vertex added');
-            this.cad.render();
-        }
+            shape.type = 'polygon';
+            shape.points = points;
+            shape.closed = true;
+            
+            // استعادة الخصائص المحفوظة
+            Object.assign(shape, preservedProps);
+            
+            // حذف الخصائص القديمة للمستطيل
+            delete shape.start;
+            delete shape.end;
+            delete shape.x;
+            delete shape.y;
+            delete shape.width;
+            delete shape.height;
+            break;
+            
+        case 'polyline':
+        case 'polygon':
+            // إدراج النقطة في المكان الصحيح
+            shape.points.splice(edgeGrip.endIndex, 0, newPoint);
+            break;
+    }
+    
+    this.cad.updateStatus('Vertex added');
+    this.cad.render();
+}
         
         /**
          * تطبيق القيود على الحركة

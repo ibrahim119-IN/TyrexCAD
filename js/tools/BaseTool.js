@@ -712,7 +712,7 @@ export class ModifyToolBase extends BaseTool {
         this.previewShapes = [];
         this.basePoint = null;
         this.referencePoint = null;
-        this.showSelectionGrips = true;  // إضافة هذه الخاصية للسماح بعرض grips
+        this.showSelectionGrips = true;  // إضافة هذه الخاصية
     }
     
     onActivate() {

@@ -83,7 +83,7 @@ export class LineTool extends DrawingToolBase {
                 
                 const endPoint = {
                     x: startPoint.x + length * Math.cos(angle),
-                    y: startPoint.y + length * Math.sin(angle)
+                    y: startPoint.y - length * Math.sin(angle)  // 🔧 تعديل لعكس عقارب الساعة
                 };
                 
                 this.createLine(startPoint, endPoint);
@@ -158,6 +158,7 @@ export class LineTool extends DrawingToolBase {
     
     /**
      * حساب نقطة النهاية بناءً على القيم المدخلة
+     * 🔧 محدث لاستخدام الزوايا عكس عقارب الساعة
      */
     calculateEndPoint() {
         const start = this.drawingPoints[0];
@@ -165,8 +166,14 @@ export class LineTool extends DrawingToolBase {
         // تحديد الطول
         let length = this.inputLength !== null ? this.inputLength : this.currentDistance;
         
-        // تحديد الزاوية
-        let angle = this.inputAngle !== null ? (this.inputAngle * Math.PI / 180) : this.currentAngle;
+        // تحديد الزاوية - عكس عقارب الساعة من المحور X الموجب
+        let angle;
+        if (this.inputAngle !== null) {
+            // تحويل الزاوية المدخلة للراديان (عكس عقارب الساعة)
+            angle = this.inputAngle * Math.PI / 180;
+        } else {
+            angle = this.currentAngle;
+        }
         
         return {
             x: start.x + length * Math.cos(angle),
@@ -189,6 +196,9 @@ export class LineTool extends DrawingToolBase {
     updateDynamicInputField() {
         const isLengthField = this.activeField === 'length';
         
+        // حفظ reference للأداة
+        const tool = this;
+        
         this.showDynamicInputForValue({
             inputType: isLengthField ? INPUT_TYPES.DISTANCE : INPUT_TYPES.ANGLE,
             label: isLengthField ? 'Length' : 'Angle',
@@ -197,104 +207,106 @@ export class LineTool extends DrawingToolBase {
             
             onInput: (value) => {
                 if (value !== null && value !== '') {
-                    if (isLengthField) {
-                        this.inputLength = value;
+                    if (tool.activeField === 'length') {
+                        // حقل الطول - القيمة محولة للوحدة الداخلية
+                        tool.inputLength = value;
                     } else {
-                        this.inputAngle = value;
+                        // حقل الزاوية - القيمة بالدرجات
+                        tool.inputAngle = parseFloat(value);
                     }
                     
                     // تحديث المعاينة فوراً
-                    this.updateConstrainedPreview();
+                    tool.updateConstrainedPreview();
                 } else {
-                    if (isLengthField) {
-                        this.inputLength = null;
+                    if (tool.activeField === 'length') {
+                        tool.inputLength = null;
                     } else {
-                        this.inputAngle = null;
+                        tool.inputAngle = null;
                     }
                 }
             },
             
             onConfirm: (value) => {
-                if (this.drawingPoints.length > 0) {
+                if (tool.drawingPoints.length > 0) {
                     // تأكد من أن لدينا القيم المطلوبة
-                    if (this.inputLength === null && this.inputAngle === null) {
+                    if (tool.inputLength === null && tool.inputAngle === null) {
                         // لا توجد قيم مدخلة
                         return;
                     }
                     
-                    const endPoint = this.calculateEndPoint();
+                    const endPoint = tool.calculateEndPoint();
                     
-                    this.createLine(this.drawingPoints[0], endPoint);
-                    this.lastEndPoint = endPoint;
-                    this.lineCount++;
+                    tool.createLine(tool.drawingPoints[0], endPoint);
+                    tool.lastEndPoint = endPoint;
+                    tool.lineCount++;
                     
                     // الاستمرار من نقطة النهاية
-                    this.drawingPoints = [endPoint];
-                    this.inputLength = null;
-                    this.inputAngle = null;
-                    this.activeField = 'length';
+                    tool.drawingPoints = [endPoint];
+                    tool.inputLength = null;
+                    tool.inputAngle = null;
+                    tool.activeField = 'length';
                     
                     // مسح الإدخال والاستمرار
-                    if (this.cad.dynamicInputManager) {
-                        this.cad.dynamicInputManager.clearInput();
+                    if (tool.cad.dynamicInputManager) {
+                        tool.cad.dynamicInputManager.clearInput();
                     }
                     
-                    this.updateStatus(`Line ${this.lineCount} created. Specify next point or ESC/Space to finish`);
+                    tool.updateStatus(`Line ${tool.lineCount} created. Specify next point or ESC/Space to finish`);
                     
                     // إعادة عرض للخط التالي
-                    this.updateDynamicInputField();
+                    tool.updateDynamicInputField();
                 }
             },
             
             onTab: () => {
                 // التبديل بين حقل الطول والزاوية
-                const wasLength = this.activeField === 'length';
-                this.activeField = wasLength ? 'angle' : 'length';
+                const wasLength = tool.activeField === 'length';
+                tool.activeField = wasLength ? 'angle' : 'length';
                 
                 // حفظ القيمة الحالية قبل التبديل
-                const currentInputValue = this.cad.dynamicInputManager?.inputElement?.value || '';
+                const currentInputValue = tool.cad.dynamicInputManager?.inputElement?.value || '';
                 
                 // تحديث الحقل مباشرة بدون إخفاء
-                if (this.cad.dynamicInputManager && this.cad.dynamicInputManager.active) {
+                if (tool.cad.dynamicInputManager && tool.cad.dynamicInputManager.active) {
                     // تحديث الإعدادات
-                    const isLengthField = this.activeField === 'length';
+                    const isLengthField = tool.activeField === 'length';
                     
                     // تحديث التسمية
-                    this.cad.dynamicInputManager.labelElement.textContent = 
+                    tool.cad.dynamicInputManager.labelElement.textContent = 
                         isLengthField ? 'Length:' : 'Angle:';
                     
                     // تحديث الوحدة
-                    this.cad.dynamicInputManager.unitElement.textContent = 
-                        isLengthField ? (this.cad.currentUnit || 'mm') : '°';
+                    tool.cad.dynamicInputManager.unitElement.textContent = 
+                        isLengthField ? (tool.cad.currentUnit || 'mm') : '°';
                     
                     // تحديث placeholder
-                    this.cad.dynamicInputManager.inputElement.placeholder = 
+                    tool.cad.dynamicInputManager.inputElement.placeholder = 
                         isLengthField ? 'Line length' : 'Line angle';
                     
                     // تحديث نوع الإدخال في التكوين
-                    this.dynamicInputConfig.inputType = 
+                    tool.dynamicInputConfig.inputType = 
                         isLengthField ? INPUT_TYPES.DISTANCE : INPUT_TYPES.ANGLE;
                     
                     // مسح الحقل وإعطاء التركيز
-                    this.cad.dynamicInputManager.inputElement.value = '';
-                    this.cad.dynamicInputManager.inputElement.focus();
-                    this.cad.dynamicInputManager.inputElement.select();
+                    tool.cad.dynamicInputManager.inputElement.value = '';
+                    tool.cad.dynamicInputManager.inputElement.focus();
+                    tool.cad.dynamicInputManager.inputElement.select();
                     
                     // إذا كان هناك قيمة مدخلة سابقاً، اعرضها
-                    if (isLengthField && this.inputLength !== null) {
-                        let displayValue = this.inputLength;
-                        if (this.cad.units && this.cad.currentUnit) {
+                    if (isLengthField && tool.inputLength !== null) {
+                        let displayValue = tool.inputLength;
+                        if (tool.cad.units && tool.cad.currentUnit) {
                             try {
-                                displayValue = this.cad.units.fromInternal(this.inputLength, this.cad.currentUnit);
+                                displayValue = tool.cad.units.fromInternal(tool.inputLength, tool.cad.currentUnit);
                             } catch (e) {}
                         }
-                        this.cad.dynamicInputManager.inputElement.value = displayValue.toFixed(2);
-                    } else if (!isLengthField && this.inputAngle !== null) {
-                        this.cad.dynamicInputManager.inputElement.value = this.inputAngle.toFixed(1);
+                        tool.cad.dynamicInputManager.inputElement.value = displayValue.toFixed(2);
+                    } else if (!isLengthField && tool.inputAngle !== null) {
+                        tool.cad.dynamicInputManager.inputElement.value = tool.inputAngle.toFixed(1);
                     }
                     
                     // تحديث رسالة الحالة
-                    this.updateStatusMessage();
+                    tool.updateStatusMessage();
                 }
             }
         });
@@ -302,6 +314,7 @@ export class LineTool extends DrawingToolBase {
     
     /**
      * تحديث قيم الإدخال الديناميكي
+     * 🔧 محدث لعرض الزوايا بشكل صحيح
      */
     updateDynamicInputValues() {
         if (this.cad.dynamicInputManager && this.cad.dynamicInputManager.active) {
@@ -316,7 +329,9 @@ export class LineTool extends DrawingToolBase {
                 }
                 this.cad.dynamicInputManager.updateLiveValue(displayDistance);
             } else {
-                const angleDeg = this.currentAngle * 180 / Math.PI;
+                // عرض الزاوية بالدرجات (عكس عقارب الساعة)
+                let angleDeg = this.currentAngle * 180 / Math.PI;
+                if (angleDeg < 0) angleDeg += 360;
                 this.cad.dynamicInputManager.updateLiveValue(angleDeg);
             }
         }
@@ -324,9 +339,13 @@ export class LineTool extends DrawingToolBase {
     
     /**
      * تحديث رسالة الحالة
+     * 🔧 محدث لعرض الزوايا بشكل صحيح
      */
     updateStatusMessage() {
-        const angleDeg = this.currentAngle * 180 / Math.PI;
+        // حساب الزاوية بالدرجات (عكس عقارب الساعة)
+        let angleDeg = this.currentAngle * 180 / Math.PI;
+        if (angleDeg < 0) angleDeg += 360;
+        
         let displayDist = this.currentDistance;
         
         if (this.cad.units && this.cad.currentUnit) {
@@ -399,6 +418,7 @@ export class LineTool extends DrawingToolBase {
     
     /**
      * إنشاء الخط
+     * 🔧 محدث لحفظ الزاوية بشكل صحيح
      */
     createLine(start, end) {
         const shape = this.createShape({
@@ -413,7 +433,10 @@ export class LineTool extends DrawingToolBase {
         const dx = end.x - start.x;
         const dy = end.y - start.y;
         const length = Math.sqrt(dx * dx + dy * dy);
-        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+        
+        // حساب الزاوية بالدرجات (عكس عقارب الساعة)
+        let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+        if (angle < 0) angle += 360;
         
         this.saveLastLineLength(length);
         this.saveLastLineAngle(angle);

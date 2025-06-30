@@ -19,7 +19,8 @@ export class TrimTool extends BaseTool {
     
     onClick(point) {
         const world = this.cad.screenToWorld(this.cad.mouseX, this.cad.mouseY);
-        const shape = this.cad.getShapeAt(world.x, world.y);
+        const coords = this.cad.getMouseCoordinates();
+const shape = this.cad.getShapeAtScreen(coords.screenX, coords.screenY);
         
         if (!this.boundaries.length) {
             if (shape) {

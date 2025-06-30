@@ -106,11 +106,11 @@ export class PolygonTool extends DrawingToolBase {
             }
             
             const shape = this.createShape({
-                type: 'polygon',
-                points: points,
-                closed: true,
-                filled: false  // إضافة قيمة افتراضية
-            });
+    type: 'polygon',
+    points: points,
+    closed: true,
+    filled: false  // إضافة قيمة افتراضية
+});
             
             this.cad.addShape(shape);
             this.updateStatus('Polygon created');

@@ -565,68 +565,69 @@ class TyrexCAD {
     
     // Coordinate transformations
     screenToWorld(x, y) {
-    // تطبيق التحويل بدقة أعلى
+    // إزالة التقريب لتحسين الدقة
     const worldX = (x - this.panX) / this.zoom;
     const worldY = (y - this.panY) / this.zoom;
     
     return {
-        x: Math.round(worldX * 1000000) / 1000000,
-        y: Math.round(worldY * 1000000) / 1000000
+        x: worldX,
+        y: worldY
     };
 }
     
     worldToScreen(x, y) {
-    // تطبيق التحويل بدقة أعلى
+    // إزالة التقريب لتحسين الدقة
     const screenX = x * this.zoom + this.panX;
     const screenY = y * this.zoom + this.panY;
     
     return {
-        x: Math.round(screenX * 1000) / 1000,
-        y: Math.round(screenY * 1000) / 1000
+        x: screenX,
+        y: screenY
     };
 }
     
-    // Mouse events
     onMouseDown(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        this.mouseDown = true;
-        
-        if (e.button === 0) { // Left click
-            if (this.currentTool === 'pan') {
-                this.startPanning(x, y);
-            } else if (this.currentTool === 'select') {
-                // في أداة select - السلوك الجديد
-                if (e.shiftKey && !this.isSelecting) {
-                    this.startPanning(x, y);
-                } else {
-                    if (this.currentTool === 'select') {
-                    // استخدم موقع الماوس الدقيق
-                    const worldExact = this.screenToWorld(x, y);
-                    this.handleSelection(x, y, e.ctrlKey, worldExact);
-                }
-                }
-            } else {
-                // في الأدوات الأخرى
-                if (e.shiftKey) {
-                    this.startPanning(x, y);
-                } else {
-                    this.handleDrawing(x, y);
-                }
-            }
-        } else if (e.button === 1) { // Middle click
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // حدث إحداثيات الماوس فوراً
+    this.mouseX = x;
+    this.mouseY = y;
+    
+    this.mouseDown = true;
+    
+    if (e.button === 0) { // Left click
+        if (this.currentTool === 'pan') {
             this.startPanning(x, y);
-        } else if (e.button === 2) { // Right click
-            if (this.isDrawing && this.currentTool === 'polyline') {
-                this.delegateToTool('finishPolyline');
-            } else if (this.isSelecting) {
-                // إلغاء selection box بالنقر الأيمن
-                this.cancelSelection();
+        } else if (this.currentTool === 'select') {
+            // في أداة select - السلوك الجديد
+            if (e.shiftKey && !this.isSelecting) {
+                this.startPanning(x, y);
+            } else {
+                // استخدم الإحداثيات المحدثة
+                const coords = this.getMouseCoordinates(e);
+                this.handleSelection(coords.screenX, coords.screenY, e.ctrlKey, coords.world);
+            }
+        } else {
+            // في الأدوات الأخرى
+            if (e.shiftKey) {
+                this.startPanning(x, y);
+            } else {
+                this.handleDrawing(x, y);
             }
         }
+    } else if (e.button === 1) { // Middle click
+        this.startPanning(x, y);
+    } else if (e.button === 2) { // Right click
+        if (this.isDrawing && this.currentTool === 'polyline') {
+            this.delegateToTool('finishPolyline');
+        } else if (this.isSelecting) {
+            // إلغاء selection box بالنقر الأيمن
+            this.cancelSelection();
+        }
     }
+}
     
     onMouseMove(e) {
     const rect = this.canvas.getBoundingClientRect();
@@ -1492,13 +1493,17 @@ class TyrexCAD {
         }
     }
     
-    // Selection - محدثة لدعم Grips والسلوك الجديد
-    handleSelection(x, y, ctrlKey, exactWorldPoint = null) {
-    const world = exactWorldPoint || this.screenToWorld(x, y);
+   handleSelection(x, y, ctrlKey, exactWorldPoint = null) {
+    // استخدم الإحداثيات الدقيقة
+    const coords = this.getMouseCoordinates();
+    const world = exactWorldPoint || coords.world;
     
-    // معالجة سحب Grip أولاً - استخدام screen coordinates للبحث المحسن
+    // معالجة سحب Grip أولاً - استخدام screen coordinates الدقيقة
     if (this.gripsController && this.selectedShapes.size > 0) {
-        const grip = this.gripsController.findGripAtScreen({x, y}, this.selectedShapes);
+        const grip = this.gripsController.findGripAtScreen(
+            {x: coords.screenX, y: coords.screenY}, 
+            this.selectedShapes
+        );
         
         if (grip) {
             this.gripsController.startDrag(grip, world);
@@ -1506,8 +1511,8 @@ class TyrexCAD {
         }
     }
     
-    // التحقق من الأشكال
-    const shape = this.getShapeAt(world.x, world.y);
+    // استخدم getShapeAtScreen للدقة
+    const shape = this.getShapeAtScreen(coords.screenX, coords.screenY);
     
     if (shape) {
         // نقرة على شكل
@@ -1525,22 +1530,26 @@ class TyrexCAD {
                 this.selectedShapes.add(shape);
             }
         } else {
-            // استبدال التحديد
-            if (!this.selectedShapes.has(shape)) {
-                this.selectedShapes.clear();
-                this.selectedShapes.add(shape);
-            }
+            // التحديد الجديد
+            this.selectedShapes.clear();
+            this.selectedShapes.add(shape);
         }
+        
+        this.updateStatus(`${this.selectedShapes.size} object(s) selected`);
         this.ui.updatePropertiesPanel();
         this.render();
     } else {
-        // نقرة في الفراغ - بدء أو إنهاء selection box
-        if (!this.selectionFirstClick) {
-            // النقرة الأولى - بدء التحديد
-            this.startSelectionBox(x, y, ctrlKey);
-        } else {
+        // نقرة على فراغ - بدء selection box
+        if (this.isSelecting && this.selectionFirstClick) {
             // النقرة الثانية - إنهاء التحديد
+            this.selectionEnd = world;
             this.finishSelection();
+        } else {
+            // النقرة الأولى - بدء selection box
+            if (!ctrlKey && !this.cumulativeSelection) {
+                this.selectedShapes.clear();
+            }
+            this.startSelectionBox(x, y, ctrlKey);
         }
     }
 }
@@ -1809,34 +1818,21 @@ class TyrexCAD {
     }
     
     /**
-     * الحصول على الشكل عند نقطة معينة
-     * @param {number} x - إحداثي X
-     * @param {number} y - إحداثي Y
-     * @returns {Object|null} الشكل إذا وُجد أو null
-     */
-    getShapeAt(x, y) {
-        const tolerance = 5 / this.zoom;
-        
-        // البحث بترتيب عكسي (الأشكال الأحدث أولاً)
-        for (let i = this.shapes.length - 1; i >= 0; i--) {
-            const shape = this.shapes[i];
-            
-            // تحقق من الطبقة
-            const layer = this.getLayer(shape.layerId);
-            if (!layer || !layer.visible || layer.locked || (layer.frozen && this.layerManager)) continue;
-            
-            if (this.isPointOnShape(x, y, shape, tolerance)) {
-                return shape;
-            }
-        }
-        
-        return null;
-    }
+ * الحصول على الشكل عند نقطة معينة
+ * @param {number} x - إحداثي X
+ * @param {number} y - إحداثي Y
+ * @returns {Object|null} الشكل إذا وُجد أو null
+ */
+getShapeAt(x, y) {
+    // استخدم getShapeAtScreen للدقة الأفضل
+    const screenCoords = this.worldToScreen(x, y);
+    return this.getShapeAtScreen(screenCoords.x, screenCoords.y);
+}
 
 
 
 
-    /**
+ /**
  * الحصول على الشكل عند نقطة شاشة مع tolerance ثابت
  * @param {number} screenX - إحداثي X على الشاشة
  * @param {number} screenY - إحداثي Y على الشاشة
@@ -1867,6 +1863,41 @@ getShapeAtScreen(screenX, screenY, screenTolerance = 10) {
     return null;
 }
 
+
+/**
+ * الحصول على إحداثيات الماوس الحالية بدقة
+ * @param {MouseEvent} event - حدث الماوس (اختياري)
+ * @returns {Object} إحداثيات الشاشة والعالم
+ */
+getMouseCoordinates(event = null) {
+    let screenX, screenY;
+    
+    if (event) {
+        // استخدم الإحداثيات من الحدث مباشرة
+        const rect = this.canvas.getBoundingClientRect();
+        screenX = event.clientX - rect.left;
+        screenY = event.clientY - rect.top;
+        
+        // حدث القيم المحفوظة أيضاً
+        this.mouseX = screenX;
+        this.mouseY = screenY;
+    } else {
+        // استخدم القيم المحفوظة
+        screenX = this.mouseX || 0;
+        screenY = this.mouseY || 0;
+    }
+    
+    // تحويل دقيق للعالم
+    const world = this.screenToWorld(screenX, screenY);
+    
+    return {
+        screenX: screenX,
+        screenY: screenY,
+        worldX: world.x,
+        worldY: world.y,
+        world: world
+    };
+}
 
     
     /**
@@ -1931,7 +1962,7 @@ getShapeAtScreen(screenX, screenY, screenTolerance = 10) {
     
 
 
-    /**
+   /**
  * التحقق من وقوع نقطة داخل شكل
  */
 isPointInShape(point, shape, customTolerance = null) {
@@ -1942,7 +1973,7 @@ isPointInShape(point, shape, customTolerance = null) {
             return this.isPointOnLine(point.x, point.y, shape.start, shape.end, tolerance);
             
         case 'rectangle':
-            // 🆕 إذا كان المستطيل مدور
+            // إذا كان المستطيل مدور
             if (shape.rotation && shape.rotation !== 0) {
                 const centerX = shape.center ? shape.center.x : (shape.start.x + shape.end.x) / 2;
                 const centerY = shape.center ? shape.center.y : (shape.start.y + shape.end.y) / 2;

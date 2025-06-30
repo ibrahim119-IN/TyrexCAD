@@ -74,34 +74,35 @@ export class BreakTool extends BaseTool {
             this.handleSinglePointBreak();
         }
     }
-    
+
+
     /**
-     * معالجة اختيار الكائن
-     */
-    handleObjectSelection(point) {
-        // استخدم النقطة المرسلة مباشرة
-        const shape = this.findShapeAtPoint(point);
-        
-        if (!shape) {
-            this.updateStatus('No object found - try clicking directly on an object');
-            return;
-        }
-        
-        if (!this.canBreakShape(shape)) {
-            this.updateStatus('Object cannot be broken - only lines, arcs, circles, and polylines supported');
-            return;
-        }
-        
-        this.targetShape = shape;
-        this.step = 'first-point';
-        this.updateStatus('Specify first break point');
-        
-        // إضافة الشكل للتحديد لأغراض البصرية
-        this.cad.selectedShapes.clear();
-        this.cad.selectedShapes.add(shape);
-        this.cad.render();
+ * معالجة اختيار الكائن
+ */
+handleObjectSelection(point) {
+    // استخدم الإحداثيات الدقيقة
+    const coords = this.cad.getMouseCoordinates();
+    const shape = this.cad.getShapeAtScreen(coords.screenX, coords.screenY);
+    
+    if (!shape) {
+        this.updateStatus('No object found - try clicking directly on an object');
+        return;
     }
     
+    if (!this.canBreakShape(shape)) {
+        this.updateStatus('Object cannot be broken - only open objects supported');
+        return;
+    }
+    
+    this.targetShape = shape;
+    this.step = 'break-point';
+    this.updateStatus('Specify break point');
+    
+    // إضافة الشكل للتحديد لأغراض البصرية
+    this.cad.selectedShapes.clear();
+    this.cad.selectedShapes.add(shape);
+    this.cad.render();
+}
     /**
      * معالجة النقطة الأولى للكسر
      */
@@ -151,31 +152,41 @@ export class BreakTool extends BaseTool {
         this.finishBreak();
     }
     
-    /**
-     * البحث عن شكل باستخدام screen coordinates
-     */
-    findShapeAtPoint(point) {
-        // استخدام إحداثيات الشاشة الفعلية مع getShapeAtScreen
+   /**
+ * البحث عن شكل باستخدام screen coordinates
+ */
+findShapeAtPoint(point) {
+    // استخدام الإحداثيات الدقيقة من النظام الجديد
+    if (this.cad.getMouseCoordinates) {
+        const coords = this.cad.getMouseCoordinates();
+        
+        // استخدم getShapeAtScreen إن كانت متاحة
         if (this.cad.getShapeAtScreen) {
-            return this.cad.getShapeAtScreen(this.cad.mouseX, this.cad.mouseY);
+            return this.cad.getShapeAtScreen(coords.screenX, coords.screenY);
         }
-        
-        // Fallback للدالة القديمة إذا لم تكن getShapeAtScreen متاحة
-        if (this.cad.getShapeAt) {
-            return this.cad.getShapeAt(point.x, point.y);
-        }
-        
-        // دالة بديلة للبحث عن الأشكال
-        const tolerance = 5 / this.cad.zoom; // tolerance متكيف مع التكبير
-        
-        for (const shape of this.cad.shapes) {
-            if (this.isPointNearShape(point, shape, tolerance)) {
-                return shape;
-            }
-        }
-        
-        return null;
     }
+    
+    // Fallback: استخدم الإحداثيات المحفوظة
+    if (this.cad.getShapeAtScreen) {
+        return this.cad.getShapeAtScreen(this.cad.mouseX, this.cad.mouseY);
+    }
+    
+    // Fallback للدالة القديمة إذا لم تكن getShapeAtScreen متاحة
+    if (this.cad.getShapeAt) {
+        return this.cad.getShapeAt(point.x, point.y);
+    }
+    
+    // دالة بديلة للبحث عن الأشكال (كحل أخير)
+    const tolerance = 5 / this.cad.zoom;
+    
+    for (const shape of this.cad.shapes) {
+        if (this.isPointNearShape(point, shape, tolerance)) {
+            return shape;
+        }
+    }
+    
+    return null;
+}
     
     /**
      * التحقق من قرب النقطة من الشكل
